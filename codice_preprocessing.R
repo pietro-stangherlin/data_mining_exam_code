@@ -5,13 +5,6 @@ library(dplyr)
 # Per Lapsus
 # CTRL + C per commentare più righe di codice
 
-# Template per risposta quantitativa + preprocessing
-# con n grande e p piccolo
-# ma devo fare tutti gli eventuali casi 
-# quindi sia stima + convalida
-# convalida  incrociata per l'insieme di stima
-# convalida incrociata come valutazione finale
-
 # /////////////////////////////////////////////////////////////////////////////
 #  ----------------------- Lettura e Preprocessing -----------------------------
 # /////////////////////////////////////////////////////////////////////////////
@@ -509,21 +502,21 @@ str(dati)
 
 # Tutte le variabili character ------------------------
 # per motivi computazionali, al costo di perdere informazioni
-# riduco le modalità a 30 modalità
+# riduco le modalità a 25 modalità
 
 # funzione per una singola variabile
 GroupValuesQual = function(df, qual_vector_var_name, new_name = "Altro"){
   temp_table_freq = TableFreqFun(df, qual_vector_var_name)
   
   # meno di 30 modalità: non c'è bisogno di nessuna modifica
-  if (length(temp_table_freq) <= 30){
+  if (length(temp_table_freq) <= 25){
     return(df[, qual_vector_var_name])
   }
   
   # altrimenti riduci le modalità
   # seleziona la frequenza soglia oltre cui aggregare
   # (temp_table_freq è già ordinata in ordine decrescente per frequenza)
-  freq_threshold = temp_table_freq[29]
+  freq_threshold = temp_table_freq[24]
   
   return(RaggruppaModalita(df, qual_vector_var_name, temp_table_freq,
                            freq_threshold, new_name))
