@@ -1,4 +1,4 @@
-
+library(dplyr)
 # /////////////////////////////////////////////////////////////////
 #------------------------ Stima e Verifica ------------------------
 # /////////////////////////////////////////////////////////////////
@@ -45,19 +45,22 @@ Null.Loss = function(y.pred, y.test, weights = 1){
 # Cambia MAE eventualmente
 
 # °°°°°°°°°°°°°°°°°°°°°°° Warning: °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-# cambia la funzione di errore il problema specifico
+# cambia la funzione di errore per il problema specifico
 
+# in generale uso sia MAE che MSE
 USED.Loss = function(y.pred, y.test, weights = 1){
-  return(MAE.Loss(y.pred, y.test, weights))
+  return(c(MAE.Loss(y.pred, y.test, weights), MSE.Loss(y.pred, y.test, weights)))
 }
 
 
 # anche qua
-df_err_quant = data.frame(name = NA, MAE = NA)
+df_err_quant = data.frame(name = NA, MAE = NA, MSE = NA)
 
 
 # Funzione per aggiornare il data.frame degli errori
 # (inefficiente, ma amen, tanto le operazioni che deve eseguire sono sempre limitate)
+
+
 # Add the error to the df_error data.frame:
 # if the df_error already has a model name in name column with the same as input: update the error value
 # otherwise append the new name and error
@@ -73,7 +76,7 @@ Add_Test_Error = function(df_error, model_name, loss_value){
   
   # if yes: get the index and subscribe
   if(is_name){
-    df_error[which(df_error[,1] == model_name),2] = loss_value
+    df_error[which(df_error[,1] == model_name),2:length(loss_value)] = loss_value
   }
   
   else{
@@ -96,6 +99,7 @@ hist(sss$y,nclass = 100)
 summary(sss$y)
 
 # possiamo provare a trasformare la risposta
+# ATTENZIONE se y è <= 0 -> trasforma in modo adeguato
 hist(log(sss$y), nclass = 100)
 
 # anche se le distribuzioni marginali non 
@@ -140,18 +144,12 @@ lm0 = lm(y ~ 1, data = sss)
 lm_step_no_interaction = step(lm0, scope = formula_no_interaction_yes_intercept,
                  direction = "forward")
 
-rm(lm0)
+
 
 
 # salvo la formula: ATTENZIONE: cambiare
-# y ~ Obiettivo + Sottocategoria + Anno + Categoria + Durata + 
-#   Nazione
-lm_step_no_interaction = lm(y ~ Obiettivo + Sottocategoria + Anno + Categoria + Durata + Nazione, data = sss)
-
-
-
-
-
+# y ~ x1 + x2
+# lm_step_no_interaction = lm(y ~ x1 + x2, data = sss)
 
 df_err_quant = Add_Test_Error(df_err_quant,
                               "lm_step_no_interaction",
@@ -165,15 +163,29 @@ rm(lm_step_no_interaction)
 gc()
 
 # computazionalmente costoso (probabilmente)
-# lm_step_yes_interaction = step(lm0, scope = formula_yes_interaction_yes_intercept,
-#                               direction = "forward")
+lm_step_yes_interaction = step(lm0, scope = formula_yes_interaction_yes_intercept,
+                               direction = "forward")
 
 # salvo la formula
+# y ~ 1
+
+
+df_err_quant = Add_Test_Error(df_err_quant,
+                              "lm_step_yes_interaction",
+                              USED.Loss(predict(lm_step_yes_interaction, newdata = vvv), vvv$y))
+
+
+
+rm(lm0)
+rm(lm_step_yes_interaction)
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Ridge e Lasso ------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Compromesso varianza - distorsione: convalida incrociata sull'insieme di stima
+
+KFOlDS = 10
 
 # valuta: se ci sono molte esplicative qualitative -> model.matrix con molti zeri
 # library(Matrix)
@@ -209,26 +221,28 @@ library(glmnet)
 # No Interaction
 # Selezione tramite cv
 ridge_cv_no_interaction = cv.glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                    alpha = 0,
+                                    alpha = 0, nfols = KFOLDS,
                                     lambda.min.ratio = 1e-07)
 
 plot(ridge_cv_no_interaction)
 
+
+
 # salvo i risultati
 # > ridge_cv_no_interaction$lambda.min
-# [1] 1866.315
+# [1] 2.755162
 # > ridge_cv_no_interaction$lambda.1se
-# [1] 1145154
+# [1] 2.755162
 
 
 # ri-stimo i modelli con il lambda scelto
 
 ridge_no_interaction_l1se = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                   alpha = 0,
+                                   alpha = 0, nfols = KFOLDS, nfols = KFOLDS,
                                    lambda = ridge_cv_no_interaction$lambda.1se)
 
 ridge_no_interaction_lmin = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                   alpha = 0,
+                                   alpha = 0, nfols = KFOLDS,
                                    lambda = ridge_cv_no_interaction$lambda.min)
 
 # elimino dalla memoria l'oggetto ridge_cv
@@ -249,7 +263,7 @@ df_err_quant
 # # YES Interaction: potrebbe essere troppo computazionalmente oneroso
 # # Selezione tramite cv
 # ridge_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-#                                     alpha = 0,
+#                                     alpha = 0, nfols = KFOLDS,
 #                                     lambda.min.ratio = 1e-07)
 # 
 # plot(ridge_cv_yes_interaction)
@@ -264,11 +278,11 @@ df_err_quant
 # # ri-stimo i modelli con il lambda scelto
 # 
 # ridge_yes_interaction_l1se = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-#                                    alpha = 0,
+#                                    alpha = 0, nfols = KFOLDS,
 #                                    lambda = ridge_cv_yes_interaction$lambda.1se)
 # 
 # ridge_yes_interaction_lmin = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-#                                    alpha = 0,
+#                                    alpha = 0, nfols = KFOLDS,
 #                                    lambda = ridge_cv_yes_interaction$lambda.min)
 # 
 # # elimino dalla memoria l'oggetto ridge_cv
@@ -292,26 +306,26 @@ df_err_quant
 # NO Interaction
 # Selezione tramite cv
 lasso_cv_no_interaction = cv.glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                    alpha = 1,
+                                    alpha = 1, nfols = KFOLDS,
                                     lambda.min.ratio = 1e-07)
 
 plot(lasso_cv_no_interaction)
 
 # salvo i risultati
 # > lasso_cv_no_interaction$lambda.min
-# [1] 141.1799
+# [1] 0.002755162
 # > lasso_cv_no_interaction$lambda.1se
-# [1] 56994.57
+# [1] 0.002755162
 
 
 # ri-stimo i modelli con il lambda scelto
 
 lasso_no_interaction_l1se = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                   alpha = 1,
+                                   alpha = 1, nfols = KFOLDS,
                                    lambda = lasso_cv_no_interaction$lambda.1se)
 
 lasso_no_interaction_lmin = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                   alpha = 1,
+                                   alpha = 1, nfols = KFOLDS,
                                    lambda = lasso_cv_no_interaction$lambda.min)
 
 # elimino dalla memoria l'oggetto lasso_cv
@@ -336,7 +350,7 @@ df_err_quant
 # 
 # # Selezione tramite cv
 # lasso_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-#                                     alpha = 1,
+#                                     alpha = 1, nfols = KFOLDS,
 #                                     lambda.min.ratio = 1e-07)
 # 
 # plot(lasso_cv_yes_interaction)
@@ -351,11 +365,11 @@ df_err_quant
 # # ri-stimo i modelli con il lambda scelto
 # 
 # lasso_yes_interaction_l1se = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-#                                    alpha = 1,
+#                                    alpha = 1, nfols = KFOLDS,
 #                                    lambda = lasso_cv_yes_interaction$lambda.1se)
 # 
 # lasso_yes_interaction_lmin = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-#                                    alpha = 1,
+#                                    alpha = 1, nfols = KFOLDS,
 #                                    lambda = lasso_cv_yes_interaction$lambda.min)
 # 
 # # elimino dalla memoria l'oggetto lasso_cv
@@ -380,11 +394,14 @@ df_err_quant
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(tree)
 
+# Gestione del compromesso varianza - distorsione:
+# insieme di stima e di convalida sull'insieme di stima ()
+
 # albero che sovraadatta
 tree_full = tree(y ~.,
                  data = sss[id_cb1,],
                  control = tree.control(nobs = length(id_cb1),
-                                        minsize = 2,
+                                        minsize = 5,
                                         mindev = 1e-05))
 
 # controllo che sia sovraadattato
@@ -423,6 +440,9 @@ gc()
 # Modello Additivo ---------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(gam)
+
+# Controllo del compromesso varianza distorsione: 
+# selezione step tramite gradi di libertà equivalenti
 
 # °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 # stepwise forward
@@ -469,6 +489,10 @@ library(polspline)
 # °°°°°°°°°°°°°°°°°°°°°° Warning °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°à
 # ATTENZIONE: se prima X_mm_no_interaction_sss era sparsa ora la devo
 # definire di nuovo non sparsa
+
+# Controllo del compromesso varianza distorsione: 
+# criterio della convalida incrociata generalizzata
+
 mars1 = polymars(responses = sss$y,
                  predictors = X_mm_no_interaction_sss,
                  gcv = 1,
