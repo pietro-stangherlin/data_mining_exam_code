@@ -133,10 +133,13 @@ df_err_quant = Add_Test_Error(df_err_quant,
 
 # df_err_quant = df_err_quant[-which(is.na(df_err_quant)),]
 
+df_err_quant
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Modello lineare Forward --------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# Per selezionare la complessità del modello impiego il criterio dell'AIC
 
 lm0 = lm(y ~ 1, data = sss)
 
@@ -148,8 +151,8 @@ lm_step_no_interaction = step(lm0, scope = formula_no_interaction_yes_intercept,
 
 
 # salvo la formula: ATTENZIONE: cambiare
-# y ~ x1 + x2
-# lm_step_no_interaction = lm(y ~ x1 + x2, data = sss)
+# y ~ x7 + x2 + x8 + x3
+# lm_step_no_interaction = lm(y ~ x7 + x2 + x8 + x3, data = sss)
 
 df_err_quant = Add_Test_Error(df_err_quant,
                               "lm_step_no_interaction",
@@ -167,7 +170,7 @@ lm_step_yes_interaction = step(lm0, scope = formula_yes_interaction_yes_intercep
                                direction = "forward")
 
 # salvo la formula
-# y ~ 1
+# x7 + x2 + x8 + x3
 
 
 df_err_quant = Add_Test_Error(df_err_quant,
@@ -245,9 +248,7 @@ ridge_no_interaction_lmin = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
                                    alpha = 0, nfols = KFOLDS,
                                    lambda = ridge_cv_no_interaction$lambda.min)
 
-# elimino dalla memoria l'oggetto ridge_cv
-rm(ridge_cv_no_interaction)
-gc()
+
 
 # previsione ed errore
 df_err_quant = Add_Test_Error(df_err_quant,
@@ -260,6 +261,11 @@ df_err_quant = Add_Test_Error(df_err_quant,
                               USED.Loss(predict(ridge_no_interaction_lmin, newx = X_mm_no_interaction_vvv),vvv$y))
 
 df_err_quant
+
+# elimino dalla memoria l'oggetto ridge_cv
+rm(ridge_cv_no_interaction)
+gc()
+
 # # YES Interaction: potrebbe essere troppo computazionalmente oneroso
 # # Selezione tramite cv
 # ridge_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
@@ -285,9 +291,7 @@ df_err_quant
 #                                    alpha = 0, nfols = KFOLDS,
 #                                    lambda = ridge_cv_yes_interaction$lambda.min)
 # 
-# # elimino dalla memoria l'oggetto ridge_cv
-# rm(ridge_cv_yes_interaction)
-# gc()
+
 # 
 # # previsione ed errore
 # df_err_quant = Add_Test_Error(df_err_quant,
@@ -299,7 +303,9 @@ df_err_quant
 #                               "ridge_yes_interaction_lmin",
 #                               USED.Loss(predict(ridge_yes_interaction_lmin, newx = X_mm_yes_interaction_vvv),vvv$y))
 
-
+# # elimino dalla memoria l'oggetto ridge_cv
+# rm(ridge_cv_yes_interaction)
+# gc()
 
 # Lasso ------
 
@@ -328,10 +334,6 @@ lasso_no_interaction_lmin = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
                                    alpha = 1, nfols = KFOLDS,
                                    lambda = lasso_cv_no_interaction$lambda.min)
 
-# elimino dalla memoria l'oggetto lasso_cv
-rm(lasso_cv_no_interaction)
-gc()
-
 # previsione ed errore
 df_err_quant = Add_Test_Error(df_err_quant,
                               "lasso_no_interaction_l1se",
@@ -344,6 +346,10 @@ df_err_quant = Add_Test_Error(df_err_quant,
 
 
 df_err_quant
+
+# elimino dalla memoria l'oggetto lasso_cv
+rm(lasso_cv_no_interaction)
+gc()
 
 
 # # YES Interaction: potrebbe essere troppo computazionalmente oneroso
@@ -395,14 +401,26 @@ df_err_quant
 library(tree)
 
 # Gestione del compromesso varianza - distorsione:
-# insieme di stima e di convalida sull'insieme di stima ()
+# sottoinsiemi di stima e di convalida sull'insieme di stima ()
 
 # albero che sovraadatta
+
+# default: molto fitto
+# tree_full = tree(y ~.,
+#                  data = sss[id_cb1,],
+#                  control = tree.control(nobs = length(id_cb1),
+#                                         mindev = 1e-05,
+#                                         minsize = 2))
+
+# se per motivi computazionali l'albero sopra non può essere stimato
+# aumento il numero di elementi in ogni foglia (sub-ottimale,
+# ma meglio di non stimare il modello).
 tree_full = tree(y ~.,
                  data = sss[id_cb1,],
                  control = tree.control(nobs = length(id_cb1),
-                                        minsize = 5,
-                                        mindev = 1e-05))
+                                        mindev = 1e-05,
+                                        mincut = 100))
+
 
 # controllo che sia sovraadattato
 plot(tree_full)
@@ -458,7 +476,7 @@ my_gam_scope = gam.scope(sss[,-y_index], arg = c("df=2", "df=3", "df=4", "df=5",
 gam_step = step.Gam(gam0, scope = my_gam_scope)
 
 # salvo il modello finale
-# y ~ Sottocategoria + s(Obiettivo, df = 4) + s(Durata, df = 4) + Anno
+# y ~ x2 + x3 + x7 + s(x8, df = 2)
 
 # gam_step = gam(y ~ Sottocategoria + s(Obiettivo, df = 4) + s(Durata, df = 4) + Anno,
 #                 data = sss)
@@ -497,10 +515,11 @@ mars1 = polymars(responses = sss$y,
                  predictors = X_mm_no_interaction_sss,
                  gcv = 1,
                  factors = factor_index,
-                 maxsize = 40)
+                 maxsize = 60)
 
 
 mars1$fitting
+
 plot(mars1$fitting$size, mars1$fitting$GCV,
      col = as.factor(mars1$fitting$`0/1`),
      pch = 16,
@@ -680,27 +699,35 @@ mars_model_size = dim(mars1$model)[1]
 # PPR ------------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+# Scelgo il parametro di regolazione: numero di funzioni dorsali tramite
+# stima convalida sul sottoinsieme di stima
 
-# stima convalida
-# k le possibili funzioni dorsali
+# Nota: il parametro di lisciamento per il lisciatore
+# è scelto tramite il metodo SuperSmoother di Friedman
+# che imoiega la convalida incrociata
+
+
+# K: numero di possibili funzioni dorsali
 K = 4
 
 err_ppr_test_validation = rep(NA, K)
+
 
 for(k in 1:K){
   mod = ppr(y ~ .,
             data = sss[id_cb1,],
             nterms = k)
-  err_ppr_test_validation[k] = mean((predict(mod, sss[-id_cb1,]) - sss$y[-id_cb1])^2)
+  err_ppr_test_validation[k] = MSE.Loss(predict(mod, sss[-id_cb1,]), sss$y[-id_cb1])
 }
 
 rm(mod)
 
 err_ppr_test_validation
 
+
 mod_ppr1 = ppr(y ~ .,
                data = sss,
-               nterms = 2)
+               nterms = which.min(err_ppr_test_validation)) # attenzione: modifica n-terms 
 
 df_err_quant = Add_Test_Error(df_err_quant,
                               "PPR",
@@ -709,64 +736,24 @@ df_err_quant = Add_Test_Error(df_err_quant,
 df_err_quant
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Bagging ------------------------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-library(snowfall)
-library(ipred)
-
-parallel::detectCores() # quanti core a disposizione?
-sfInit(cpus = 4, parallel = T)
-sfExport(list = c("sss"))
-sfLibrary(ipred)
-
-
-
-err_bg_trees = rep(NA, 90)
-
-# °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-# parto da 40 alberi bootstrap
-for(j in 10:100){
-  sfExport(list = c("j"))
-  err_bg_trees[j] = sum(sfSapply(rep(1:4),
-                                 function(x) bagging(y ~., sss,
-                                                    nbag = j,
-                                                    coob = TRUE)$err))
-  print(j)
-  gc()
-}
-
-sfStop()
-
-plot((1:length(err_bg_trees)) * 4, err_bg_trees,
-     xlab = "numero di alberi bootstrap",
-     ylab = "errore out of bag",
-     pch = 16,
-     main = "Bagging")
-
-# se il numero di replicazioni bootstrap arriva a convergenza allora
-
-bagging_model = bagging(y ~., sss, nbag = 400, coob = FALSE)
-
-df_err_quant = Add_Test_Error(df_err_quant,
-                              "Bagging",
-                              USED.Loss(predict(bagging_model, newdata = vvv), vvv$y))
-
-
-df_err_quant
-
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Random Forest ------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Implemenetazione in parallelo
+# Nota: se manca il tempo eseguo prima la RandomForest del Bagging
+# visto che quest'ultimo è un sotto caso particolare 
+# della RandomForest (selezione di tutte le variabili per ogni split)
+
+
+# Implementazione in parallelo
 library(ranger)
 
-sfInit(cpus = 4, parallel = T)
+library(snowfall)
+
+parallel::detectCores() # quanti core a disposizione?
 
 sfLibrary(ranger)
-sfExport(list = c("sss"))
 
- # esportiamo tutti gli oggetti necessari
+
+# esportiamo tutti gli oggetti necessari
 
 
 
@@ -832,12 +819,13 @@ plot((1:length(err_rf_trees)) * 4, err_rf_trees,
      pch = 16,
      main = "Random Forest")
 
-best_mtry = 2
+# ATTENZIONE: cambiare 
+# best_mtry = 2
 
 # modello finale e previsioni
 random_forest_model = ranger(y ~., sss,
                              mtry = best_mtry,
-                             num.trees = 200,
+                             num.trees = 400,
                              oob.error = TRUE,
                              importance = "permutation")
 
@@ -853,21 +841,136 @@ vimp = importance(random_forest_model)
 
 dotchart(vimp[order(vimp)])
 
+rm(random_forest_model)
+gc()
 
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Bagging ------------------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Il bagging tiene conto del compromesso 
+# varianza distorsione tramite errore out of bag (bootstrap)
+
+library(ipred)
+sfInit(cpus = 4, parallel = T)
+sfExport(list = c("sss"))
+
+sfLibrary(ipred)
+
+
+
+err_bg_trees = rep(NA, 90)
+
+# °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
+
+# controllo la convergenza dell'errore rispetto al numero di alberi
+# parto da 40 alberi bootstrap
+for(j in 10:100){
+  sfExport(list = c("j"))
+  err_bg_trees[j] = sum(sfSapply(rep(1:4),
+                                 function(x) bagging(y ~., sss,
+                                                    nbag = j,
+                                                    coob = TRUE)$err))
+  print(j)
+  gc()
+}
+
+sfStop()
+
+plot((1:length(err_bg_trees)) * 4, err_bg_trees,
+     xlab = "numero di alberi bootstrap",
+     ylab = "errore out of bag",
+     pch = 16,
+     main = "Bagging")
+
+# se il numero di replicazioni bootstrap arriva a convergenza allora
+
+bagging_model = bagging(y ~., sss, nbag = 400, coob = FALSE)
+
+df_err_quant = Add_Test_Error(df_err_quant,
+                              "Bagging",
+                              USED.Loss(predict(bagging_model, newdata = vvv), vvv$y))
+
+
+df_err_quant
+
+rm(bagging_model)
+gc()
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Rete neurale -------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Solo in parallelo altrimenti ci mette troppo tempo
 
 
+decay = 10^seq(-3, -1, length=10)
+nodi = 1:10
+
+hyp_grid = expand.grid(decay,nodi)
+
+# Costruiamo una funzione che prenda come input una matrice parametri,
+# stimi la rete per ogni valore, e restiuisca una matrice con valori dei parametri + errori su convalida
+regola_nn = function(pars, sss, id_cb1){
+  err = data.frame(pars, err = NA)
+  for(i in 1:NROW(pars)){
+    n1 = nnet(y ~ . , data=sss[id_cb1,], 
+              size=pars[i,2], decay=pars[i,1],
+              MaxNWts = 1500, maxit = 500, 
+              trace = T)
+    err$err[i] = MSE.Loss(predict(n1, sss[-id_cb1,], type = 'raw'), sss$y[-id_cb1])
+  }
+  return(err)
+}
+
+# proviamo
+regola_nn(hyp_grid[21:23,], sss, id_cb1)
+
+
+# Parallelo
+# Per mitigare il load balance possiamo assegnare a caso ai vari processori
+# In questo modo ogni processore avra' sia valori di parametri "semplici" (pochi nodi)
+# Che complessi (tanti nodi)
+
+# Conviene creare una lista in cui ogni elemento sia la matrice di parametri provati
+# da quel processore
+
+pp = sample(rep(1:4, each = NROW(hyp_grid)/4))
+pars_list = lapply(1:4, function(l) hyp_grid[pp == l,])
+
+
+library(snowfall)
+sfInit(cpus = 4, parallel = T)
+sfLibrary(nnet) # carichiamo la libreria
+sfExport(list = c("sss", "id_cb1", "regola_nn", "MSE.Loss")) # esportiamo tutte le quantita' necessarie
+
+# Non restituisce messaggi, possiamo solo aspettare
+nn_error = sfLapply(pars_list, function(x) regola_nn(x, sss, id_cb1))
+sfStop()
+
+err_nn = do.call(rbind, nn_error)
+
+par(mfrow = c(1,2))
+plot(err_nn$Var1, err_nn$err, xlab = "Weight decay", ylab = "Errore di convalida", pch = 16)
+plot(err_nn$Var2, err_nn$err, xlab = "Numero di nodi", ylab = "Errore di convalida", pch = 16)
+
+err_nn[which.min(err_nn$err),]
+
+# 0.03593814    4 0.5818981 (ovviamente potrebbe variare a seconda di: punti iniziali, stima/convalida, etc
+
+set.seed(123)
+mod_nn = nnet(diagnosi ~ . , data=sss[,], size = 4, decay = 0.03593,
+              MaxNWts = 1500, maxit = 2000, trace = T)
+
+pr_nn = predict(mod_nn, vvv, type = "class")
 
 # /////////////////////////////////////////////////////////////////
 #------------------------ Sintesi Finale -------------------------
 # /////////////////////////////////////////////////////////////////
 
 
-cbind(df_err_quant[,1], round(df_err_quant[,2] %>% as.numeric(), 2))
-
+cbind(df_err_quant[,1],
+      apply(df_err_quant[,2:NCOL(df_err_quant)], 2, function(col) round(as.numeric(col), 2)))
 # Comparazione modelli
 # selezione modelli migliori e commenti su questi:
 # es -> vanno meglio modelli con interazioni oppure modelli additivi

@@ -115,18 +115,29 @@ head(df)
 # aggiungo caratteri a destra di ogni stringa
 
 
-# x7: NA + valori numerici sotto forma di testo + '' ----------------------
+# x7: NA + valori numerici ----------------------
 df$x7 = rep(NA, N)
 
 df$x7[first_indexes] = runif(length(first_indexes))
 
-df$x7[first_indexes] = ifelse(df$x7[first_indexes] > 0.5, '', as.character(df$x7[first_indexes]))
+df$x7[first_indexes] = ifelse(df$x7[first_indexes] > 0.5, NA , df$x7[first_indexes])
 
 head(df)
 
+
+# x8: valori numerici non mancanti
+df$x8 = runif(N)
+
 # Aggiunta della y -------------
 
-df$y = runif(N)
+df$y = rnorm(N, df$x8 + ifelse(df$x2 == "a" | is.na(df$x2), 1, 0) + ifelse(!is.na(df$x7), df$x7, -2))
+
+sum(is.na(df$x8))
+sum(is.na(ifelse(df$x2 == "a" | is.na(df$x2), 1, 0)))
+
+
+sum(is.na(df$x7))
+sum(is.na(ifelse(!is.na(df$x7), df$x7, -2)))
 
 # Scrittura file.csv --------------
 write.csv(df, "df_quant.csv", row.names = TRUE, na = "")

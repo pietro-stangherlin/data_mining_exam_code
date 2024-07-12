@@ -816,9 +816,113 @@ pred_list$pred_mars_class = as.vector(pred_mars_class)
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Bagging ------------------------------------
+# Random Forest ------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(snowfall)
+
+# Implementazione in parallelo
+library(ranger)
+
+sfInit(cpus = 4, parallel = T)
+
+sfLibrary(ranger)
+sfExport(list = c("sss"))
+
+# esportiamo tutti gli oggetti necessari
+
+
+
+# scelta del numero di esplicative a ogni split
+# adattiamo 50 alberi per core e di ciascun albero ritorniamo l'errore out of bag
+# successivamente sommiamo gli errori out of bag per ogni mtry
+
+# massimo numero di esplicative presenti
+m_max = NCOL(sss) - 1 # sottraggo 1 per la variabile risposta
+
+# se m_max è grande eventualmente ridurlo per considerazioni computazionali
+
+
+# regolazione
+# procedura sub-ottimale, ma la impiego per ragioni computazionali
+# prima scelgo il numero di esplicative a ogni split,
+# una volta scelto controllo la convergenza dell'errore basata sul numero di alberi
+err = rep(NA, m_max - 1)
+
+# °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
+
+for(i in seq(2, m_max)){
+  sfExport(list = c("i"))
+  
+  err[i] = sum(sfSapply(rep(1:4),
+                        function(x) ranger(factor(y) ~., data = sss,
+                                           mtry = i,
+                                           num.trees = 50,
+                                           oob.error = TRUE)$prediction.error))
+  print(i)
+  gc()
+}
+
+err 
+
+best_mtry = which.min(err)
+best_mtry
+# 9
+
+sfExport(list = c("best_mtry"))
+
+# uso il valore trovato e controllo la convergenza rispetto al numero di alberi
+
+err_rf_trees = rep(NA, 90)
+
+# °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
+for(j in 10:100){
+  sfExport(list = c("j"))
+  err_rf_trees[j] = sum(sfSapply(rep(1:4),
+                                 function(x) ranger(factor(y) ~., sss,
+                                                    mtry = best_mtry,
+                                                    num.trees = j,
+                                                    oob.error = TRUE)$prediction.error))
+  print(j)
+  gc()
+}
+
+sfStop()
+
+plot((1:length(err_rf_trees)) * 4, err_rf_trees,
+     xlab = "numero di alberi bootstrap",
+     ylab = "errore out of bag",
+     pch = 16,
+     main = "Random Forest")
+
+# best_mtry = 9
+
+# modello finale e previsioni
+random_forest_model = ranger(factor(y) ~., sss,
+                             mtry = best_mtry,
+                             num.trees = 200,
+                             oob.error = TRUE,
+                             importance = "permutation",
+                             probability = T)
+
+pred_random_forest = predict(random_forest_model, data = vvv, type = "response")$predictions[,2]
+
+df_err_qual = Add_Test_Error(df_err_qual,
+                             "Random Forest",
+                             USED.Loss(pred_random_forest > threshold %>% as.numeric(),
+                                       vvv$y))
+
+df_err_qual
+
+pred_list$pred_random_forest = as.vector(pred_random_forest)
+
+# Importanza delle variabili
+vimp = importance(random_forest_model)
+
+dotchart(vimp[order(vimp)])
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Bagging ------------------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(ipred)
 
 parallel::detectCores() # quanti core a disposizione?
@@ -971,108 +1075,7 @@ rm(m_boost_2)
 
 gc()
 
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Random Forest ------------------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Implementazione in parallelo
-library(ranger)
 
-sfInit(cpus = 4, parallel = T)
-
-sfLibrary(ranger)
-sfExport(list = c("sss"))
-
- # esportiamo tutti gli oggetti necessari
-
-
-
-# scelta del numero di esplicative a ogni split
-# adattiamo 50 alberi per core e di ciascun albero ritorniamo l'errore out of bag
-# successivamente sommiamo gli errori out of bag per ogni mtry
-
-# massimo numero di esplicative presenti
-m_max = NCOL(sss) - 1 # sottraggo 1 per la variabile risposta
-
-# se m_max è grande eventualmente ridurlo per considerazioni computazionali
-
-
-# regolazione
-# procedura sub-ottimale, ma la impiego per ragioni computazionali
-# prima scelgo il numero di esplicative a ogni split,
-# una volta scelto controllo la convergenza dell'errore basata sul numero di alberi
-err = rep(NA, m_max - 1)
-
-# °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-
-for(i in seq(2, m_max)){
-  sfExport(list = c("i"))
-  
-  err[i] = sum(sfSapply(rep(1:4),
-                        function(x) ranger(factor(y) ~., data = sss,
-                                           mtry = i,
-                                           num.trees = 50,
-                                           oob.error = TRUE)$prediction.error))
-  print(i)
-  gc()
-}
-
-err 
-
-best_mtry = which.min(err)
-best_mtry
-# 9
-
-sfExport(list = c("best_mtry"))
-
-# uso il valore trovato e controllo la convergenza rispetto al numero di alberi
-
-err_rf_trees = rep(NA, 90)
-
-# °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-for(j in 10:100){
-  sfExport(list = c("j"))
-  err_rf_trees[j] = sum(sfSapply(rep(1:4),
-                                 function(x) ranger(factor(y) ~., sss,
-                                                    mtry = best_mtry,
-                                                    num.trees = j,
-                                                    oob.error = TRUE)$prediction.error))
-  print(j)
-  gc()
-}
-
-sfStop()
-
-plot((1:length(err_rf_trees)) * 4, err_rf_trees,
-     xlab = "numero di alberi bootstrap",
-     ylab = "errore out of bag",
-     pch = 16,
-     main = "Random Forest")
-
-# best_mtry = 9
-
-# modello finale e previsioni
-random_forest_model = ranger(factor(y) ~., sss,
-                             mtry = best_mtry,
-                             num.trees = 200,
-                             oob.error = TRUE,
-                             importance = "permutation",
-                             probability = T)
-
-pred_random_forest = predict(random_forest_model, data = vvv, type = "response")$predictions[,2]
-
-df_err_qual = Add_Test_Error(df_err_qual,
-                              "Random Forest",
-                              USED.Loss(pred_random_forest > threshold %>% as.numeric(),
-                                        vvv$y))
-
-df_err_qual
-
-pred_list$pred_random_forest = as.vector(pred_random_forest)
-
-# Importanza delle variabili
-vimp = importance(random_forest_model)
-
-dotchart(vimp[order(vimp)])
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Support Vector Machine ---------------------
