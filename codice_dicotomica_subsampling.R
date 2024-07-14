@@ -855,17 +855,16 @@ df_err_qual
 # Random Forest ------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(randomForest)
-m_rf = randomForest(factor(y) ~., data = dati[ids_bal,])
+m_rf = randomForest(factor(y) ~., data = dati[ids_bal,],
+                    cutoff = c(1 - threshold, threshold))
+
+# controllo la convergenza )procedura sub-ottimale
 plot(m_rf)
 # errori classificazioni, falsi positivi ,falsi negativi
 
 m_rf
 # mi da la matrice di confusione, di default usa la soglia 0.5
 # ;la possiamo cambiare
-
-m_rf = randomForest(factor(morto) ~., data = dati[id,], cutoff = c(0.9, 0.1))
-plot(m_rf)
-m_rf
 
 # matrice di confusione
 # posso calcore F1 dalla tabella
@@ -883,52 +882,60 @@ rf_all = lapply(1:10, function(l) randomForest(factor(y)~.,
                                                mtry = l,
                                                cutoff = c(1 - threshold, threshold)))
 
-f1_all = lapply(rf_all, function(x) USED.Loss(x$confusion))
+rf_metrics_m = lapply(rf_all, function(x) USED.Loss(1,1, x$confusion))
 
-plot(unlist(f1_all), type = "l", xlab = "numero di variabili campionate")
+rf_metrics_m = matrix(unlist(rf_metrics_m), ncol = 4,
+                      byrow = T)
 
-m = which.max(unlist(f1_all))
+plot(rf_metrics_m[,4], type = "l", xlab = "numero di variabili campionate",
+     ylab = "f_score", main = "Random Forest")
 
-rf_all[[5]]
+m_best = which.max(unlist(f1_all))
 
 # valutazione errore tramite cv
-err = matrix(NA, 4, 4)
+err_cv_tmp_array = matrix(NA, K_FOLD, 4)
 
 # qua non mettiamo cutoff
-for(j in 1:4){
+for(k in 1:K_FOLD){
   
-  id_stima = c(cv_id[,-j])
-  id_verifica = cv_id_sb[,j] 
+  id_stima = c(cv_id_bal_matr[,-j])
+  id_verifica = cv_id_unbal_matr[,j] 
   
-  rf_tmp = randomForest(factor(morto)~., data = dati[id_stima,], mtry = m)
+  rf_tmp = randomForest(factor(y)~., data = dati[id_stima,], mtry = m_best)
   pr_tmp = predict(rf_tmp, newdata =  dati[id_verifica, ],
                    type = "prob")
   
-  err[j,] =  fun.errori(pr_tmp[,2] > 0.1, dati$morto[id_verifica])
+  err_cv_tmp_array[k,] =  USED.Loss(pr_tmp[,2] > threshold, dati$y[id_verifica])
+  
+  print(k)
 }
 
-err_rf = colMeans(err)
-err_rf
+df_err_qual = Add_Test_Error(df_err_qual,
+                             "Random Forest",
+                             colMeans(err_cv_tmp_array))
+df_err_qual
 
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Boosting ------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-m_boost = ada(morto ~., dati[id, ], iter = 500)
+library(ada)
+
+m_boost = ada(y ~., dati[ids_bal, ], iter = 500)
 plot(m_boost)
 
 predict(m_boost, dati[id,], n.iter = 2)
 
 # 500 alberi
-# per ogni iterazione calcoliamo f1
+# per ogni iterazione calcoliamo le metriche 
 err_boost = matrix(NA, 700, 4)
 for(i in seq(1,700, by = 20)){
   pr_tmp = predict(m_boost, dati[id,],
                    n.iter = i,
                    type = "prob")[,2]
   
-  err_boost[i,] = fun.errori(pr_tmp > 0.1, dati$morto[id])
+  err_boost[i,] = fun.errori(pr_tmp > threshold, dati$morto[id])
   cat(i, "\n")
 }
 
@@ -947,7 +954,7 @@ for(j in 1:4){
   pr_tmp = predict(rf_tmp, newdata =  dati[id_verifica, ],
                    type = "prob")
   
-  err[j,] =  fun.errori(pr_tmp[,2] > 0.1, dati$morto[id_verifica])
+  err[j,] =  fun.errori(pr_tmp[,2] > threshold, dati$morto[id_verifica])
 }
 err_boost = colMeans(err)
 err_boost
