@@ -1,21 +1,5 @@
 source("lift_roc.R")
 library(dplyr)
-# /////////////////////////////////////////////////////////////////
-#------------------------ Stima e Verifica ------------------------
-# /////////////////////////////////////////////////////////////////
-
-
-# Eventualmente modificare la proporzione
-id_stima = sample(1:NROW(dati), 0.75 * NROW(dati))
-
-sss = dati[id_stima,]
-vvv = dati[-id_stima,]
-
-
-# In caso di convalida nell'insieme di stima
-id_cb1 = sample(1:NROW(sss), 0.8 * NROW(sss))
-id_cb2 = setdiff(1:NROW(sss), id_cb1)
-
 
 
 #////////////////////////////////////////////////////////////////////////////
@@ -26,8 +10,35 @@ id_cb2 = setdiff(1:NROW(sss), id_cb1)
 # Qualitativa -------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-tabella.sommario = function(previsti, osservati){
-  n <-  table(previsti,osservati)
+tabella.sommario = function(previsti, osservati, print_bool = FALSE){
+  # inizializza: per evitare casi in cui la tabella non è 2x2
+  n <-  matrix(0, nrow = 2, ncol = 2)
+  
+  for (i in 1:length(previsti)){
+    if(previsti[i] == osservati[i]){
+      # 0 == 0 case
+      if (previsti[i] == 0){
+        n[1,1] = n[1,1] + 1
+      }
+      # 1 == 1
+      else{
+      n[2,2] = n[2,2] + 1}
+    }
+    
+    else{
+      # 0 != 1
+      if (previsti[i] == 0){
+        n[1,2] = n[1,2] + 1
+      }
+      # 1 != 0
+      else{
+        n[2,1] = n[2,1] + 1
+      }
+      
+    }
+  }
+  
+  
   err.tot <- 1-sum(diag(n))/sum(n)
   zeros.observed = sum(n[1,1] + n[2,1])
   ones.observed = sum(n[1,2] + n[2,2])
@@ -40,9 +51,10 @@ tabella.sommario = function(previsti, osservati){
   
   f.score = 2*tp / (2*tp + fp + fn)
   
+  if(print_bool == TRUE){
   print(n)
   print(c("err tot", "fp", "fn", "f.score"))
-  print(c(err.tot, fp, fn, f.score))
+  print(c(err.tot, fp, fn, f.score))}
   
   return(round(c(err.tot, fp, fn, f.score), 4))
 }
@@ -53,9 +65,6 @@ tabella.sommario = function(previsti, osservati){
 Null.Loss = function(y.pred, y.test, weights = 1){
   NULL
 }
-
-# La funzione di perdita può cambiare in base al problema
-# Cambia MAE eventualmente
 
 # °°°°°°°°°°°°°°°°°°°°°°° Warning: °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 # cambia la funzione di errore per il problema specifico
@@ -106,6 +115,26 @@ Add_Test_Error = function(df_error, model_name, loss_value){
 pred_list = list()  
 
 
+
+# /////////////////////////////////////////////////////////////////
+#------------------------ Stima e Verifica ------------------------
+# /////////////////////////////////////////////////////////////////
+
+
+# Eventualmente modificare la proporzione
+id_stima = sample(1:NROW(dati), 0.75 * NROW(dati))
+
+sss = dati[id_stima,]
+vvv = dati[-id_stima,]
+
+
+# In caso di convalida nell'insieme di stima
+id_cb1 = sample(1:NROW(sss), 0.8 * NROW(sss))
+id_cb2 = setdiff(1:NROW(sss), id_cb1)
+
+# rimozione dataset originale
+rm(dati)
+
 # /////////////////////////////////////////////////////////////////
 #------------------------ Analisi esplorative ---------------------
 # /////////////////////////////////////////////////////////////////
@@ -139,8 +168,7 @@ df_err_qual = Add_Test_Error(df_err_qual,
 
 df_err_qual
 
-# solo la prima volta per rimuovere NA
-# df_err_qual = df_err_qual[-1,]
+df_err_qual = na.omit(df_err_qual)
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Modello lineare Forward --------------------
@@ -570,6 +598,11 @@ rm(gam_step)
 
 
 gc()
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# GAM ---------------------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # MARS ---------------------------------------

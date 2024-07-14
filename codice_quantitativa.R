@@ -87,6 +87,9 @@ vvv = dati[-id_stima,]
 id_cb1 = sample(1:NROW(sss), 0.8 * NROW(sss))
 id_cb2 = setdiff(1:NROW(sss), id_cb1)
 
+# rimozione dati originali
+rm(dati)
+
 
 # /////////////////////////////////////////////////////////////////
 #------------------------ Analisi esplorative ---------------------
@@ -131,7 +134,7 @@ df_err_quant = Add_Test_Error(df_err_quant,
                               "sss median",
                               USED.Loss(median(sss$y), vvv$y))
 
-# df_err_quant = df_err_quant[-which(is.na(df_err_quant)),]
+df_err_qual = na.omit(df_err_qual)
 
 df_err_quant
 
