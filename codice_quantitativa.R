@@ -1,22 +1,4 @@
 library(dplyr)
-# /////////////////////////////////////////////////////////////////
-#------------------------ Stima e Verifica ------------------------
-# /////////////////////////////////////////////////////////////////
-
-
-# Eventualmente modificare la proporzione
-id_stima = sample(1:NROW(dati), 0.75 * NROW(dati))
-
-sss = dati[id_stima,]
-vvv = dati[-id_stima,]
-
-
-# In caso di convalida nell'insieme di stima
-id_cb1 = sample(1:NROW(sss), 0.8 * NROW(sss))
-id_cb2 = setdiff(1:NROW(sss), id_cb1)
-
-
-
 #////////////////////////////////////////////////////////////////////////////
 # Costruzione metrica di valutazione e relativo dataframe -------------------
 #////////////////////////////////////////////////////////////////////////////
@@ -86,6 +68,24 @@ Add_Test_Error = function(df_error, model_name, loss_value){
   
   return(df_error)
 }
+
+
+
+# /////////////////////////////////////////////////////////////////
+#------------------------ Stima e Verifica ------------------------
+# /////////////////////////////////////////////////////////////////
+
+
+# Eventualmente modificare la proporzione
+id_stima = sample(1:NROW(dati), 0.75 * NROW(dati))
+
+sss = dati[id_stima,]
+vvv = dati[-id_stima,]
+
+
+# In caso di convalida nell'insieme di stima
+id_cb1 = sample(1:NROW(sss), 0.8 * NROW(sss))
+id_cb2 = setdiff(1:NROW(sss), id_cb1)
 
 
 # /////////////////////////////////////////////////////////////////

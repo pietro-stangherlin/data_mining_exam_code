@@ -120,7 +120,7 @@ table(sss$y)
 # soglia di classificazione: cambia eventualmente con
 # table(sss$y)[2] / NROW(sss)
 
-threshold = 0.5
+threshold = 0.2
 
 
 # /////////////////////////////////////////////////////////////////
@@ -160,16 +160,8 @@ rm(lm0)
 
 
 # salvo la formula: ATTENZIONE: cambiare
-# y ~ flour + wine + water + yeast + white.meat + garlic + oil + 
-#   paprika + parsley + salt + cereals + mushrooms + sugar + 
-#   potato + seeds + tomato + seafood + chili + ginger + cheese + 
-#   butter + chocolate + onion + fruits + red.meat + milk + vinegar + 
-#   turmeric
-lm_step_no_interaction = lm(y ~ flour + wine + water + yeast + white.meat + garlic + oil + 
-                              paprika + parsley + salt + cereals + mushrooms + sugar + 
-                              potato + seeds + tomato + seafood + chili + ginger + cheese + 
-                              butter + chocolate + onion + fruits + red.meat + milk + vinegar + 
-                              turmeric, data = sss)
+# y ~ x7 + x2 + x8 + anno
+lm_step_no_interaction = lm(y ~ x7 + x2 + x8 + anno, data = sss)
 
 pred_lm_no_interaction = predict(lm_step_no_interaction, newdata = vvv)
 
@@ -209,15 +201,9 @@ rm(glm0)
 
 
 # salvo la formula: ATTENZIONE: cambiare
-# factor(y) ~ flour + white.meat + wine + water + yeast + garlic + 
-#   oil + parsley + paprika + salt + cereals + mushrooms + potato + 
-#   red.meat + tomato + chili + fruits + onion + seafood + milk + 
-#   ginger + seeds + sugar + turmeric + vinegar + egg
+# factor(y) ~ x7 + x2 + x8 + anno
 
-glm_step_no_interaction = glm(factor(y) ~ flour + white.meat + wine + water + yeast + garlic + 
-                                oil + parsley + paprika + salt + cereals + mushrooms + potato + 
-                                red.meat + tomato + chili + fruits + onion + seafood + milk + 
-                                ginger + seeds + sugar + turmeric + vinegar + egg,
+glm_step_no_interaction = glm(factor(y) ~ x7 + x2 + x8 + anno,
                               family = "binomial",
                              data = sss)
 
@@ -280,7 +266,7 @@ plot(ridge_cv_no_interaction)
 
 # salvo i risultati
 # > ridge_cv_no_interaction$lambda.min
-# [1] 1866.315
+# [1] 0.0002575906
 # > ridge_cv_no_interaction$lambda.1se
 # [1] 1145154
 
@@ -494,11 +480,23 @@ df_err_qual
 library(tree)
 
 # albero che sovraadatta
+
+# default: molto fitto
+# tree_full = tree(factor(y) ~.,
+#                  data = sss[id_cb1,],
+#                  control = tree.control(nobs = length(id_cb1),
+#                                         mindev = 1e-05,
+#                                         minsize = 2))
+
+# se per motivi computazionali l'albero sopra non può essere stimato
+# aumento il numero di elementi in ogni foglia (sub-ottimale,
+# ma meglio di non stimare il modello).
 tree_full = tree(factor(y) ~.,
                  data = sss[id_cb1,],
                  control = tree.control(nobs = length(id_cb1),
-                                        minsize = 2,
-                                        mindev = 0.00001))
+                                        mindev = 1e-05,
+                                        mincut = 100))
+
 
 # controllo che sia sovraadattato
 plot(tree_full)
@@ -510,7 +508,7 @@ plot(tree_pruned)
 plot(tree_pruned, xlim = c(10, 90))
 
 tree_best_size = tree_pruned$size[which.min(tree_pruned$dev)]
-# 56
+# 15
 
 abline(v = tree_best_size, col = "red")
 
@@ -548,11 +546,11 @@ my_gam_scope = gam.scope(sss[,-y_index], arg = c("df=2", "df=3", "df=4", "df=5",
 # registerDoMC(cores=4)
 # step.Gam(Gam.object,scope ,parallel=TRUE)
 
-# gam_step = step.Gam(gam0, scope = my_gam_scope)
+gam_step = step.Gam(gam0, scope = my_gam_scope)
 
 # salvo il modello finale
-# y ~ s(water, df = 4) + cereals + s(oil, df = 4) + s(flour, df = 4) +      s(fruits, df = 4) + s(milk, df = 4) + s(seeds, df = 4) +      s(onion, df = 4) + s(garlic, df = 4) + s(yeast, df = 4) +      s(egg, df = 4) + vinegar + s(tomato, df = 2) + red.meat +      white.meat + potato + paprika + turmeric + s(ginger, df = 4) +      parsley + s(wine, df = 2) + chili + s(mushrooms, df = 3) +      s(bread, df = 4) + seafood + s(legumes, df = 4) + s(pepper,      df = 4)
-gam_step = gam(y ~ s(water, df = 4) + cereals + s(oil, df = 4) + s(flour, df = 4) +      s(fruits, df = 4) + s(milk, df = 4) + s(seeds, df = 4) +      s(onion, df = 4) + s(garlic, df = 4) + s(yeast, df = 4) +      s(egg, df = 4) + vinegar + s(tomato, df = 2) + red.meat +      white.meat + potato + paprika + turmeric + s(ginger, df = 4) +      parsley + s(wine, df = 2) + chili + s(mushrooms, df = 3) +      s(bread, df = 4) + seafood + s(legumes, df = 4) + s(pepper,      df = 4),
+# y ~ y ~ x2 + x7 + x8 + anno
+gam_step = gam(y ~ x2 + x7 + x8 + anno,
                  data = sss)
 
 object.size(gam_step)
@@ -695,8 +693,8 @@ colnames(mars1_pred_names_matrix) = c("pred1", "pred2")
 
 mars1_pred_names_matrix
 
-# rm(mars1)
-# gc()
+rm(mars1)
+gc()
 
 # °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: solo se necessario°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 # default commentato
@@ -853,7 +851,7 @@ err = rep(NA, m_max - 1)
 for(i in seq(2, m_max)){
   sfExport(list = c("i"))
   
-  err[i] = sum(sfSapply(rep(1:4),
+  err[i] = mean(sfSapply(rep(1:4),
                         function(x) ranger(factor(y) ~., data = sss,
                                            mtry = i,
                                            num.trees = 50,
@@ -866,7 +864,7 @@ err
 
 best_mtry = which.min(err)
 best_mtry
-# 9
+# 2
 
 sfExport(list = c("best_mtry"))
 
@@ -894,12 +892,12 @@ plot((1:length(err_rf_trees)) * 4, err_rf_trees,
      pch = 16,
      main = "Random Forest")
 
-# best_mtry = 9
+# best_mtry = 2
 
 # modello finale e previsioni
 random_forest_model = ranger(factor(y) ~., sss,
                              mtry = best_mtry,
-                             num.trees = 200,
+                             num.trees = 400,
                              oob.error = TRUE,
                              importance = "permutation",
                              probability = T)
@@ -920,6 +918,9 @@ vimp = importance(random_forest_model)
 
 dotchart(vimp[order(vimp)])
 
+rm(random_forest_model)
+gc()
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Bagging ------------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -938,7 +939,7 @@ err_bg_trees = rep(NA, 90)
 # parto da 40 alberi bootstrap
 for(j in 10:100){
   sfExport(list = c("j"))
-  err_bg_trees[j] = sum(sfSapply(rep(1:4),
+  err_bg_trees[j] = mean(sfSapply(rep(1:4),
                                  function(x) bagging(factor(y) ~., sss,
                                                     nbag = j,
                                                     coob = TRUE)$err))
@@ -1034,7 +1035,7 @@ df_err_qual = Add_Test_Error(df_err_qual,
                                        vvv$y))
 
 rm(m_boost_stump)
-
+gc()
 
 # 6 split (default)
 # guardiamo quando si stabilizza l'errore
@@ -1063,7 +1064,7 @@ plot(m_boost_2, test = T)
 pred_boost_2 = predict(m_boost_2, vvv, type = "prob")[,2]
 
 df_err_qual = Add_Test_Error(df_err_qual,
-                             "Boosting 2 Split",
+                             "Boosting 6 Split",
                              USED.Loss(pred_boost_2 > threshold %>% as.numeric(),
                                        vvv$y))
 
