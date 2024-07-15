@@ -13,7 +13,7 @@ library(dplyr)
 # per avere un'idea del file da terminale: 
 # head nome_file.formato
 
-dati = read.csv("df_qual.csv", sep = ",", stringsAsFactors = F)
+dati = read.csv("df_multi.csv", sep = ",", stringsAsFactors = F)
 
 # NOTA: converto in fattori solo alla fine del preprocessing
 # in modo da non dover riconvertire tutto ogni volta 
