@@ -149,14 +149,14 @@ table(sss$y)
 # soglia di classificazione: cambia eventualmente con
 table(sss$y)[2] / NROW(sss)
 
-threshold = 0.2
+threshold = 0.3
 
 
 # elimino i data.frame di stima e verifica visto che non servono
 rm(sss)
 rm(vvv)
-
-
+rm(id_cb1)
+rm(id_cb2)
 # /////////////////////////////////////////////////////////////////
 #------------------------ Sottocampionamento ----------------------
 # /////////////////////////////////////////////////////////////////
@@ -167,12 +167,12 @@ K_FOLD = 4
 # Stimiamo i modelli su dati bilanciati, sia in stima che dentro ogni fold di convalida 
 
 # fold sbilanciati, usati per verifica
-cv_id_unbal_matr = matrix(sample(1:NROW(dati)) ,ncol = K_FOLD)
+cv_id_unbal_matr = matrix(sample(1:NROW(dati)), ncol = K_FOLD)
 
 # Fold bilanciati, utilizziamo per la stima
 
 # proportion of "ones" in each balanced fold 
-ONES_OBS_PROPORTION = 0.5
+ONES_OBS_PROPORTION = 0.3
 
 # per ogni fold controlla il numero massimo di osservazioni di "ones"
 
@@ -799,7 +799,34 @@ df_err_qual
 # GAM ---------------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # solo se ha senso: non tutte le esplicative sono qualitative
+library(gam)
 
+# selezione delle variabili impiegando i gradi di libertà equivalenti
+gam0 = gam(y~ 1, dati[ids_bal,],
+                  family = "binomial")
+
+my_gam_scope = gam.scope(dati[ids_bal,-y_index], arg = c("df=2", "df=3", "df=4", "df=5", "df=6"))
+
+gam_step = step.Gam(gam0, scope = my_gam_scope)
+#y ~ x2 + x7 + x8 + anno
+
+err_cv_tmp_array = matrix(0, K_FOLD, 4)
+
+for(j in 1:K_FOLD) {
+  # Stimiamo su un modello bilanciato
+  id_stima = c(cv_id_bal_matr[,-j])
+  id_verifica = cv_id_unbal_matr[,j] 
+  
+  # cambia la formula
+  temp_cv_model = gam(formula(gam_step), data = dati[id_stima,], family = "binomial")
+  pr_tmp = predict(temp_cv_model, dati[id_verifica, ], type = "response")
+  err_cv_tmp_array[j,] = USED.Loss(pr_tmp > threshold, dati$y[id_verifica])
+}
+
+df_err_qual = Add_Test_Error(df_err_qual,
+                             "gam",
+                             colMeans(err_cv_tmp_array))
+df_err_qual
 
 
 
@@ -855,32 +882,18 @@ df_err_qual
 # Random Forest ------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(randomForest)
-m_rf = randomForest(factor(y) ~., data = dati[ids_bal,],
-                    cutoff = c(1 - threshold, threshold))
 
-# controllo la convergenza )procedura sub-ottimale
-plot(m_rf)
-# errori classificazioni, falsi positivi ,falsi negativi
+sfInit(cpus = 4, parallel = T)
 
-m_rf
-# mi da la matrice di confusione, di default usa la soglia 0.5
-# ;la possiamo cambiare
+sfLibrary(ranger)
+sfExport(list = c("dati", "ids_bal", "threshold", "RangerOOBConfusion"))
 
-# matrice di confusione
-# posso calcore F1 dalla tabella
+rf_miss_err = sfLapply(1:10, fun = function(l) RangerOOBConfusion(dati$y[ids_bal],
+                                                            df[ids_bal,],
+                                                            l,
+                                                            300))
 
 
-f1(m_rf$confusion)
-
-# devo farlo in parallelo
-
-# seleziono il numero di variabili migliore 
-# tramite errore out of bag
-# ATTENZIONE: lento
-rf_all = lapply(1:10, function(l) randomForest(factor(y)~.,
-                                               data = dati[ids_bal,],
-                                               mtry = l,
-                                               cutoff = c(1 - threshold, threshold)))
 
 rf_metrics_m = lapply(rf_all, function(x) USED.Loss(1,1, x$confusion))
 
@@ -890,7 +903,7 @@ rf_metrics_m = matrix(unlist(rf_metrics_m), ncol = 4,
 plot(rf_metrics_m[,4], type = "l", xlab = "numero di variabili campionate",
      ylab = "f_score", main = "Random Forest")
 
-m_best = which.max(unlist(f1_all))
+m_best = which.max(rf_metrics_m[,4])
 
 # valutazione errore tramite cv
 err_cv_tmp_array = matrix(NA, K_FOLD, 4)
@@ -922,16 +935,68 @@ df_err_qual
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(ada)
 
-m_boost = ada(y ~., dati[ids_bal, ], iter = 500)
+# per ogni iterazione calcoliamo l'errore di classificazione 
+# OOB sui dati bilanciati
+# nota: questa è una procedura sub-ottimale dovuta a motivi di tempo
+# sub - ottima: stabilizzazione sull'insieme di stima
+iter_boost = 300
+
+# Stump 
+m_boost = ada(y = dati$y[ids_bal], x = dati[ids_bal, -y_index],
+              iter = iter_boost,
+              control = rpart.control(maxdepth=1,
+                                      cp=-1,
+                                      minsplit=0,xval=0))
+plot(m_boost, test = T)
+
+err_boost = matrix(NA, 700, 4)
+
+for(i in seq(iter_boost, 700, by = 20)){
+  pr_tmp = predict(m_boost, dati[id_bal,],
+                   n.iter = i,
+                   type = "prob")[,2]
+  
+  err_boost[i,] = USED.Loss(pr_tmp > threshold, dati$morto[id])
+  cat(i, "\n")
+}
+
+plot(err_boost[,4], pch = 16)
+# non si stabilizza, dovrei provare ad andare avanti
+
+err = matrix(NA, K_FOLD, 4)
+
+
+for(k in 1:K_FOLD){
+  
+  id_stima = c(cv_id_bal_matr[,-k])
+  id_verifica = cv_id_unbal_matr[,k] 
+  
+  m_tmp = ada(factor(y)~., data = dati[id_stima,], iter = 500, control = rpart.control(maxdepth=1,
+                                                                                       cp=-1,
+                                                                                       minsplit=0,xval=0))
+  pr_tmp = predict(m_tmp, newdata =  dati[id_verifica, ],
+                   type = "prob")
+  
+  err[k,] =  USED.Loss(pr_tmp[,2] > threshold, dati$y[id_verifica])
+  print(k)
+  
+}
+
+df_err_qual = Add_Test_Error(df_err_qual,
+                             "Boosting Stump ",
+                             colMeans(colMeans(err)))
+df_err_qual
+
+
+# 3 Split
+m_boost = ada(y ~., dati[ids_bal, ], iter = 500,
+              control = rpart.control(maxdepth = 3))
 plot(m_boost)
 
-predict(m_boost, dati[id,], n.iter = 2)
-
-# 500 alberi
-# per ogni iterazione calcoliamo le metriche 
 err_boost = matrix(NA, 700, 4)
+
 for(i in seq(1,700, by = 20)){
-  pr_tmp = predict(m_boost, dati[id,],
+  pr_tmp = predict(m_boost, dati[id_bal,],
                    n.iter = i,
                    type = "prob")[,2]
   
@@ -942,27 +1007,111 @@ for(i in seq(1,700, by = 20)){
 plot(err_boost[,4], pch = 16)
 # non si stabilizza, dovrei provare ad andare avanti
 
-err = matrix(NA, 4, 4)
+err = matrix(NA, K_FOLD, 4)
 
 
-for(j in 1:4){
+for(k in 1:K_FOLD){
   
-  id_stima = c(cv_id[,-j])
-  id_verifica = cv_id_sb[,j] 
+  id_stima = c(cv_id_bal_matr[,-k])
+  id_verifica = cv_id_unbal_matr[,k] 
   
-  m_tmp = ada(factor(morto)~., data = dati[id_stima,], iter = 500)
-  pr_tmp = predict(rf_tmp, newdata =  dati[id_verifica, ],
+  m_tmp = ada(factor(y)~., data = dati[id_stima,], iter = 500, control = rpart.control(maxdepth = 3))
+  pr_tmp = predict(m_tmp, newdata =  dati[id_verifica, ],
                    type = "prob")
   
-  err[j,] =  fun.errori(pr_tmp[,2] > threshold, dati$morto[id_verifica])
+  err[k,] =  USED.Loss(pr_tmp[,2] > threshold, dati$y[id_verifica])
+  print(k)
+  
 }
-err_boost = colMeans(err)
-err_boost
+
+df_err_qual = Add_Test_Error(df_err_qual,
+                             "Boosting 3 split ",
+                             colMeans(colMeans(err)))
+df_err_qual
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Support Vector Machine ---------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+library(e1071)
+
+
+# Stima Convalida
+# Kernel Radiale
+
+ranges = seq(2,10,by=0.5)
+
+# l'ultima dimnensione (4) è dovuta alle 4 metriche della tabella sommario
+err_cv_tmp_array = array(NA, dim = c(K_FOLD, length(ranges), 4))
+
+for(k in 1:K_FOLD) {
+  # Stimiamo su un modello bilanciato
+  id_stima = c(cv_id_bal_matr[,-k])
+  id_verifica = cv_id_unbal_matr[,k] 
+  
+  # stima sul dataset bilanciato
+  for (i in ranges){
+    temp_cv_model <- svm(factor(y)~., data= dati[id_stima,], cost = ranges[i], kernel = "radial",
+                         probability = TRUE)
+    tmp_pred <- predict(temp_cv_model, newdata= dati[id_verifica,], probability = TRUE) #, decision.values=TRUE)
+    err_cv_tmp_array[k,i,] = USED.Loss((tmp_pred[,i] > threshold) %>% as.numeric(),
+                                       dati$y[id_verifica])
+    rm(temp_cv_model)
+    rm(tmp_pred)
+    gc()
+    
+    print("i")
+    print(i)
+    }
+  
+  print("k")
+  print(k)
+}
+
+
+
+# controlla gli errori e seleziona il modello migliore 
+
+cv_errs = cbind(apply(err_cv_tmp_array[,,1], 2, mean),
+                apply(err_cv_tmp_array[,,2], 2, mean),
+                apply(err_cv_tmp_array[,,3], 2, mean),
+                apply(err_cv_tmp_array[,,4], 2, mean))
+
+
+
+names(cv_errs) = c("miss", "fp", "fn", "f_score")
+
+plot(lambda_vals, cv_errs[,1],
+     xlab = "lambda_values", ylab = "Metrics",
+     main = "SVM radial CV error", pch = 16,
+     ylim = c(0,1))
+
+points(lambda_vals, cv_errs[,2], pch = 16, col = "red")
+
+points(lambda_vals, cv_errs[,3], pch = 16, col = "blue")
+
+points(lambda_vals, cv_errs[,4],  pch = 16, col = "violet")
+
+legend("topright",
+       legend = c("miss", "fp", "fn", "f_score"),
+       col = c("black", "red", "blue", "violet"),
+       pch = 16)
+
+
+# di default scelgo  f_score come criterio
+# in base al problema può cambiare 
+
+svm_range_best = which.max(cv_errs[,4])
+ranges[svm_range_best]
+#  0.0003413895
+
+# potrebbe essere necessario ristimare il modello
+
+# scegli il modello migliore rispetto al criterio
+df_err_qual = Add_Test_Error(df_err_qual,
+                             "svm radial",
+                             cv_errs[svm_range_best,])
+df_err_qual
 
 
 # /////////////////////////////////////////////////////////////////
@@ -970,7 +1119,7 @@ err_boost
 # /////////////////////////////////////////////////////////////////
 
 
-
+df_err_qual
 
 
 

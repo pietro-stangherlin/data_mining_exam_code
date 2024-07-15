@@ -603,6 +603,42 @@ gc()
 # GAM ---------------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+library(gam)
+
+# Controllo del compromesso varianza distorsione: 
+# selezione step tramite gradi di libertà equivalenti
+
+# °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
+# stepwise forward
+gam0 = gam(y ~ 1, family = "binomial", data = sss)
+# riconosce le qualitative se sono fattori
+my_gam_scope = gam.scope(sss[,-y_index], arg = c("df=2", "df=3", "df=4", "df=5", "df=6"))
+
+# prova anche parallelo
+# require(doMC)
+# registerDoMC(cores=4)
+# step.Gam(Gam.object,scope ,parallel=TRUE)
+
+gam_step = step.Gam(gam0, scope = my_gam_scope)
+
+# salvo il modello finale
+#y ~ x2 + x7 + x8 + anno
+
+# gam_step = gam(y ~ Sottocategoria + s(Obiettivo, df = 4) + s(Durata, df = 4) + Anno,
+#                 data = sss)
+
+object.size(gam_step)
+
+df_err_quant = Add_Test_Error(df_err_qual,
+                              "additivo_step",
+                              USED.Loss(predict(gam_step, newdata = vvv), vvv$y))
+
+df_err_quant
+
+rm(gam_step)
+gc()
+
+
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # MARS ---------------------------------------
@@ -1070,7 +1106,7 @@ df_err_qual = Add_Test_Error(df_err_qual,
 rm(m_boost_stump)
 gc()
 
-# 6 split (default)
+# 3 split
 # guardiamo quando si stabilizza l'errore
 
 m_boost_2 = ada(x = sss[id_cb1, -y_index],
@@ -1097,7 +1133,7 @@ plot(m_boost_2, test = T)
 pred_boost_2 = predict(m_boost_2, vvv, type = "prob")[,2]
 
 df_err_qual = Add_Test_Error(df_err_qual,
-                             "Boosting 6 Split",
+                             "Boosting 3 Split",
                              USED.Loss(pred_boost_2 > threshold %>% as.numeric(),
                                        vvv$y))
 
