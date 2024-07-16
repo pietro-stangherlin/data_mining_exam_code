@@ -100,9 +100,21 @@ y_rel_freqs = table(sss$y) / NROW(sss)
 y_uniques = unique(sss$y)
 
 
+sorted_y_values = sort(unique(sss$y))
+
+
 # /////////////////////////////////////////////////////////////////
 #------------------------ Modelli ---------------------------------
 # /////////////////////////////////////////////////////////////////
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Creazione indicatrice --------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+#carico la libreria nnet in cui c'e' il comando class.ind che crea le 
+# variabili indicatrici per le modalità della risposta
+library(nnet)
+Y_sss = class.ind(sss$y)
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Classificazione Casuale --------------------
@@ -126,7 +138,7 @@ df_err_qual
 # Regressione multinomiale --------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(nnet)
-m_multi0 = multinom(y ~., data = sss)
+m_multi0 = multinom(Y_sss ~., data = sss[,-y_index])
 
 m_multi0
 
@@ -136,7 +148,7 @@ m_multi0
 # salvo la formula 
 # y ~ x2 + x7 + x8
 
-m_multi = multinom(multinom(formula = y ~ x2 + x7 + x8, data = sss))
+m_multi = multinom(multinom(formula = Y_sss ~ x2 + x7 + x8, data = sss[,-y_index]))
 m_multi
 
 pred_multinom = predict(m_multi, newdata = vvv)
@@ -188,53 +200,219 @@ library(glmnet)
 
 # Lasso --------------------
 
-# matrice del disegno tranne l'intercetta
-X = model.matrix(m0)[,-1]
-
 # Lasso mgaussian multivar impone che i coef ci siano sempre o mai
 # contemporaneamente per ogni modalita' della risposta
-m_lasso = glmnet(x = X[cb1,],
-                 y = Y[cb1,],
-                 family = "mgaussian")
-x11()
-par(mfrow = c(2,3))
-plot(m_lasso)
+# selezione dei parametri di regolazione: stima - convalida
 
-pr_lasso_all = predict(m_lasso, X[cb2,], type = "response")
-pr_lasso = matrix(NA, dim(pr_lasso_all)[1], dim(pr_lasso_all)[3])
-for(k in 1:NCOL(pr_lasso)){
-  pr_lasso[,k] = apply(pr_lasso_all[,,k], 1, which.max)
+# No interazione 
+lasso_no_int = glmnet(x = X_mm_no_interaction_sss[id_cb1,],
+                 y = Y_sss[id_cb1,],
+                 family = "mgaussian",
+                 lambda.min.ratio = 1e-07)
+
+lambda_vals = lasso_no_int$lambda
+
+# previsione sulla convalida
+pr_lasso_no_int_matr = predict(lasso_no_int, X_mm_no_interaction_sss[-id_cb1,], type = "response")
+
+dim(pr_lasso_no_int_matr)
+
+# ogni riga: valore diverso di lambda
+# ogni colonna: valore della classe stimata
+pr_lasso_no_int = matrix(NA, nrow = length(lambda_vals), ncol = length(sss$y[-id_cb1]))
+
+dim(pr_lasso_no_int)
+
+for(i in 1:NROW(pr_lasso_no_int)){
+  pr_lasso_no_int[i,] = t(apply(pr_lasso_no_int_matr[,,i], 1, which.max))
 }
 
-str(pr_lasso)
-err_l = apply(pr_lasso, 2, function(x) ce(x, sss$diagnosi[cb2]))
+dim(pr_lasso_no_int)
+
+# conversione in char
+pr_lasso_no_int = t(apply(pr_lasso_no_int, 1, function(row) sorted_y_values[row]))
+
+dim(pr_lasso_no_int)
+
+# controllo 
+pr_lasso_no_int[1:10, 1:15]
+
+# errore sull'insieme di convalida
+err_lasso_no_int = apply(pr_lasso_no_int, 1, function(row) USED.Loss(row, sss$y[-id_cb1]))
+
+length(err_lasso_no_int)
+err_lasso_no_int
 
 par(mfrow = c(1,1))
-plot(log(m_lasso$lambda), err_l)
+plot(log(lambda_vals), err_lasso_no_int,
+     xlab = "log lambda", ylab = "err", main = "Lasso no interaction",
+     pch = 16)
 
-bb = which.min(err_l)
-bb
+best_lambda_no_int = lambda_vals[which.min(err_lasso_no_int)]
+best_lambda_no_int
+abline(v = log(best_lambda_no_int))
 
-coef(m_lasso, m_lasso$lambda[bb])
+coef(lasso_no_int, lasso_no_int$lambda[best_lambda_no_int])
 # problema: lambda e' molto piccola
 # in questo caso e' quasi come senza penalizzare
 
-XXv = model.matrix(diagnosi ~., data = vvv)[,-1]
-pr_lasso = predict(m_lasso, newx = XXv, s = log(m_lasso$lambda)[bb])
 
-str(pr_lasso)
-pr_lasso_class = apply(drop(pr_lasso), 1, which.max)
+# errore sull'insieme di convalida
 
-str(drop(pr_lasso))
-errori[NROW(errori) + 1, ] = c("lin multi lasso",
-                               ce(pr_lasso_class, vvv$diagnosi))
+pred_final_lasso_no_int_matr = drop(predict(lasso_no_int,
+                                  newx = X_mm_no_interaction_vvv,
+                                  s = best_lambda_no_int))
+dim(pred_final_lasso_no_int_matr)
+
+
+pred_final_lasso_no_int_class = apply(pred_final_lasso_no_int_matr, 1, which.max)
+
+
+pred_final_lasso_no_int_class = sorted_y_values[pred_final_lasso_no_int_class]
+
+length(pred_final_lasso_no_int_class)
+
+df_err_qual = Add_Test_Error(df_err_qual,
+                             "lasso no int",
+                             USED.Loss(pred_final_lasso_no_int_class, vvv$y))
+
+df_err_qual
+
+rm(lasso_no_int)
+rm(pred_final_lasso_no_int)
+rm(pred_final_lasso_no_int_class)
+rm(pred_final_lasso_no_int_matr)
+
+# SI interazione
+
+lasso_yes_int = glmnet(x = X_mm_yes_interaction_sss[id_cb1,],
+                      y = Y_sss[id_cb1,],
+                      family = "mgaussian",
+                      lambda.min.ratio = 1e-07)
+
+lambda_vals = lasso_yes_int$lambda
+
+# previsione sulla convalida
+pr_lasso_yes_int_matr = predict(lasso_yes_int, X_mm_yes_interaction_sss[-id_cb1,], type = "response")
+
+dim(pr_lasso_yes_int_matr)
+
+# ogni riga: valore diverso di lambda
+# ogni colonna: valore della classe stimata
+pr_lasso_yes_int = matrix(NA, nrow = length(lambda_vals), ncol = length(sss$y[-id_cb1]))
+
+dim(pr_lasso_yes_int)
+
+for(i in 1:NROW(pr_lasso_yes_int)){
+  pr_lasso_yes_int[i,] = t(apply(pr_lasso_yes_int_matr[,,i], 1, which.max))
+}
+
+dim(pr_lasso_yes_int)
+
+# conversione in char
+pr_lasso_yes_int = t(apply(pr_lasso_yes_int, 1, function(row) sorted_y_values[row]))
+
+dim(pr_lasso_yes_int)
+
+# controllo 
+pr_lasso_yes_int[1:10, 1:15]
+
+# errore sull'insieme di convalida
+err_lasso_yes_int = apply(pr_lasso_yes_int, 1, function(row) USED.Loss(row, sss$y[-id_cb1]))
+
+length(err_lasso_yes_int)
+err_lasso_yes_int
+
+par(mfrow = c(1,1))
+plot(log(lambda_vals), err_lasso_yes_int,
+     xlab = "log lambda", ylab = "err", main = "Lasso yes interaction",
+     pch = 16)
+
+best_lambda_yes_int = lambda_vals[which.min(err_lasso_yes_int)]
+best_lambda_yes_int
+abline(v = log(best_lambda_yes_int))
+
+coef(lasso_yes_int, lasso_yes_int$lambda[best_lambda_yes_int])
+# problema: lambda e' molto piccola
+# in questo caso e' quasi come senza penalizzare
+
+
+# errore sull'insieme di convalida
+
+pred_final_lasso_yes_int_matr = drop(predict(lasso_yes_int,
+                                            newx = X_mm_yes_interaction_vvv,
+                                            s = best_lambda_yes_int))
+dim(pred_final_lasso_yes_int_matr)
+
+
+pred_final_lasso_yes_int_class = apply(pred_final_lasso_yes_int_matr, 1, which.max)
+
+
+pred_final_lasso_yes_int_class = sorted_y_values[pred_final_lasso_yes_int_class]
+
+length(pred_final_lasso_yes_int_class)
+
+df_err_qual = Add_Test_Error(df_err_qual,
+                             "lasso yes int",
+                             USED.Loss(pred_final_lasso_yes_int_class, vvv$y))
+
+df_err_qual
+
+rm(lasso_yes_int)
+rm(pred_final_lasso_yes_int)
+rm(pred_final_lasso_yes_int_class)
+rm(pred_final_lasso_yes_int_matr)
 
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # MARS ---------------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+library(earth)
+# earth fa sempre regressione
+# mentre polyspline puo fare multi con approssimazione della devianza
 
+# attenzione ale interazioni: degree = 2
+# interazioni fino al secondo ordine
+m_mars = earth(Y_sss ~., sss[,-y_index], degree = 2)
+
+# di fatto modello di regressione multivariato
+# con criterio di penalizzazione gcv
+
+
+
+# per ogni numero di basi incluse
+m_mars$gcv.per.subset
+
+plot(m_mars$gcv.per.subset, pch = 16,
+     xlab = "Numero di basi",
+     ylab = "GCV")
+abline(v = which.min(m_mars$gcv.per.subset), col = "gold",
+       main = "MARS")
+
+
+summary(m_mars)
+
+# # prima risposta
+# plotmo(m_mars, nresponse = 1, ylim = NA)
+# 
+# plotmo(m_mars, nresponse = 2, ylim = NA)
+
+pred_mars = apply(predict(m_mars, vvv), 1, which.max)
+pred_mars_class = sorted_y_values[pred_mars]
+
+df_err_qual = Add_Test_Error(df_err_qual,
+                             "mars",
+                             USED.Loss(pred_mars_class, vvv$y))
+
+df_err_qual
+
+
+rm(m_mars)
+gc()
+
+# potremmo anche provare con degree 1
+# per interpretazione 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Albero -------------------------------------
@@ -256,8 +434,8 @@ library(tree)
 tree_full = tree(factor(y) ~.,
                  data = sss[id_cb1,],
                  control = tree.control(nobs = length(id_cb1),
-                                        mindev = 1e-05,
-                                        mincut = 100))
+                                        mindev = 1e-04,
+                                        mincut = 40))
 
 
 # controllo che sia sovraadattato
@@ -270,7 +448,8 @@ plot(tree_pruned)
 plot(tree_pruned, xlim = c(10, 90))
 
 tree_best_size = tree_pruned$size[which.min(tree_pruned$dev)]
-# 15
+tree_best_size
+# 11
 
 abline(v = tree_best_size, col = "red")
 
@@ -381,11 +560,15 @@ random_forest_model = ranger(factor(y) ~., sss,
                              importance = "permutation",
                              probability = T)
 
-pred_random_forest = predict(random_forest_model, data = vvv, type = "class")
+pred_random_forest = predict(random_forest_model, data = vvv, type = "response")$predictions
+dim(pred_random_forest)
+
+pred_random_forest_class = apply(pred_random_forest, 1, which.max)
+pred_random_forest_class = sorted_y_values[pred_random_forest_class]
 
 df_err_qual = Add_Test_Error(df_err_qual,
                              "Random Forest",
-                             USED.Loss(pred_random_forest,vvv$y))
+                             USED.Loss(pred_random_forest_class,vvv$y))
 
 df_err_qual
 
@@ -397,6 +580,14 @@ dotchart(vimp[order(vimp)])
 rm(random_forest_model)
 gc()
 
+# /////////////////////////////////////////////////////////////////
+#------------------------ Sintesi Finale -------------------------
+# /////////////////////////////////////////////////////////////////
+
+# Dei modelli migliori in base alle metriche traccio le curve lift e ROC
+# altrimenti i grafici sono difficili da leggere
+
+df_err_qual
 
 
 
