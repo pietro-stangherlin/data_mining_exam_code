@@ -70,6 +70,7 @@ id_cb2 = setdiff(1:NROW(sss), id_cb1)
 
 # rimozione dataset originale
 rm(dati)
+gc(dati)
 
 # /////////////////////////////////////////////////////////////////
 #------------------------ Analisi esplorative ---------------------

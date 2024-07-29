@@ -49,6 +49,7 @@ id_cb2 = setdiff(1:NROW(sss), id_cb1)
 
 # rimozione dataset originale
 rm(dati)
+gc(dati)
 
 # /////////////////////////////////////////////////////////////////
 #------------------------ Analisi esplorative ---------------------
@@ -561,8 +562,9 @@ gc()
 
 # devo ottenere gli indici delle colonne
 # delle variabili qualitative della matrice del disegno (senza intercetta)
-factor_index = which(colnames(X_mm_no_interaction_sss) != var_num_names)
-num_index = which(colnames(X_mm_no_interaction_sss) == var_num_names)
+num_index = which(colnames(X_mm_no_interaction_sss) %in% var_num_names)
+factor_index = setdiff(1:NCOL(X_mm_no_interaction_sss), num_index)
+
 
 library(polspline)
 

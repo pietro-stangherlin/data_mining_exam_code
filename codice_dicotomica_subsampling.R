@@ -742,7 +742,10 @@ df_err_qual
 # MARS ---------------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-factor_index = which(colnames(X_mm_no_interaction) != var_num_names)
+# devo ottenere gli indici delle colonne
+# delle variabili qualitative della matrice del disegno (senza intercetta)
+num_index = which(colnames(X_mm_no_interaction_sss) %in% var_num_names)
+factor_index = setdiff(1:NCOL(X_mm_no_interaction_sss), num_index)
 
 library(polspline)
 

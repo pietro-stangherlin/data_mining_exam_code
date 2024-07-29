@@ -630,15 +630,17 @@ var_num_names
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# PCA ----------------------------------------
+# Analisi istrogramma quantitative -------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# ATTENZIONE: facoltativo
-# se le variabili esplicative quantitative sono molte
-# una possibilità è ridurne il numero tramite le componenti principali
-# ovviamente perdiamo l'interpetazione
-# inoltre questa riduzione di dimensionalità non ha senso
-# per i modelli basati su alberi
+# per ogni variabile espicativa quantitativa 
+# disegna l'istrogramma della sua distribuzione empirica
+
+# input: quant_indexes (vector of ints)
+# output: plots of each quantitative variable histogram
+DrawQuantHist = function(quant_indexes){
+  
+}
 
 
 
