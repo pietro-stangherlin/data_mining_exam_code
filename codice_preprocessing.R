@@ -630,10 +630,21 @@ var_num_names
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Scope ----------------------------------------
+# PCA ----------------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# Attenzione: solo per regressione o classificazione binaria
+# ATTENZIONE: facoltativo
+# se le variabili esplicative quantitative sono molte
+# una possibilità è ridurne il numero tramite le componenti principali
+# ovviamente perdiamo l'interpetazione
+# inoltre questa riduzione di dimensionalità non ha senso
+# per i modelli basati su alberi
+
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Scope ----------------------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 # funzione per creare le stringhe di interazione
 # tra variabili della stessa tipologia
