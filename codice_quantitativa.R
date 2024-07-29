@@ -7,24 +7,7 @@ library(dplyr)
 # Quantitativa -------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# per variabile risposta quantitativa: MSE
-MSE.Loss = function(y.pred, y.test, weights = 1){
-  sqrt(mean((y.test - y.pred)^2*weights))
-}
-
-# per variabile risposta quantitativa: MAE
-MAE.Loss = function(y.pred, y.test, weights = 1){
-  mean(abs(y.test - y.pred)*weights)
-}
-
-
-# funzione di convenienza
-Null.Loss = function(y.pred, y.test, weights = 1){
-  NULL
-}
-
-# La funzione di perdita può cambiare in base al problema
-# Cambia MAE eventualmente
+source("loss_functions.R")
 
 # °°°°°°°°°°°°°°°°°°°°°°° Warning: °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 # cambia la funzione di errore per il problema specifico
@@ -37,38 +20,6 @@ USED.Loss = function(y.pred, y.test, weights = 1){
 
 # anche qua
 df_err_quant = data.frame(name = NA, MAE = NA, MSE = NA)
-
-
-# Funzione per aggiornare il data.frame degli errori
-# (inefficiente, ma amen, tanto le operazioni che deve eseguire sono sempre limitate)
-
-
-# Add the error to the df_error data.frame:
-# if the df_error already has a model name in name column with the same as input: update the error value
-# otherwise append the new name and error
-# arguments:
-# @df_error (data.frame): data.frame with columns: [1]: name and [2]: error
-# @model_name (char): character with the model name
-# @loss_value (num): numeric with the error on the test set
-# @return: df_error
-
-Add_Test_Error = function(df_error, model_name, loss_value){
-  # check if the model name is already in the data.frame
-  is_name = model_name %in% df_error[,1]
-  
-  # if yes: get the index and subscribe
-  if(is_name){
-    df_error[which(df_error[,1] == model_name),2:length(loss_value)] = loss_value
-  }
-  
-  else{
-    # get the last index
-    df_error[NROW(df_error) + 1,] = c(model_name, loss_value)
-  }
-  
-  return(df_error)
-}
-
 
 
 # /////////////////////////////////////////////////////////////////

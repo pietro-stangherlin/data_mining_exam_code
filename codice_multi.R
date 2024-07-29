@@ -7,43 +7,6 @@ library(dplyr)
 # Costruzione metrica di valutazione e relativo dataframe -------------------
 #////////////////////////////////////////////////////////////////////////////
 
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Qualitativa -------------------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-# input: 
-# previsti: vector of character or factors
-# osservati: vector of character or factors
-
-MissErr = function(previsti, osservati, weights = 1){
-  
-  # check
-  if(length(previsti) != length(osservati)){
-    print(paste("Warning", "length(previsti) = ", length(previsti), 
-    "; length(osservati) = ", length(osservati)))
-    print("return NULL")
-    return(NULL)
-  }
-  
-  return( 1- sum((previsti == osservati)*weights) / length(previsti))
-}
-
-previsti_test = c("a", "b", "a", "c")
-osservati_test = c("a", "c", "a", "c")
-
-MissErr(previsti_test, osservati_test)
-
-#weight more the first observation
-MissErr(previsti_test, osservati_test, weights = c(0.4, 0.2, 0.2, 0.2))
-
-# error expected
-MissErr(c(1,1), c(0,0,0))
-
-
-# funzione di convenienza
-Null.Loss = function(y.pred, y.test, weights = 1){
-  NULL
-}
 
 # °°°°°°°°°°°°°°°°°°°°°°° Warning: °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 # cambia la funzione di errore per il problema specifico

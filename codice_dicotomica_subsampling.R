@@ -8,70 +8,7 @@ library(dplyr)
 # Costruzione metrica di valutazione e relativo dataframe -------------------
 #////////////////////////////////////////////////////////////////////////////
 
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Qualitativa -------------------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-tabella.sommario = function(previsti, osservati,
-                            print_bool = FALSE,
-                            ready_table = NA){
-  # inizializza: per evitare casi in cui la tabella non è 2x2
-  n <-  matrix(0, nrow = 2, ncol = 2)
-  
-  for (i in 1:length(previsti)){
-    if(previsti[i] == osservati[i]){
-      # 0 == 0 case
-      if (previsti[i] == 0){
-        n[1,1] = n[1,1] + 1
-      }
-      # 1 == 1
-      else{
-        n[2,2] = n[2,2] + 1}
-    }
-    
-    else{
-      # 0 != 1
-      if (previsti[i] == 0){
-        n[1,2] = n[1,2] + 1
-      }
-      # 1 != 0
-      else{
-        n[2,1] = n[2,1] + 1
-      }
-      
-    }
-  }
-  
-  if(typeof(ready_table) != "logical"){
-    n = ready_table
-  }
-  
-  err.tot <- 1-sum(diag(n))/sum(n)
-  zeros.observed = sum(n[1,1] + n[2,1])
-  ones.observed = sum(n[1,2] + n[2,2])
-  
-  fn <- n[1,2]/ones.observed
-  fp <- n[2,1]/zeros.observed
-  
-  tp = 1 - fn
-  tn = 1 - fp
-  
-  f.score = 2*tp / (2*tp + fp + fn)
-  
-  if(print_bool == TRUE){
-    print(n)
-    print(c("err tot", "fp", "fn", "f.score"))
-    print(c(err.tot, fp, fn, f.score))}
-  
-  return(round(c(err.tot, fp, fn, f.score), 4))
-}
-
-
-# funzione di convenienza
-Null.Loss = function(y.pred, y.test, weights = 1){
-  NULL
-}
-
+source("loss_functions.R")
 
 # °°°°°°°°°°°°°°°°°°°°°°° Warning: °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 # cambia la funzione di errore per il problema specifico
@@ -87,36 +24,6 @@ df_err_qual = data.frame(name = NA,
                          fp = NA,
                          fn = NA,
                          f_score = NA)
-
-
-# Funzione per aggiornare il data.frame degli errori
-# (inefficiente, ma amen, tanto le operazioni che deve eseguire sono sempre limitate)
-# Add the error to the df_error data.frame:
-# if the df_error already has a model name in name column with the same as input: update the error value
-# otherwise append the new name and error
-# arguments:
-# @df_error (data.frame): data.frame with columns: [1]: name and [2]: error
-# @model_name (char): character with the model name
-# @loss_value (num): numeric with the error on the test set
-# @return: df_error
-
-Add_Test_Error = function(df_error, model_name, loss_value){
-  # check if the model name is already in the data.frame
-  is_name = model_name %in% df_error[,1]
-  
-  # if yes: get the index and subscribe
-  if(is_name){
-    df_error[which(df_error[,1] == model_name),2:ncol(df_error)] = loss_value
-  }
-  
-  else{
-    # get the last index
-    df_error[NROW(df_error) + 1,] = c(model_name, loss_value)
-  }
-  
-  return(df_error)
-}
-
 
 # /////////////////////////////////////////////////////////////////
 #------------------------ Stima e Verifica ------------------------
