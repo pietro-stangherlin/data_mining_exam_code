@@ -434,24 +434,88 @@ unique_vals_df_no_y
 # Riduzione categorie qualitative -------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# Per variabili che so già essere qualitative
-
-
-
 # Funzioni 
 # ===================================================================
-# ritorna la tabella con le modalità e le rispettive frequenze
-# per il data.frame df e la variabile var_name
-TableFreqFun = function(df, var_name){
-  table_modalita_decr = table(df[,var_name]) %>% sort(decreasing = T)
-  # quante modalità
+
+# @input my_table(table)
+# @input first (int): how many values frequencies one should print (default all)
+# @input print_lenght (bool): print the number of total unique values
+# @return values frequency in decreasing frequency order
+ReturnFirstTable = function(my_table,
+                           first = NULL,
+                           print_length = FALSE){
   
-  print("Numero di modalità uniche")
-  print( df[,var_name] %>% unique() %>% length())
+  if (print_length == TRUE){
+    print(paste("number of unique values: ", length(my_table)))
+  }
   
-  return(table_modalita_decr)
+  # print all
+  if(is.null(first)){
+    first = length(my_table)
+    return(my_table  %>% sort(decreasing = T))
+  }
+  
+  # print only first
+  else{
+    return((my_table  %>% sort(decreasing = T))[1:min(first,length(my_table))])
+  }
   
 }
+
+# @input my_df (data.frame)
+# @input var_index_subset (vector of int): indexes of variables subset
+# @input first (int): how many values frequencies one should print (default all)
+# @input print_lenght (bool): print the number of total unique values
+# @print values frequency in decreasing frequency order
+# going forward with the "enter" input and backward with the "b" input
+
+PrintAllTables = function(my_df,
+                          var_index_subset = NULL,
+                          first = NULL,
+                          print_length = FALSE){
+  
+  # all variables
+  if(is.null(var_index_subset)){
+    var_index_subset = 1:NCOL(my_df)}
+  
+  var_index_counter = 0
+  var_names_temp = colnames(my_df)
+  
+  print("press (enter) to forward and 'b' to backward and q to quit")
+  
+  while(var_index_counter < length(var_index_subset)){
+    input = readline("")
+    
+    if((input == "q")){
+      var_index_counter = length(var_index_subset) - 1}
+    
+    if((input != "b")){
+      var_index_counter = var_index_counter + 1}
+    
+    if(input == "b"){
+      var_index_counter = var_index_counter - 1}
+    
+    if(var_index_counter <= 0){
+      var_index_counter = 1}
+    
+    
+    print("--------------------------------------------")
+    print(var_names_temp[var_index_subset[var_index_counter]])
+    print(ReturnFirstTable(table(my_df[,var_index_subset[var_index_counter]]),
+                    first,
+                    print_length))
+    print("--------------------------------------------")}
+    
+}
+
+
+
+# Analisi prime 40 frequenze delle modalità di tutte
+# le variabili
+
+PrintAllTables(dati, first = 40)
+
+
 
 
 # ritorna le modalità di var_name con frequenza minore di soglia
@@ -506,7 +570,7 @@ str(dati)
 
 # funzione per una singola variabile
 GroupValuesQual = function(df, qual_vector_var_name, new_name = "Altro"){
-  temp_table_freq = TableFreqFun(df, qual_vector_var_name)
+  temp_table_freq = table(df[,qual_vector_var_name]) %>% sort(decreasing = T)
   
   # meno di 30 modalità: non c'è bisogno di nessuna modifica
   if (length(temp_table_freq) <= 25){
@@ -633,15 +697,69 @@ var_num_names
 # Analisi istrogramma quantitative -------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# per ogni variabile espicativa quantitativa 
+# per ogni variabile esplicativa quantitativa 
 # disegna l'istrogramma della sua distribuzione empirica
+# e quella del suo logaritmo (opportunamente traslata)
 
-# input: quant_indexes (vector of ints)
+# @input: my_df (data.frame)
+# @input var_index_subset (vector of int): indexes of quantitative variables subset
 # output: plots of each quantitative variable histogram
-DrawQuantHist = function(quant_indexes){
+DrawQuantHist = function(my_df,
+                        var_index_subset = NULL,
+                        my_breaks = 50){
+  
+  # all variables
+  if(is.null(var_index_subset)){
+    var_index_subset = 1:NCOL(my_df)}
+  
+  var_index_counter = 0
+  var_names_temp = colnames(my_df)
+  
+  par(mfrow = c(1,2))
+  
+  print("press (enter) to forward and 'b' to backward and q to quit")
+  
+  while(var_index_counter < length(var_index_subset)){
+    input = readline("")
+    
+    if((input == "q")){
+      var_index_counter = length(var_index_subset) - 1}
+    
+    if((input != "b")){
+      var_index_counter = var_index_counter + 1}
+    
+    if(input == "b"){
+      var_index_counter = var_index_counter - 1}
+    
+    if(var_index_counter <= 0){
+      var_index_counter = 1}
+    
+    
+    # original scale
+    hist(my_df[,var_index_subset[var_index_counter]],
+         breaks = my_breaks,
+         main = var_names_temp[var_index_subset[var_index_counter]],
+         xlab = "values")
+    
+    # log translated scale
+    temp_min = min(my_df[,var_index_subset[var_index_counter]])
+    
+    if(temp_min > 0){
+      temp_min = 0}
+    
+    hist(log(my_df[,var_index_subset[var_index_counter]] - temp_min + 1e-05 ),
+         breaks = my_breaks,
+         main = paste("log", var_names_temp[var_index_subset[var_index_counter]]),
+         xlab = "log values")
+    }
+  
+  par(mfrow = c(1,1))
   
 }
 
+
+# Analisi istogrammi
+DrawQuantHist(dati, var_num_index)
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

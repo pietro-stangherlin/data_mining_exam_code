@@ -25,9 +25,10 @@ Null.Loss = function(y.pred, y.test, weights = 1){
 # Dicotomica -------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# devo aggiungere pesi
-
-tabella.sommario = function(previsti, osservati, print_bool = FALSE){
+# weights: solo per tasso di errata classificazione 
+tabella.sommario = function(previsti, osservati,
+                            print_bool = FALSE,
+                            weights = 1){
   # inizializza: per evitare casi in cui la tabella non è 2x2
   n <-  matrix(0, nrow = 2, ncol = 2)
   
@@ -56,7 +57,7 @@ tabella.sommario = function(previsti, osservati, print_bool = FALSE){
   }
   
   
-  err.tot <- 1-sum(diag(n))/sum(n)
+  err.tot <- sum((previsti != osservati) * weights) / sum(length(previsti) * weights)
   zeros.observed = sum(n[1,1] + n[2,1])
   ones.observed = sum(n[1,2] + n[2,2])
   
