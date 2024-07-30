@@ -29,8 +29,18 @@ probabilmente può essere troppo lungo da implementare (per la multiclasse), ma 
 
 
 ## Regressione e classificazione
+
+### Salvataggio output su file
+Ad esempio per recuperare formule di modelli se R crasha.
+Problema: con sink() è possibile ma ciò implica che l'output sia visibile SOLO sul file,
+io voglio che sia visibile sia da console che salvato su file.
+
+### Tutti i modelli: salvataggio locale modelli
+Trova un modo di salvare i modelli su disco in modo da poter liberare la memoria centrale 
+e riprendere i modelli per le conclusioni.
+
 ### Regressione sulle componenti principali
 Può essere impiegata anche per modelli additivi e MARS, ovvero per modelli che operano una selezione delle variabili.
 
-### Aggiiungi earth come ulteriore MARS 
+### Aggiungi EARTH come ulteriore MARS 
 
