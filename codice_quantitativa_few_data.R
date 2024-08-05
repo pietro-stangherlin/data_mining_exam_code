@@ -95,7 +95,7 @@ for (i in 1:K_FOLD){
 
 
 df_err_quant = Add_Test_Error(df_err_quant,
-                              "sss mean",
+                              "cv mean",
                               colMeans(temp_err_matrix_cv))
 
 
@@ -111,7 +111,7 @@ for (i in 1:K_FOLD){
 
 
 df_err_quant = Add_Test_Error(df_err_quant,
-                              "sss median",
+                              "cv median",
                               colMeans(temp_err_matrix_cv))
 
 # df_err_quant = df_err_quant[-which(is.na(df_err_quant)),]
@@ -134,6 +134,9 @@ library(glmnet)
 
 X_mm_no_interaction_sss = model.matrix(formula_no_interaction_no_intercept,
                                        data = dati)
+
+# sparsa
+# X_mm_no_interaction_sss =  sparse.model.matrix(formula_no_interaction_no_intercept, data = dati)
 
 lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = dati$y,
         alpha = 0, lambda.min.ratio = 1e-07)$lambda
@@ -205,7 +208,11 @@ df_err_quant = Add_Test_Error(df_err_quant,
 
 # X_mm_yes_interaction_sss = model.matrix(formula_yes_interaction_no_intercept,
 #                                        data = dati)
-# 
+#
+# sparsa
+# X_mm_yes_interaction_sss =  sparse.model.matrix(formula_yes_interaction_no_intercept, data = dati)
+#
+#
 # # lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = dati$y,
 # #                      alpha = 0, lambda.min.ratio = 1e-07)$lambda
 # 
@@ -330,10 +337,6 @@ df_err_quant = Add_Test_Error(df_err_quant,
 
 
 # Con interazione 
-
-# X_mm_yes_interaction_sss = model.matrix(formula_yes_interaction_no_intercept,
-#                                         data = dati)
-# 
 # # lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = dati$y,
 # #                      alpha = 1, lambda.min.ratio = 1e-07)$lambda
 # 
