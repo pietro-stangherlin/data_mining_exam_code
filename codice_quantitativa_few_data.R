@@ -2,7 +2,14 @@ library(dplyr)
 
 # Descrizione -----------------------
 # pochi dati: usiamo convalida incrociata come criterio per confrontare i modelli finali
+# partizioniamo i dati in K insiemi (FOLD) e usiamo la procedura di convalida incrociata
+# sia per identificare i valori ottimali dei parametri (rispetto all'errore di previsione) 
+# che per confrontare i migliori modelli scelti (per tutti i modelli i FOLD di convalida sono gli stessi).
 
+# NOTA: questa procedura può risultare troppo ottimista in quanto il confronto tra i modelli migliori
+# avviene rispetto all'errore in corrispondenza del parametro selezionato:
+# 1) Tramite CV seleziono il parametro ottimale: quello che minimizza l'errore medio di convalida
+# 2) Per ogni modello finale così selezionato confronto tali errori medi convalida
 
 #////////////////////////////////////////////////////////////////////////////
 # Costruzione metrica di valutazione e relativo dataframe -------------------
@@ -18,6 +25,8 @@ USED.Loss = function(y.pred, y.test, weights = 1){
 
 # anche qua
 df_err_quant = data.frame(name = NA, MAE = NA, MSE = NA)
+
+NLoss_df_err = NCOL(df_err_quant) - 1
 
 
 # Funzione per aggiornare il data.frame degli errori
@@ -84,7 +93,8 @@ if(modulo_cv != 0){
 # in questo caso non ci sono parametri: solo fold (righe) e metriche (2: MSE e MAE)
 
 # media 
-temp_err_matrix_cv = matrix(NA, nrow = K_FOLD, ncol = 2)
+temp_err_matrix_cv = matrix(NA, nrow = K_FOLD, ncol = NLoss_df_err)
+colnames(temp_err_matrix_cv) = colnames(df_err_quant[,-1])
 
 
 for (i in 1:K_FOLD){
@@ -100,7 +110,7 @@ df_err_quant = Add_Test_Error(df_err_quant,
 
 
 # mediana
-temp_err_matrix_cv = matrix(NA, nrow = K_FOLD, ncol = 2)
+temp_err_matrix_cv = matrix(NA, nrow = K_FOLD, ncol = NLoss_df_err)
 
 
 for (i in 1:K_FOLD){
@@ -114,7 +124,7 @@ df_err_quant = Add_Test_Error(df_err_quant,
                               "cv median",
                               colMeans(temp_err_matrix_cv))
 
-# df_err_quant = df_err_quant[-which(is.na(df_err_quant)),]
+df_err_quant = na.omit(df_err_quant)
 
 df_err_quant
 
@@ -132,11 +142,20 @@ library(glmnet)
 # in questo caso dobbiamo creare una griglia di valori di lambda 
 # creiamo la griglia adattando il modello su tutti i dati
 
-X_mm_no_interaction_sss = model.matrix(formula_no_interaction_no_intercept,
-                                       data = dati)
+# NO interazione 
 
+# X_mm_no_interaction = model.matrix(formula_no_interaction_no_intercept, data = dati)
 # sparsa
-# X_mm_no_interaction_sss =  sparse.model.matrix(formula_no_interaction_no_intercept, data = dati)
+X_mm_no_interaction =  sparse.model.matrix(formula_no_interaction_no_intercept, data = dati)
+
+# SI interazione
+
+# X_mm_yes_interaction_sss = model.matrix(formula_yes_interaction_no_intercept, data = dati)
+#sparsa
+X_mm_yes_interaction_sss =  sparse.model.matrix(formula_yes_interaction_no_intercept, data = dati)
+
+
+# Valori di lambda
 
 lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = dati$y,
         alpha = 0, lambda.min.ratio = 1e-07)$lambda
@@ -144,59 +163,130 @@ lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = dati$y,
 # eventualmente basato sui risultati successivi
 # lambda_vals = seq(1e-07,1e-03, by = 1e-05)
 
+# GLMNET CV cycles in case of few data sample
+# @input n_k_fold (int): number of fold used, use the global variable
+# @input my_id_list_cv (list):ids in each fold , use the global variable
+# @input my_nloss_df_err (int): number of loss functions used, use global variable
+#
+# @input my_x (matrix): complete model matrix passed to glmnet
+# @input my_y (vector): y glmnet argument
+# @input my_alpha (int): alpha passed to glmnet (0 -> ridge, 1 -> lasso)
+# @input my_lambda_vals (vector): vector of lambda used
+
+# @return: matrix of CV folds averaged errors for each parameter value and each loss function 
+FewDataCVCycleGLMNET = function(n_k_fold, my_id_list_cv,my_nloss_df_err,
+                                my_x, my_y, my_alpha, my_lambda_vals){
+  
+  temp_err_array_cv = array(NA, dim = c(n_k_fold, length(my_lambda_vals), my_nloss_df_err))
+  
+  
+  for (k in 1:n_k_fold){
+    id_train = unlist(my_id_list_cv[-k])
+    id_test = my_id_list_cv[[k]]
+    
+    
+    
+    temp_glmnet = glmnet(x = my_x[id_train,], 
+                         y = my_y[id_train], alpha = my_alpha,
+                         lambda = my_lambda_vals)
+    
+    for (j in 1:length(my_lambda_vals)){
+      temp_err_array_cv[k,j,] = USED.Loss(predict(temp_glmnet, my_x[id_test,])[,j],
+                                          my_y[id_test])
+    }
+    
+    rm(temp_glmnet)
+    gc()
+  }
+  
+  glmnet_cv_errs = matrix(NA, nrow = length(my_lambda_vals), ncol = my_nloss_df_err)
+  
+  for (i in 1:my_nloss_df_err){
+    glmnet_cv_errs[,i] = apply(temp_err_array_cv[,,i], 2, mean)
+  }
+  
+  return(glmnet_cv_errs)
+  
+}
+
+# Plot CV errors
+# @input my_param_values (vector): vector of parameters
+# @input my_errs_matrix (matrix): rows -> parameters in the same order of my_param_values,
+#                                 columns -> loss functions, 
+#   each cell contains the cv error already averaged
+# @input my_err_names (vector of strings): names of the errors,
+# @input: other parameters are the usual plot parameters
+# 
+# @return: vector of param values minizing each loss
+
+CvErrsPlotMin = function(my_param_values, my_errs_matrix, my_err_names,
+                         my_main, my_xlab, my_legend_coords = "topright",
+                         my_xlim = NULL, my_ylim = NULL){
+  
+  # PLOT section
+  
+  # if xlim null use entire x axis (default)
+  if (is.null(my_xlim)){
+    my_xlim = c(min(my_param_values), max(my_param_values))
+  }
+  
+  # if ylim is null use min and max over the entire matrix
+  if (is.null(my_ylim)){
+    my_ylim = c(min(my_errs_matrix), max(my_errs_matrix))
+  }
+  
+  
+  
+  plot(my_param_values, my_errs_matrix[,1],
+       xlab = my_xlab, ylab = "error",
+       main = my_main, pch = 16,
+       xlim = my_xlim,
+       ylim = my_ylim)
+  
+  for (i in 2:NCOL(my_errs_matrix)){
+    points(my_param_values, my_errs_matrix[,i],
+           pch = 15 + i, col = i)
+  }
+  
+  legend(my_legend_coords,
+         legend = my_err_names,
+         col = 1:NCOL(my_errs_matrix),
+         pch = 15 + (1:NCOL(my_errs_matrix)))
+  
+  
+  # BEST PARAM VALUES section
+  
+  best_params = rep(NA, NCOL(my_errs_matrix))
+  names(best_params) = my_err_names
+  
+  best_params = my_param_values[apply(my_errs_matrix, 2, which.min)]
+  
+  # plot them
+  
+  for (i in 1:length(best_params))
+  abline(v = best_params[i], col = i)
+  
+  # return them
+  return(best_params)
+  
+}
+
+
 
 # Ridge ----------------
 # Senza interazione 
 
-temp_err_array_cv = array(NA, dim = c(K_FOLD, length(lambda_vals), 2))
+ridge_no_interaction_errs = FewDataCVCycleGLMNET(K_FOLD, id_list_cv, NLoss_df_err,
+                            X_mm_no_interaction_sss, dati$y, 0,
+                            lambda_vals)
 
+ridge_no_int_mse_lambda = CvErrsPlotMin(lambda_vals, ridge_no_interaction_errs, colnames(df_err_quant[,-1]),
+              "Ridge no interaction CV error", "lambda")
 
-for (k in 1:K_FOLD){
-  id_train = unlist(id_list_cv[-k])
-  id_test = id_list_cv[[k]]
-  
-  
-  
-  temp_ridge = glmnet(x = X_mm_no_interaction_sss[id_train,], 
-                      y = dati$y[id_train], alpha = 0,
-                      lambda = lambda_vals)
-  
-  for (j in 1:length(lambda_vals)){
-    temp_err_array_cv[k,j,] = USED.Loss(predict(temp_ridge, X_mm_no_interaction_sss[id_test,])[,j],
-                                        dati$y[id_test])
-  }
-  
-  rm(temp_ridge)
-  gc()
-}
+# lambda vals
+# 0.02737854 0.02737854
 
-
-ridge_no_interaction_errs = cbind(apply(temp_err_array_cv[,,1], 2, mean),
-                                  apply(temp_err_array_cv[,,2], 2, mean))
-
-names(ridge_no_interaction_errs) = c("MAE", "MSE")
-
-plot(lambda_vals, ridge_no_interaction_errs[,2],
-     xlab = "lambda_values", ylab = "MSE",
-     main = "RIDGE no interaction CV error", pch = 16)
-
-points(lambda_vals, ridge_no_interaction_errs[,1],
-     xlab = "lambda_values", ylab = "MAE",
-     main = "RIDGE no interaction CV error", pch = 16, col = "red")
-
-legend("topright",
-       legend = c("MAE", "MSE"),
-       col = c("black", "red"),
-       pch = 16)
-
-# in questo caso riprovo con valori piccoli di lambda
-best_lambda_ridge_no_interaction_mse = lambda_vals[which.min(ridge_no_interaction_errs[,2])]
-best_lambda_ridge_no_interaction_mae = lambda_vals[which.min(ridge_no_interaction_errs[,1])]
-
-abline(v = best_lambda_ridge_no_interaction_mse)
-abline(v = best_lambda_ridge_no_interaction_mae, col = "red")
-
-# aggiungo l'errore: eventualente scegliere anche il lambda basato su MAE
+# aggiungo l'errore: eventualmente scegliere anche il lambda basato su MAE
 
 df_err_quant = Add_Test_Error(df_err_quant,
                               "ridge_no_int_mse_lambda",
@@ -204,131 +294,34 @@ df_err_quant = Add_Test_Error(df_err_quant,
                                 ridge_no_interaction_errs[which.min(ridge_no_interaction_errs[,2]),2]))
 
 
-# Con interazione 
 
-# X_mm_yes_interaction_sss = model.matrix(formula_yes_interaction_no_intercept,
-#                                        data = dati)
-#
-# sparsa
-# X_mm_yes_interaction_sss =  sparse.model.matrix(formula_yes_interaction_no_intercept, data = dati)
-#
-#
-# # lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = dati$y,
-# #                      alpha = 0, lambda.min.ratio = 1e-07)$lambda
-# 
-# # eventualmente basato sui risultati successivi
-# # lambda_vals = seq(1e-07,1e-03, by = 1e-05)
-# 
-# 
-# temp_err_array_cv = array(NA, dim = c(K_FOLD, length(lambda_vals), 2))
-# 
-# 
-# for (k in 1:K_FOLD){
-#   id_train = unlist(id_list_cv[-k])
-#   id_test = id_list_cv[[k]]
-#   
-#   
-#   
-#   temp_ridge = glmnet(x = X_mm_yes_interaction_sss[id_train,], 
-#                       y = dati$y[id_train], alpha = 0,
-#                       lambda = lambda_vals)
-#   
-#   for (j in 1:length(lambda_vals)){
-#     temp_err_array_cv[k,j,] = USED.Loss(predict(temp_ridge, X_mm_yes_interaction_sss[id_test,])[,j],
-#                                         dati$y[id_test])
-#   }
-#   
-#   rm(temp_ridge)
-#   gc()
-# }
-# 
-# 
-# ridge_yes_interaction_errs = cbind(apply(temp_err_array_cv[,,1], 2, mean),
-#                                   apply(temp_err_array_cv[,,2], 2, mean))
-# 
-# names(ridge_yes_interaction_errs) = c("MAE", "MSE")
-# 
-# plot(lambda_vals, ridge_yes_interaction_errs[,2],
-#      xlab = "lambda_values", ylab = "MSE",
-#      main = "RIDGE yes interaction CV error", pch = 16)
-# 
-# points(lambda_vals, ridge_yes_interaction_errs[,1],
-#        xlab = "lambda_values", ylab = "MAE",
-#        main = "RIDGE yes interaction CV error", pch = 16, col = "red")
-# 
-# legend("topright",
-#        legend = c("MAE", "MSE"),
-#        col = c("black", "red"),
-#        pch = 16)
-# 
-# # in questo caso riprovo con valori piccoli di lambda
-# best_lambda_ridge_yes_interaction_mse = lambda_vals[which.min(ridge_yes_interaction_errs[,2])]
-# best_lambda_ridge_yes_interaction_mae = lambda_vals[which.min(ridge_yes_interaction_errs[,1])]
-# 
-# abline(v = best_lambda_ridge_yes_interaction_mse)
-# abline(v = best_lambda_ridge_yes_interaction_mae, col = "red")
-# 
-# # aggiungo l'errore: eventualente scegliere anche il lambda basato su MAE
-# 
-# df_err_quant = Add_Test_Error(df_err_quant,
-#                               "ridge_yes_int_mse_lambda",
-#                               c(ridge_yes_interaction_errs[which.min(ridge_yes_interaction_errs[,2]),1],
-#                                 ridge_yes_interaction_errs[which.min(ridge_yes_interaction_errs[,2]),2]))
+ridge_yes_interaction_errs = FewDataCVCycleGLMNET(K_FOLD, id_list_cv, NLoss_df_err,
+                                                 X_mm_yes_interaction_sss, dati$y, 0,
+                                                 lambda_vals)
 
+ridge_yes_int_mse_lambda = CvErrsPlotMin(lambda_vals, ridge_yes_interaction_errs, colnames(df_err_quant[,-1]),
+                                        "Ridge yes interaction CV error", "lambda")
+
+# lambda vals
+#  1.030784 1.030784
+
+df_err_quant = Add_Test_Error(df_err_quant,
+                              "ridge_yes_int_mse_lambda",
+                              c(ridge_yes_interaction_errs[which.min(ridge_yes_interaction_errs[,2]),1],
+                                ridge_yes_interaction_errs[which.min(ridge_yes_interaction_errs[,2]),2]))
 
 # Lasso ---------------
+lasso_no_interaction_errs = FewDataCVCycleGLMNET(K_FOLD, id_list_cv, NLoss_df_err,
+                                                 X_mm_no_interaction_sss, dati$y, 1,
+                                                 lambda_vals)
 
+lasso_no_int_mse_lambda = CvErrsPlotMin(lambda_vals, lasso_no_interaction_errs, colnames(df_err_quant[,-1]),
+                                        "lasso no interaction CV error", "lambda")
 
+# lambda vals
+# 0.003880837 0.003880837
 
-temp_err_array_cv = array(NA, dim = c(K_FOLD, length(lambda_vals), 2))
-
-
-for (k in 1:K_FOLD){
-  id_train = unlist(id_list_cv[-k])
-  id_test = id_list_cv[[k]]
-  
-  
-  
-  temp_lasso = glmnet(x = X_mm_no_interaction_sss[id_train,], 
-                      y = dati$y[id_train], alpha = 1,
-                      lambda = lambda_vals)
-  
-  for (j in 1:length(lambda_vals)){
-    temp_err_array_cv[k,j,] = USED.Loss(predict(temp_lasso, X_mm_no_interaction_sss[id_test,])[,j],
-                                        dati$y[id_test])
-  }
-  
-  rm(temp_lasso)
-  gc()
-}
-
-
-lasso_no_interaction_errs = cbind(apply(temp_err_array_cv[,,1], 2, mean),
-                                  apply(temp_err_array_cv[,,2], 2, mean))
-
-names(lasso_no_interaction_errs) = c("MAE", "MSE")
-
-plot(lambda_vals, lasso_no_interaction_errs[,2],
-     xlab = "lambda_values", ylab = "MSE",
-     main = "lasso no interaction CV error", pch = 16)
-
-points(lambda_vals, lasso_no_interaction_errs[,1],
-       xlab = "lambda_values", ylab = "MAE",
-       main = "lasso no interaction CV error", pch = 16, col = "red")
-
-legend("topright",
-       legend = c("MAE", "MSE"),
-       col = c("black", "red"),
-       pch = 16)
-
-# in questo caso riprovo con valori piccoli di lambda
-best_lambda_lasso_no_interaction_mse = lambda_vals[which.min(lasso_no_interaction_errs[,2])]
-best_lambda_lasso_no_interaction_mae = lambda_vals[which.min(lasso_no_interaction_errs[,1])]
-
-abline(v = best_lambda_lasso_no_interaction_mse)
-abline(v = best_lambda_lasso_no_interaction_mae, col = "red")
-
-# aggiungo l'errore: eventualente scegliere anche il lambda basato su MAE
+# aggiungo l'errore: eventualmente scegliere anche il lambda basato su MAE
 
 df_err_quant = Add_Test_Error(df_err_quant,
                               "lasso_no_int_mse_lambda",
@@ -336,70 +329,23 @@ df_err_quant = Add_Test_Error(df_err_quant,
                                 lasso_no_interaction_errs[which.min(lasso_no_interaction_errs[,2]),2]))
 
 
-# Con interazione 
-# # lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = dati$y,
-# #                      alpha = 1, lambda.min.ratio = 1e-07)$lambda
-# 
-# # eventualmente basato sui risultati successivi
-# # lambda_vals = seq(1e-07,1e-03, by = 1e-05)
-# 
-# 
-# temp_err_array_cv = array(NA, dim = c(K_FOLD, length(lambda_vals), 2))
-# 
-# 
-# for (k in 1:K_FOLD){
-#   id_train = unlist(id_list_cv[-k])
-#   id_test = id_list_cv[[k]]
-#   
-#   
-#   
-#   temp_lasso = glmnet(x = X_mm_yes_interaction_sss[id_train,], 
-#                       y = dati$y[id_train], alpha = 1,
-#                       lambda = lambda_vals)
-#   
-#   for (j in 1:length(lambda_vals)){
-#     temp_err_array_cv[k,j,] = USED.Loss(predict(temp_lasso, X_mm_yes_interaction_sss[id_test,])[,j],
-#                                         dati$y[id_test])
-#   }
-#   
-#   rm(temp_lasso)
-#   gc()
-# }
-# 
-# 
-# lasso_yes_interaction_errs = cbind(apply(temp_err_array_cv[,,1], 2, mean),
-#                                    apply(temp_err_array_cv[,,2], 2, mean))
-# 
-# names(lasso_yes_interaction_errs) = c("MAE", "MSE")
-# 
-# plot(lambda_vals, lasso_yes_interaction_errs[,2],
-#      xlab = "lambda_values", ylab = "MSE",
-#      main = "lasso yes interaction CV error", pch = 16)
-# 
-# points(lambda_vals, lasso_yes_interaction_errs[,1],
-#        xlab = "lambda_values", ylab = "MAE",
-#        main = "lasso yes interaction CV error", pch = 16, col = "red")
-# 
-# legend("topright",
-#        legend = c("MAE", "MSE"),
-#        col = c("black", "red"),
-#        pch = 16)
-# 
-# # in questo caso riprovo con valori piccoli di lambda
-# best_lambda_lasso_yes_interaction_mse = lambda_vals[which.min(lasso_yes_interaction_errs[,2])]
-# best_lambda_lasso_yes_interaction_mae = lambda_vals[which.min(lasso_yes_interaction_errs[,1])]
-# 
-# abline(v = best_lambda_lasso_yes_interaction_mse)
-# abline(v = best_lambda_lasso_yes_interaction_mae, col = "red")
-# 
-# # aggiungo l'errore: eventualente scegliere anche il lambda basato su MAE
-# 
-# df_err_quant = Add_Test_Error(df_err_quant,
-#                               "lasso_yes_int_mse_lambda",
-#                               c(lasso_yes_interaction_errs[which.min(lasso_yes_interaction_errs[,2]),1],
-#                                 lasso_yes_interaction_errs[which.min(lasso_yes_interaction_errs[,2]),2]))
 
+lasso_yes_interaction_errs = FewDataCVCycleGLMNET(K_FOLD, id_list_cv, NLoss_df_err,
+                                                  X_mm_yes_interaction_sss, dati$y, 1,
+                                                  lambda_vals)
 
+lasso_yes_int_mse_lambda = CvErrsPlotMin(lambda_vals, lasso_yes_interaction_errs, colnames(df_err_quant[,-1]),
+                                        "lasso yes interaction CV error", "lambda")
+
+# lambda vals
+#  1.030784 1.030784
+
+df_err_quant = Add_Test_Error(df_err_quant,
+                              "lasso_yes_int_mse_lambda",
+                              c(lasso_yes_interaction_errs[which.min(lasso_yes_interaction_errs[,2]),1],
+                                lasso_yes_interaction_errs[which.min(lasso_yes_interaction_errs[,2]),2]))
+
+df_err_quant
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Albero -------------------------------------
@@ -412,62 +358,6 @@ library(tree)
 
 
 temp_err_array_cv = array(NA, dim = c(K_FOLD, length(lambda_vals), 2))
-
-
-for (k in 1:K_FOLD){
-  id_train = unlist(id_list_cv[-k])
-  id_test = id_list_cv[[k]]
-  
-  
-  
-  temp_full_tree = glmnet(x = X_mm_no_interaction_sss[id_train,], 
-                      y = dati$y[id_train], alpha = 0,
-                      lambda = lambda_vals)
-  
-  for (j in 1:length(lambda_vals)){
-    temp_err_array_cv[k,j,] = USED.Loss(predict(temp_ridge, X_mm_no_interaction_sss[id_test,])[,j],
-                                        dati$y[id_test])
-  }
-  
-  rm(temp_ridge)
-  gc()
-}
-
-
-ridge_no_interaction_errs = cbind(apply(temp_err_array_cv[,,1], 2, mean),
-                                  apply(temp_err_array_cv[,,2], 2, mean))
-
-names(ridge_no_interaction_errs) = c("MAE", "MSE")
-
-plot(lambda_vals, ridge_no_interaction_errs[,2],
-     xlab = "lambda_values", ylab = "MSE",
-     main = "RIDGE no interaction CV error", pch = 16)
-
-points(lambda_vals, ridge_no_interaction_errs[,1],
-       xlab = "lambda_values", ylab = "MAE",
-       main = "RIDGE no interaction CV error", pch = 16, col = "red")
-
-legend("topright",
-       legend = c("MAE", "MSE"),
-       col = c("black", "red"),
-       pch = 16)
-
-# in questo caso riprovo con valori piccoli di lambda
-best_lambda_ridge_no_interaction_mse = lambda_vals[which.min(ridge_no_interaction_errs[,2])]
-best_lambda_ridge_no_interaction_mae = lambda_vals[which.min(ridge_no_interaction_errs[,1])]
-
-abline(v = best_lambda_ridge_no_interaction_mse)
-abline(v = best_lambda_ridge_no_interaction_mae, col = "red")
-
-# aggiungo l'errore: eventualente scegliere anche il lambda basato su MAE
-
-df_err_quant = Add_Test_Error(df_err_quant,
-                              "ridge_no_int_mse_lambda",
-                              c(ridge_no_interaction_errs[which.min(ridge_no_interaction_errs[,2]),1],
-                                ridge_no_interaction_errs[which.min(ridge_no_interaction_errs[,2]),2]))
-
-
-
 
 
 
