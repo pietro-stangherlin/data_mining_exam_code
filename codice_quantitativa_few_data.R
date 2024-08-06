@@ -139,29 +139,7 @@ library(glmnet)
 # contro il sovradattamento, tuttavia, data la scarsa numerosità campioanaria 
 # non sono presenti valide alternative
 
-# in questo caso dobbiamo creare una griglia di valori di lambda 
-# creiamo la griglia adattando il modello su tutti i dati
-
-# NO interazione 
-
-# X_mm_no_interaction = model.matrix(formula_no_interaction_no_intercept, data = dati)
-# sparsa
-X_mm_no_interaction =  sparse.model.matrix(formula_no_interaction_no_intercept, data = dati)
-
-# SI interazione
-
-# X_mm_yes_interaction_sss = model.matrix(formula_yes_interaction_no_intercept, data = dati)
-#sparsa
-X_mm_yes_interaction_sss =  sparse.model.matrix(formula_yes_interaction_no_intercept, data = dati)
-
-
-# Valori di lambda
-
-lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = dati$y,
-        alpha = 0, lambda.min.ratio = 1e-07)$lambda
-
-# eventualmente basato sui risultati successivi
-# lambda_vals = seq(1e-07,1e-03, by = 1e-05)
+# Funzioni generali per ridge e lasso
 
 # GLMNET CV cycles in case of few data sample
 # @input n_k_fold (int): number of fold used, use the global variable
@@ -264,7 +242,7 @@ CvErrsPlotMin = function(my_param_values, my_errs_matrix, my_err_names,
   # plot them
   
   for (i in 1:length(best_params))
-  abline(v = best_params[i], col = i)
+    abline(v = best_params[i], col = i)
   
   # return them
   return(best_params)
@@ -272,12 +250,35 @@ CvErrsPlotMin = function(my_param_values, my_errs_matrix, my_err_names,
 }
 
 
+# in questo caso dobbiamo creare una griglia di valori di lambda 
+# creiamo la griglia adattando il modello su tutti i dati
+
+# NO interazione 
+
+# X_mm_no_interaction = model.matrix(formula_no_interaction_no_intercept, data = dati)
+# sparsa
+X_mm_no_interaction =  sparse.model.matrix(formula_no_interaction_no_intercept, data = dati)
+
+# SI interazione
+
+# X_mm_yes_interaction = model.matrix(formula_yes_interaction_no_intercept, data = dati)
+#sparsa
+X_mm_yes_interaction =  sparse.model.matrix(formula_yes_interaction_no_intercept, data = dati)
+
+
+# Valori di lambda
+
+lambda_vals = glmnet(x = X_mm_no_interaction, y = dati$y,
+        alpha = 0, lambda.min.ratio = 1e-07)$lambda
+
+# eventualmente basato sui risultati successivi
+# lambda_vals = seq(1e-07,1e-03, by = 1e-05)
 
 # Ridge ----------------
 # Senza interazione 
 
 ridge_no_interaction_errs = FewDataCVCycleGLMNET(K_FOLD, id_list_cv, NLoss_df_err,
-                            X_mm_no_interaction_sss, dati$y, 0,
+                            X_mm_no_interaction, dati$y, 0,
                             lambda_vals)
 
 ridge_no_int_mse_lambda = CvErrsPlotMin(lambda_vals, ridge_no_interaction_errs, colnames(df_err_quant[,-1]),
@@ -296,7 +297,7 @@ df_err_quant = Add_Test_Error(df_err_quant,
 
 
 ridge_yes_interaction_errs = FewDataCVCycleGLMNET(K_FOLD, id_list_cv, NLoss_df_err,
-                                                 X_mm_yes_interaction_sss, dati$y, 0,
+                                                 X_mm_yes_interaction, dati$y, 0,
                                                  lambda_vals)
 
 ridge_yes_int_mse_lambda = CvErrsPlotMin(lambda_vals, ridge_yes_interaction_errs, colnames(df_err_quant[,-1]),
@@ -312,7 +313,7 @@ df_err_quant = Add_Test_Error(df_err_quant,
 
 # Lasso ---------------
 lasso_no_interaction_errs = FewDataCVCycleGLMNET(K_FOLD, id_list_cv, NLoss_df_err,
-                                                 X_mm_no_interaction_sss, dati$y, 1,
+                                                 X_mm_no_interaction, dati$y, 1,
                                                  lambda_vals)
 
 lasso_no_int_mse_lambda = CvErrsPlotMin(lambda_vals, lasso_no_interaction_errs, colnames(df_err_quant[,-1]),
@@ -331,7 +332,7 @@ df_err_quant = Add_Test_Error(df_err_quant,
 
 
 lasso_yes_interaction_errs = FewDataCVCycleGLMNET(K_FOLD, id_list_cv, NLoss_df_err,
-                                                  X_mm_yes_interaction_sss, dati$y, 1,
+                                                  X_mm_yes_interaction, dati$y, 1,
                                                   lambda_vals)
 
 lasso_yes_int_mse_lambda = CvErrsPlotMin(lambda_vals, lasso_yes_interaction_errs, colnames(df_err_quant[,-1]),
@@ -350,17 +351,94 @@ df_err_quant
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Albero -------------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-# Come per la ridge: anche in questo caso la procedura è sub-ottima
-
-
 library(tree)
 
+# GLMNET CV cycles in case of few data sample
+# @input n_k_fold (int): number of fold used, use the global variable
+# @input my_id_list_cv (list):ids in each fold , use the global variable
+# @input my_nloss_df_err (int): number of loss functions used, use global variable
+#
+# @input my_max_size (int): max size of the a pruned tree
+#
+# @return: matrix of CV folds averaged errors for each parameter value and each loss function 
+FewDataCVCycleTree = function(n_k_fold, my_id_list_cv,my_nloss_df_err,
+                              my_max_size = 30){
+  
+  # we use my_max_size - 1 because we start with size = 2
+  temp_err_array_cv = array(NA, dim = c(n_k_fold, my_max_size - 1, my_nloss_df_err))
+  
+  
+  for (k in 1:n_k_fold){
+    id_train = unlist(my_id_list_cv[-k])
+    id_test = my_id_list_cv[[k]]
+    
+    
+    # full grown tree
+    temp_tree_full = tree(y ~.,
+                          data = dati[id_train,],
+                          control = tree.control(nobs = length(id_train),
+                                                 mindev = 1e-05,
+                                                 minsize = 2))
+    # if maximum tree depth error
+    # change minsize = 2 to higher values and so do it with 
+    # mindev
+    
+    # pruned tree: problem -> each fold can have different pruning inducing
+    # split sizes whose CV error cannot be averaged
+    # so I need to do it manually: select a set of size values
+    # for each value prune the full tree on the id_train (sub-optimal and too optimistic)
+    # (but given the scarsity of data we need a compromise)
+    # and keep track of the reduced deviance on the id_test
+    
+    for (s in 2:my_max_size){
+      temp_tree_pruned = prune.tree(temp_tree_full, best = s)
+      # prediction error
+      # s-1 because we start by size = 2
+      temp_err_array_cv[k,s-1,] = USED.Loss(predict(temp_tree_pruned,
+                                                  dati[id_test,]),
+                                          dati$y[id_test])
+    }
+    
+    
+    rm(temp_tree_full)
+    rm(temp_tree_pruned)
+    gc()
+    
+    print(paste("fold ", k))
+  }
+  
+  # to fix it
+  tree_cv_errs = matrix(NA, nrow = (my_max_size - 1), ncol = my_nloss_df_err)
+  
+  for (i in 1:my_nloss_df_err){
+    tree_cv_errs[,i] = apply(temp_err_array_cv[,,i], 2, mean)
+  }
+  
+  return(tree_cv_errs)
+  
+}
 
-temp_err_array_cv = array(NA, dim = c(K_FOLD, length(lambda_vals), 2))
+tree_cv_errs = FewDataCVCycleTree(K_FOLD, id_list_cv, NLoss_df_err)
 
 
+tree_best_size = CvErrsPlotMin(lambda_vals, ridge_yes_interaction_errs, colnames(df_err_quant[,-1]),
+                                         "Ridge yes interaction CV error", "lambda")
 
+# tree_best_size
+#  10
+
+df_err_quant = Add_Test_Error(df_err_quant,
+                              "ridge_yes_int_mse_lambda",
+                              c(ridge_yes_interaction_errs[which.min(ridge_yes_interaction_errs[,2]),1],
+                                ridge_yes_interaction_errs[which.min(ridge_yes_interaction_errs[,2]),2]))
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Modello Additivo ---------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+library(gam)
+
+# questo è più problematico...
 
 
 
