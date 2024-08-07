@@ -32,7 +32,7 @@ df_err_qual = data.frame(name = NA,
 # @loss_value (num): numeric with the error on the test set
 # @return: df_error
 
-Add_Test_Error = function(df_error, model_name, loss_value){
+Add_Test_Metric = function(df_error, model_name, loss_value){
   # check if the model name is already in the data.frame
   is_name = model_name %in% df_error[,1]
   
@@ -109,7 +109,7 @@ Y_sss = class.ind(sss$y)
 
 # modello classificazione casuale
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "sss threshold",
                              USED.Loss(sample(y_uniques, nrow(vvv), replace = TRUE, prob = y_rel_freqs),
                                        vvv$y))
@@ -140,7 +140,7 @@ m_multi
 
 pred_multinom = predict(m_multi, newdata = vvv)
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "multinom",
                              USED.Loss(pred_multinom, vvv$y))
 
@@ -259,7 +259,7 @@ pred_final_lasso_no_int_class = sorted_y_values[pred_final_lasso_no_int_class]
 
 length(pred_final_lasso_no_int_class)
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "lasso no int",
                              USED.Loss(pred_final_lasso_no_int_class, vvv$y))
 
@@ -339,7 +339,7 @@ pred_final_lasso_yes_int_class = sorted_y_values[pred_final_lasso_yes_int_class]
 
 length(pred_final_lasso_yes_int_class)
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "lasso yes int",
                              USED.Loss(pred_final_lasso_yes_int_class, vvv$y))
 
@@ -388,7 +388,7 @@ summary(m_mars)
 pred_mars = apply(predict(m_mars, vvv), 1, which.max)
 pred_mars_class = sorted_y_values[pred_mars]
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "mars",
                              USED.Loss(pred_mars_class, vvv$y))
 
@@ -447,7 +447,7 @@ text(final_tree_pruned, cex = 0.7)
 
 pred_tree_pruned = predict(final_tree_pruned, newdata = vvv, type = "class")
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "tree_pruned best",
                              USED.Loss(pred_tree_pruned, vvv$y))
 
@@ -553,7 +553,7 @@ dim(pred_random_forest)
 pred_random_forest_class = apply(pred_random_forest, 1, which.max)
 pred_random_forest_class = sorted_y_values[pred_random_forest_class]
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "Random Forest",
                              USED.Loss(pred_random_forest_class,vvv$y))
 

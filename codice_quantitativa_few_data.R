@@ -10,6 +10,7 @@ library(dplyr)
 # avviene rispetto all'errore in corrispondenza del parametro selezionato:
 # 1) Tramite CV seleziono il parametro ottimale: quello che minimizza l'errore medio di convalida
 # 2) Per ogni modello finale così selezionato confronto tali errori medi convalida
+# ma è un compromesso data la scarsità dei dati
 
 #////////////////////////////////////////////////////////////////////////////
 # Costruzione metrica di valutazione e relativo dataframe -------------------
@@ -24,14 +25,16 @@ USED.Loss = function(y.pred, y.test, weights = 1){
 
 
 # anche qua
-df_err_quant = data.frame(name = NA, MAE = NA, MSE = NA)
+df_metrics = data.frame(name = NA, MAE = NA, MSE = NA)
 
-NLoss_df_err = NCOL(df_err_quant) - 1
+N_METRICS_df_metrics = NCOL(df_metrics) - 1
 
+METRICS_NAMES = colnames(df_metrics[,-1])
 
-# Funzione per aggiornare il data.frame degli errori
-# (inefficiente, ma amen, tanto le operazioni che deve eseguire sono sempre limitate)
-
+# names used to extract the metric added to df_metrics
+# change based on the spefific problem
+METRIC_VALUES_NAME = "metric_values"
+METRIC_CHOSEN_NAME = "MSE"
 
 
 #////////////////////////////////////////////////////////////////////////////
@@ -79,6 +82,107 @@ if(modulo_cv != 0){
 }
 
 
+
+# Plot Cross-Vaidation metrics function
+# @input my_param_values (vector): vector of parameters
+# @input my_metric_matrix (matrix): rows -> parameters in the same order of my_param_values,
+#                                 columns -> metrics, 
+#   each cell contains the cv metric already averaged
+# @input my_metric_names (vector of strings): names of the errors,
+#
+# WARNING, pay attention to this parameter:
+# @input indexes_metric_max (vector of ints): indexes for which high metric values is best (ex f1 score)
+# (default NULL)
+#
+# @input plot_bool (bool): if TRUE plot the result, else don't
+# @input: other parameters are the usual plot parameters
+# 
+# @return: best metric list (list):
+# the list has nested elements and is of the tipe
+# list[[metric_name]][[x]]
+# where x are: "best_param_index" (int), "best_param_value" (num), "metric_values" (vector of num)
+
+CvMetricPlotMin = function(my_param_values, my_metric_matrix, my_metric_names,
+                           indexes_metric_max = NULL,
+                           my_main = "Model metrics", my_xlab = "parameter", my_legend_coords = "topright",
+                           my_xlim = NULL, my_ylim = NULL, plot_bool = TRUE){
+  
+  # PLOT section
+  
+  # if xlim null use entire x axis (default)
+  if (is.null(my_xlim)){
+    my_xlim = c(min(my_param_values), max(my_param_values))
+  }
+  
+  # if ylim is null use min and max over the entire matrix
+  if (is.null(my_ylim)){
+    my_ylim = c(min(my_metric_matrix), max(my_metric_matrix))
+  }
+  
+  if (plot_bool == TRUE){
+    
+    plot(my_param_values, my_metric_matrix[,1],
+         xlab = my_xlab, ylab = "metric",
+         main = my_main, pch = 16,
+         xlim = my_xlim,
+         ylim = my_ylim)
+    
+    for (i in 2:NCOL(my_metric_matrix)){
+      points(my_param_values, my_metric_matrix[,i],
+             pch = 15 + i, col = i)
+    }
+    
+    legend(my_legend_coords,
+           legend = my_metric_names,
+           col = 1:NCOL(my_metric_matrix),
+           pch = 15 + (1:NCOL(my_metric_matrix)))}
+  
+  
+  # BEST PARAM VALUES section
+  
+  n_col_metric_matrix = NCOL(my_metric_matrix)
+  
+  best_params = rep(NA, n_col_metric_matrix)
+  names(best_params) = my_metric_names
+  
+  
+  # Check metrics min and max best
+  
+  if(is.null(indexes_metric_max)){
+    indexes_best_params = apply(my_metric_matrix, 2, which.min)
+  }
+  
+  else{
+    indexes_best_params = c(apply(my_metric_matrix[,-indexes_metric_max], 2, which.min),
+                            apply(my_metric_matrix[,indexes_metric_max], 2, which.max))
+  }
+  
+  
+  best_params = my_param_values[indexes_best_params]
+  
+  if(plot_bool == TRUE){
+    # plot them
+    for (i in 1:length(best_params))
+      abline(v = best_params[i], col = i)}
+  
+  # return indexes and best param values
+  
+  returned_list = list()
+  
+  # cycle over all metrics
+  for (i in 1:n_col_metric_matrix){
+    # add index
+    returned_list[[my_metric_names[i]]][["best_param_index"]] = indexes_best_params[i]
+    # add param value
+    returned_list[[my_metric_names[i]]][["best_param_value"]] = best_params[i]
+    # add all metrics relative to that row (best param index row)
+    returned_list[[my_metric_names[i]]][["metric_values"]] = my_metric_matrix[indexes_best_params[i],]
+  }
+  
+  return(returned_list)
+  
+}
+
 # /////////////////////////////////////////////////////////////////
 #------------------------ Modelli ---------------------------------
 # /////////////////////////////////////////////////////////////////
@@ -93,8 +197,8 @@ if(modulo_cv != 0){
 # in questo caso non ci sono parametri: solo fold (righe) e metriche (2: MSE e MAE)
 
 # media 
-temp_err_matrix_cv = matrix(NA, nrow = K_FOLD, ncol = NLoss_df_err)
-colnames(temp_err_matrix_cv) = colnames(df_err_quant[,-1])
+temp_err_matrix_cv = matrix(NA, nrow = K_FOLD, ncol = N_METRICS_df_metrics)
+colnames(temp_err_matrix_cv) = colnames(df_metrics[,-1])
 
 
 for (i in 1:K_FOLD){
@@ -104,13 +208,13 @@ for (i in 1:K_FOLD){
 
 
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_metrics = Add_Test_Metric(df_metrics,
                               "cv mean",
                               colMeans(temp_err_matrix_cv))
 
 
 # mediana
-temp_err_matrix_cv = matrix(NA, nrow = K_FOLD, ncol = NLoss_df_err)
+temp_err_matrix_cv = matrix(NA, nrow = K_FOLD, ncol = N_METRICS_df_metrics)
 
 
 for (i in 1:K_FOLD){
@@ -120,13 +224,13 @@ for (i in 1:K_FOLD){
 
 
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_metrics = Add_Test_Metric(df_metrics,
                               "cv median",
                               colMeans(temp_err_matrix_cv))
 
-df_err_quant = na.omit(df_err_quant)
+df_metrics = na.omit(df_metrics)
 
-df_err_quant
+df_metrics
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Ridge e Lasso ------------------------------
@@ -136,26 +240,29 @@ library(glmnet)
 # Compromesso varianza - distorsione: convalida incrociata sia per la scelta del parametro 
 # di regolazione che per il confronto finale
 # NOTA: questa procedura è sub-ottimale, poichè non ci stiamo totalmente tutelando 
-# contro il sovradattamento, tuttavia, data la scarsa numerosità campioanaria 
+# contro il sovraadattamento, tuttavia, data la scarsa numerosità campionaria 
 # non sono presenti valide alternative
 
 # Funzioni generali per ridge e lasso
 
+# I SHOULD MAKE A PARALLEL VERSION
+
 # GLMNET CV cycles in case of few data sample
 # @input n_k_fold (int): number of fold used, use the global variable
 # @input my_id_list_cv (list):ids in each fold , use the global variable
-# @input my_nloss_df_err (int): number of loss functions used, use global variable
+# @input my_N_METRICS_df_metrics (int): number of loss functions used, use global variable
+# @input my_metric_names (vector of string): ordered names of loss functions, use global variables
 #
 # @input my_x (matrix): complete model matrix passed to glmnet
 # @input my_y (vector): y glmnet argument
 # @input my_alpha (int): alpha passed to glmnet (0 -> ridge, 1 -> lasso)
 # @input my_lambda_vals (vector): vector of lambda used
 
-# @return: matrix of CV folds averaged errors for each parameter value and each loss function 
-FewDataCVCycleGLMNET = function(n_k_fold, my_id_list_cv,my_nloss_df_err,
+# @return: matrix of CV folds averaged metrics for each parameter value and each metric 
+FewDataCVCycleGLMNET = function(n_k_fold, my_id_list_cv,my_n_metrics_df_err, my_metric_names,
                                 my_x, my_y, my_alpha, my_lambda_vals){
   
-  temp_err_array_cv = array(NA, dim = c(n_k_fold, length(my_lambda_vals), my_nloss_df_err))
+  temp_err_array_cv = array(NA, dim = c(n_k_fold, length(my_lambda_vals), my_n_metrics_df_err))
   
   
   for (k in 1:n_k_fold){
@@ -177,9 +284,10 @@ FewDataCVCycleGLMNET = function(n_k_fold, my_id_list_cv,my_nloss_df_err,
     gc()
   }
   
-  glmnet_cv_errs = matrix(NA, nrow = length(my_lambda_vals), ncol = my_nloss_df_err)
+  glmnet_cv_errs = matrix(NA, nrow = length(my_lambda_vals), ncol = my_n_metrics_df_err)
+  colnames(glmnet_cv_errs) = my_metric_names
   
-  for (i in 1:my_nloss_df_err){
+  for (i in 1:my_n_metrics_df_err){
     glmnet_cv_errs[,i] = apply(temp_err_array_cv[,,i], 2, mean)
   }
   
@@ -187,68 +295,7 @@ FewDataCVCycleGLMNET = function(n_k_fold, my_id_list_cv,my_nloss_df_err,
   
 }
 
-# Plot CV errors
-# @input my_param_values (vector): vector of parameters
-# @input my_errs_matrix (matrix): rows -> parameters in the same order of my_param_values,
-#                                 columns -> loss functions, 
-#   each cell contains the cv error already averaged
-# @input my_err_names (vector of strings): names of the errors,
-# @input: other parameters are the usual plot parameters
-# 
-# @return: vector of param values minizing each loss
-
-CvErrsPlotMin = function(my_param_values, my_errs_matrix, my_err_names,
-                         my_main, my_xlab, my_legend_coords = "topright",
-                         my_xlim = NULL, my_ylim = NULL){
-  
-  # PLOT section
-  
-  # if xlim null use entire x axis (default)
-  if (is.null(my_xlim)){
-    my_xlim = c(min(my_param_values), max(my_param_values))
-  }
-  
-  # if ylim is null use min and max over the entire matrix
-  if (is.null(my_ylim)){
-    my_ylim = c(min(my_errs_matrix), max(my_errs_matrix))
-  }
-  
-  
-  
-  plot(my_param_values, my_errs_matrix[,1],
-       xlab = my_xlab, ylab = "error",
-       main = my_main, pch = 16,
-       xlim = my_xlim,
-       ylim = my_ylim)
-  
-  for (i in 2:NCOL(my_errs_matrix)){
-    points(my_param_values, my_errs_matrix[,i],
-           pch = 15 + i, col = i)
-  }
-  
-  legend(my_legend_coords,
-         legend = my_err_names,
-         col = 1:NCOL(my_errs_matrix),
-         pch = 15 + (1:NCOL(my_errs_matrix)))
-  
-  
-  # BEST PARAM VALUES section
-  
-  best_params = rep(NA, NCOL(my_errs_matrix))
-  names(best_params) = my_err_names
-  
-  best_params = my_param_values[apply(my_errs_matrix, 2, which.min)]
-  
-  # plot them
-  
-  for (i in 1:length(best_params))
-    abline(v = best_params[i], col = i)
-  
-  # return them
-  return(best_params)
-  
-}
-
+library(Matrix)
 
 # in questo caso dobbiamo creare una griglia di valori di lambda 
 # creiamo la griglia adattando il modello su tutti i dati
@@ -266,106 +313,146 @@ X_mm_no_interaction =  sparse.model.matrix(formula_no_interaction_no_intercept, 
 X_mm_yes_interaction =  sparse.model.matrix(formula_yes_interaction_no_intercept, data = dati)
 
 
-# Valori di lambda
-
-lambda_vals = glmnet(x = X_mm_no_interaction, y = dati$y,
-        alpha = 0, lambda.min.ratio = 1e-07)$lambda
-
 # eventualmente basato sui risultati successivi
 # lambda_vals = seq(1e-07,1e-03, by = 1e-05)
 
 # Ridge ----------------
 # Senza interazione 
 
-ridge_no_interaction_errs = FewDataCVCycleGLMNET(K_FOLD, id_list_cv, NLoss_df_err,
-                            X_mm_no_interaction, dati$y, 0,
-                            lambda_vals)
+# Valori di lambda
 
-ridge_no_int_mse_lambda = CvErrsPlotMin(lambda_vals, ridge_no_interaction_errs, colnames(df_err_quant[,-1]),
-              "Ridge no interaction CV error", "lambda")
+lambda_vals = glmnet(x = X_mm_no_interaction, y = dati$y,
+                     alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
-# lambda vals
-# 0.02737854 0.02737854
+ridge_no_interaction_metrics = FewDataCVCycleGLMNET(n_k_fold = K_FOLD,
+                                                    my_id_list_cv = id_list_cv,
+                                                    my_n_metrics_df_err = N_METRICS_df_metrics,
+                                                    my_metric_names = METRICS_NAMES,
+                                                    my_x = X_mm_no_interaction,
+                                                    my_y = dati$y,
+                                                    my_alpha = 0,
+                                                    my_lambda_vals = lambda_vals)
 
-# aggiungo l'errore: eventualmente scegliere anche il lambda basato su MAE
+ridge_no_int_best_summary = CvMetricPlotMin(my_param_values = lambda_vals,
+                                          my_metric_matrix = ridge_no_interaction_metrics,
+                                          my_metric_names = METRICS_NAMES,
+                                          my_main = "Ridge no interaction CV error",
+                                          my_xlab = "lambda")
 
-df_err_quant = Add_Test_Error(df_err_quant,
-                              "ridge_no_int_mse_lambda",
-                              c(ridge_no_interaction_errs[which.min(ridge_no_interaction_errs[,2]),1],
-                                ridge_no_interaction_errs[which.min(ridge_no_interaction_errs[,2]),2]))
+ridge_no_int_best_summary
+
+df_metrics = Add_Test_Metric(df_metrics,
+                              "ridge_no_int",
+                              ridge_no_int_best_summary[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
 
 
+lambda_vals = glmnet(x = X_mm_yes_interaction, y = dati$y,
+                     alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
-ridge_yes_interaction_errs = FewDataCVCycleGLMNET(K_FOLD, id_list_cv, NLoss_df_err,
-                                                 X_mm_yes_interaction, dati$y, 0,
-                                                 lambda_vals)
 
-ridge_yes_int_mse_lambda = CvErrsPlotMin(lambda_vals, ridge_yes_interaction_errs, colnames(df_err_quant[,-1]),
-                                        "Ridge yes interaction CV error", "lambda")
+ridge_yes_interaction_metrics = FewDataCVCycleGLMNET(n_k_fold = K_FOLD,
+                                                  my_id_list_cv = id_list_cv,
+                                                  my_n_metrics_df_err = N_METRICS_df_metrics,
+                                                  my_metric_names = METRICS_NAMES,
+                                                  my_x = X_mm_yes_interaction,
+                                                  my_y = dati$y,
+                                                  my_alpha = 0,
+                                                  my_lambda_vals = lambda_vals)
 
-# lambda vals
-#  1.030784 1.030784
+ridge_yes_int_best_summary = CvMetricPlotMin(my_param_values = lambda_vals,
+                                           my_metric_matrix = ridge_yes_interaction_metrics,
+                                           my_metric_names = METRICS_NAMES,
+                                           my_main = "Ridge yes interaction CV error",
+                                           my_xlab = "lambda")
 
-df_err_quant = Add_Test_Error(df_err_quant,
-                              "ridge_yes_int_mse_lambda",
-                              c(ridge_yes_interaction_errs[which.min(ridge_yes_interaction_errs[,2]),1],
-                                ridge_yes_interaction_errs[which.min(ridge_yes_interaction_errs[,2]),2]))
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "ridge_yes_int",
+                             ridge_yes_int_best_summary[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
+
+df_metrics
 
 # Lasso ---------------
-lasso_no_interaction_errs = FewDataCVCycleGLMNET(K_FOLD, id_list_cv, NLoss_df_err,
-                                                 X_mm_no_interaction, dati$y, 1,
-                                                 lambda_vals)
 
-lasso_no_int_mse_lambda = CvErrsPlotMin(lambda_vals, lasso_no_interaction_errs, colnames(df_err_quant[,-1]),
-                                        "lasso no interaction CV error", "lambda")
+# Senza interazione 
 
-# lambda vals
-# 0.003880837 0.003880837
+# Valori di lambda
 
-# aggiungo l'errore: eventualmente scegliere anche il lambda basato su MAE
+lambda_vals = glmnet(x = X_mm_no_interaction, y = dati$y,
+                     alpha = 1, lambda.min.ratio = 1e-07)$lambda
 
-df_err_quant = Add_Test_Error(df_err_quant,
-                              "lasso_no_int_mse_lambda",
-                              c(lasso_no_interaction_errs[which.min(lasso_no_interaction_errs[,2]),1],
-                                lasso_no_interaction_errs[which.min(lasso_no_interaction_errs[,2]),2]))
+lasso_no_interaction_metrics = FewDataCVCycleGLMNET(n_k_fold = K_FOLD,
+                                                    my_id_list_cv = id_list_cv,
+                                                    my_n_metrics_df_err = N_METRICS_df_metrics,
+                                                    my_metric_names = METRICS_NAMES,
+                                                    my_x = X_mm_no_interaction,
+                                                    my_y = dati$y,
+                                                    my_alpha = 1,
+                                                    my_lambda_vals = lambda_vals)
+
+lasso_no_int_best_summary = CvMetricPlotMin(my_param_values = lambda_vals,
+                                            my_metric_matrix = lasso_no_interaction_metrics,
+                                            my_metric_names = METRICS_NAMES,
+                                            my_main = "lasso no interaction CV error",
+                                            my_xlab = "lambda")
+
+lasso_no_int_best_summary
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "lasso_no_int",
+                             lasso_no_int_best_summary[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
 
 
+lambda_vals = glmnet(x = X_mm_yes_interaction, y = dati$y,
+                     alpha = 1, lambda.min.ratio = 1e-07)$lambda
 
-lasso_yes_interaction_errs = FewDataCVCycleGLMNET(K_FOLD, id_list_cv, NLoss_df_err,
-                                                  X_mm_yes_interaction, dati$y, 1,
-                                                  lambda_vals)
 
-lasso_yes_int_mse_lambda = CvErrsPlotMin(lambda_vals, lasso_yes_interaction_errs, colnames(df_err_quant[,-1]),
-                                        "lasso yes interaction CV error", "lambda")
+lasso_yes_interaction_metrics = FewDataCVCycleGLMNET(n_k_fold = K_FOLD,
+                                                     my_id_list_cv = id_list_cv,
+                                                     my_n_metrics_df_err = N_METRICS_df_metrics,
+                                                     my_metric_names = METRICS_NAMES,
+                                                     my_x = X_mm_yes_interaction,
+                                                     my_y = dati$y,
+                                                     my_alpha = 1,
+                                                     my_lambda_vals = lambda_vals)
 
-# lambda vals
-#  1.030784 1.030784
+lasso_yes_int_best_summary = CvMetricPlotMin(my_param_values = lambda_vals,
+                                             my_metric_matrix = lasso_yes_interaction_metrics,
+                                             my_metric_names = METRICS_NAMES,
+                                             my_main = "lasso yes interaction CV error",
+                                             my_xlab = "lambda")
 
-df_err_quant = Add_Test_Error(df_err_quant,
-                              "lasso_yes_int_mse_lambda",
-                              c(lasso_yes_interaction_errs[which.min(lasso_yes_interaction_errs[,2]),1],
-                                lasso_yes_interaction_errs[which.min(lasso_yes_interaction_errs[,2]),2]))
 
-df_err_quant
+df_metrics = Add_Test_Metric(df_metrics,
+                             "lasso_yes_int",
+                             lasso_yes_int_best_summary[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
+
+df_metrics
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Albero -------------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(tree)
 
-# GLMNET CV cycles in case of few data sample
+TREE_MAX_SIZE = 30
+
+# I SHOULD MAKE A PARALLEL VERSION
+
 # @input n_k_fold (int): number of fold used, use the global variable
 # @input my_id_list_cv (list):ids in each fold , use the global variable
-# @input my_nloss_df_err (int): number of loss functions used, use global variable
+# @input my_N_METRICS_df_metrics (int): number of loss functions used, use global variable
+# @input my_metric_names (vector of string): ordered names of loss functions, use global variables
+# @input my_data (data.frame): data.frame used
 #
-# @input my_max_size (int): max size of the a pruned tree
+# @input my_max_size (int): max size of the pruned tree
 #
 # @return: matrix of CV folds averaged errors for each parameter value and each loss function 
-FewDataCVCycleTree = function(n_k_fold, my_id_list_cv,my_nloss_df_err,
-                              my_max_size = 30){
+FewDataCVCycleTree = function(n_k_fold, my_id_list_cv,my_n_metrics,
+                              my_metric_names, my_data,
+                              my_max_size = TREE_MAX_SIZE){
   
   # we use my_max_size - 1 because we start with size = 2
-  temp_err_array_cv = array(NA, dim = c(n_k_fold, my_max_size - 1, my_nloss_df_err))
+  temp_err_array_cv = array(NA, dim = c(n_k_fold, my_max_size - 1, my_n_metrics))
   
   
   for (k in 1:n_k_fold){
@@ -375,7 +462,7 @@ FewDataCVCycleTree = function(n_k_fold, my_id_list_cv,my_nloss_df_err,
     
     # full grown tree
     temp_tree_full = tree(y ~.,
-                          data = dati[id_train,],
+                          data = my_data[id_train,],
                           control = tree.control(nobs = length(id_train),
                                                  mindev = 1e-05,
                                                  minsize = 2))
@@ -395,8 +482,8 @@ FewDataCVCycleTree = function(n_k_fold, my_id_list_cv,my_nloss_df_err,
       # prediction error
       # s-1 because we start by size = 2
       temp_err_array_cv[k,s-1,] = USED.Loss(predict(temp_tree_pruned,
-                                                  dati[id_test,]),
-                                          dati$y[id_test])
+                                                  my_data[id_test,]),
+                                          my_data$y[id_test])
     }
     
     
@@ -408,9 +495,10 @@ FewDataCVCycleTree = function(n_k_fold, my_id_list_cv,my_nloss_df_err,
   }
   
   # to fix it
-  tree_cv_errs = matrix(NA, nrow = (my_max_size - 1), ncol = my_nloss_df_err)
+  tree_cv_errs = matrix(NA, nrow = (my_max_size - 1), ncol = my_n_metrics)
+  colnames(tree_cv_errs) = my_metric_names
   
-  for (i in 1:my_nloss_df_err){
+  for (i in 1:my_n_metrics){
     tree_cv_errs[,i] = apply(temp_err_array_cv[,,i], 2, mean)
   }
   
@@ -418,19 +506,23 @@ FewDataCVCycleTree = function(n_k_fold, my_id_list_cv,my_nloss_df_err,
   
 }
 
-tree_cv_errs = FewDataCVCycleTree(K_FOLD, id_list_cv, NLoss_df_err)
+tree_cv_metrics = FewDataCVCycleTree(n_k_fold = K_FOLD,
+                                  my_id_list_cv = id_list_cv,
+                                  my_n_metrics = N_METRICS_df_metrics,
+                                  my_metric_names = METRICS_NAMES,
+                                  my_data = dati,
+                                  my_max_size = TREE_MAX_SIZE)
+
+tree_best_summary = CvMetricPlotMin(my_param_values = 2:TREE_MAX_SIZE,
+                                    my_metric_matrix = tree_cv_metrics,
+                                    my_metric_names = METRICS_NAMES,
+                                    my_main = "Tree CV error",
+                                    my_xlab = "Size")
 
 
-tree_best_size = CvErrsPlotMin(lambda_vals, ridge_yes_interaction_errs, colnames(df_err_quant[,-1]),
-                                         "Ridge yes interaction CV error", "lambda")
-
-# tree_best_size
-#  10
-
-df_err_quant = Add_Test_Error(df_err_quant,
-                              "ridge_yes_int_mse_lambda",
-                              c(ridge_yes_interaction_errs[which.min(ridge_yes_interaction_errs[,2]),1],
-                                ridge_yes_interaction_errs[which.min(ridge_yes_interaction_errs[,2]),2]))
+df_metrics = Add_Test_Metric(df_metrics,
+                              "tree",
+                              tree_cv_errs[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -440,19 +532,35 @@ library(gam)
 
 # questo è più problematico...
 
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# MARS ---------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# PPR ---------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Random Forest ---------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Bagging ---------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Rete Neurale ---------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+#////////////////////////////////////////////////////////////////////////////
+# Conclusioni -------------------------------------------------------------
+#////////////////////////////////////////////////////////////////////////////
 
-
-
-
-
-
-
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Modelli migliori ---------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 

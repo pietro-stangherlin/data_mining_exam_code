@@ -78,11 +78,11 @@ hist(log(sss$y), nclass = 100)
 # aggiunta media e mediana della risposta sull'insieme di stima come possibili modelli
 # (per valutare se modelli più complessi hanno senso)
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "sss mean",
                               USED.Loss(mean(sss$y), vvv$y))
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "sss median",
                               USED.Loss(median(sss$y), vvv$y))
 
@@ -109,7 +109,7 @@ lm_step_no_interaction = step(lm0, scope = formula_no_interaction_yes_intercept,
 # y ~ x7 + x2 + x8 + x3
 # lm_step_no_interaction = lm(y ~ x7 + x2 + x8 + x3, data = sss)
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "lm_step_no_interaction",
                               USED.Loss(predict(lm_step_no_interaction, newdata = vvv), vvv$y))
 df_err_quant
@@ -128,7 +128,7 @@ lm_step_yes_interaction = step(lm0, scope = formula_yes_interaction_yes_intercep
 # x7 + x2 + x8 + x3
 
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "lm_step_yes_interaction",
                               USED.Loss(predict(lm_step_yes_interaction, newdata = vvv), vvv$y))
 
@@ -206,12 +206,12 @@ ridge_no_interaction_lmin = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
 
 
 # previsione ed errore
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "ridge_no_interaction_l1se",
                               USED.Loss(predict(ridge_no_interaction_l1se, newx = X_mm_no_interaction_vvv),vvv$y))
 
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "ridge_no_interaction_lmin",
                               USED.Loss(predict(ridge_no_interaction_lmin, newx = X_mm_no_interaction_vvv),vvv$y))
 
@@ -249,12 +249,12 @@ gc()
 
 # 
 # # previsione ed errore
-# df_err_quant = Add_Test_Error(df_err_quant,
+# df_err_quant = Add_Test_Metric(df_err_quant,
 #                               "ridge_yes_interaction_l1se",
 #                               USED.Loss(predict(ridge_yes_interaction_l1se, newx = X_mm_yes_interaction_vvv),vvv$y))
 # 
 # 
-# df_err_quant = Add_Test_Error(df_err_quant,
+# df_err_quant = Add_Test_Metric(df_err_quant,
 #                               "ridge_yes_interaction_lmin",
 #                               USED.Loss(predict(ridge_yes_interaction_lmin, newx = X_mm_yes_interaction_vvv),vvv$y))
 
@@ -290,12 +290,12 @@ lasso_no_interaction_lmin = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
                                    lambda = lasso_cv_no_interaction$lambda.min)
 
 # previsione ed errore
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "lasso_no_interaction_l1se",
                               USED.Loss(predict(lasso_no_interaction_l1se, newx = X_mm_no_interaction_vvv),vvv$y))
 
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "lasso_no_interaction_lmin",
                               USED.Loss(predict(lasso_no_interaction_lmin, newx = X_mm_no_interaction_vvv),vvv$y))
 
@@ -338,12 +338,12 @@ gc()
 # gc()
 # 
 # # previsione ed errore
-# df_err_quant = Add_Test_Error(df_err_quant,
+# df_err_quant = Add_Test_Metric(df_err_quant,
 #                               "lasso_yes_interaction_l1se",
 #                               USED.Loss(predict(lasso_yes_interaction_l1se, newx = X_mm_yes_interaction_vvv),vvv$y))
 # 
 # 
-# df_err_quant = Add_Test_Error(df_err_quant,
+# df_err_quant = Add_Test_Metric(df_err_quant,
 #                               "lasso_yes_interaction_lmin",
 #                               USED.Loss(predict(lasso_yes_interaction_lmin, newx = X_mm_yes_interaction_vvv),vvv$y))
 # 
@@ -396,12 +396,12 @@ final_tree_pruned = prune.tree(tree_full, best = tree_best_size)
 plot(final_tree_pruned)
 text(final_tree_pruned, cex = 0.7)
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "tree_pruned best",
                               USED.Loss(predict(final_tree_pruned, newdata = vvv), vvv$y))
 
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "tree_pruned 10",
                               USED.Loss(predict(prune.tree(tree_full, best = 10), newdata = vvv), vvv$y))
 
@@ -438,7 +438,7 @@ gam_step = step.Gam(gam0, scope = my_gam_scope)
 
 object.size(gam_step)
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "additivo_step",
                               USED.Loss(predict(gam_step, newdata = vvv), vvv$y))
 
@@ -489,7 +489,7 @@ legend(c("topright"),
 min_size_mars = mars1$fitting$size[which.min(mars1$fitting$GCV)]
 abline(v = min_size_mars)
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "MARS",
                               USED.Loss(predict(mars1, x = X_mm_no_interaction_vvv),vvv$y))
 
@@ -685,7 +685,7 @@ mod_ppr1 = ppr(y ~ .,
                data = sss,
                nterms = which.min(err_ppr_test_validation)) # attenzione: modifica n-terms 
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "PPR",
                               USED.Loss(predict(mod_ppr1, vvv), vvv$y))
 
@@ -785,7 +785,7 @@ random_forest_model = ranger(y ~., sss,
                              oob.error = TRUE,
                              importance = "permutation")
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "Random Forest",
                               USED.Loss(predict(random_forest_model, data = vvv,
                                                 type = "response")$predictions, vvv$y))
@@ -844,7 +844,7 @@ plot((1:length(err_bg_trees)) * 4, err_bg_trees,
 
 bagging_model = bagging(y ~., sss, nbag = 400, coob = FALSE)
 
-df_err_quant = Add_Test_Error(df_err_quant,
+df_err_quant = Add_Test_Metric(df_err_quant,
                               "Bagging",
                               USED.Loss(predict(bagging_model, newdata = vvv), vvv$y))
 

@@ -126,7 +126,7 @@ ids_unbal = c(cv_id_unbal_matr)
 
 # modello classificazione casuale sull'insieme di verifica
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "random threshold",
                              USED.Loss(rbinom(length(ids_unbal), 1, threshold), dati$y[ids_unbal]))
 
@@ -166,7 +166,7 @@ for(j in 1:K_FOLD) {
   err_cv_tmp_array[j,] = USED.Loss(pr_tmp > threshold, dati$y[id_verifica])
 }
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "lm_step_no_interaction",
                              colMeans(err_cv_tmp_array))
 df_err_qual
@@ -195,7 +195,7 @@ for(j in 1:K_FOLD) {
   err_cv_tmp_array[j,] = USED.Loss(pr_tmp > threshold, dati$y[id_verifica])
 }
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "lm_step_yes_interaction",
                              colMeans(err_cv_tmp_array))
 df_err_qual
@@ -237,7 +237,7 @@ for(j in 1:K_FOLD) {
   err_cv_tmp_array[j,] = USED.Loss(pr_tmp > threshold, dati$y[id_verifica])
 }
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "glm_step_no_interaction",
                              colMeans(err_cv_tmp_array))
 df_err_qual
@@ -266,7 +266,7 @@ for(j in 1:K_FOLD) {
   err_cv_tmp_array[j,] = USED.Loss(pr_tmp > threshold, dati$y[id_verifica])
 }
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "lm_step_yes_interaction",
                              colMeans(err_cv_tmp_array))
 df_err_qual
@@ -384,7 +384,7 @@ lambda_vals[ridge_no_inter_index_best]
 # potrebbe essere necessario ristimare il modello
 
 # scegli il modello migliore rispetto al criterio
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "ridge_no_interaction",
                              cv_errs[ridge_no_inter_index_best,])
 df_err_qual
@@ -460,7 +460,7 @@ lambda_vals[ridge_yes_int_index_best]
 # potrebbe essere necessario ristimare il modello
 
 # scegli il modello migliore rispetto al criterio
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "ridge_yes_interaction",
                              cv_errs[ridge_yes_int_index_best,])
 df_err_qual
@@ -542,7 +542,7 @@ lambda_vals[lasso_no_inter_index_best]
 # potrebbe essere necessario ristimare il modello
 
 # scegli il modello migliore rispetto al criterio
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "lasso_no_interaction",
                              cv_errs[lasso_no_inter_index_best,])
 df_err_qual
@@ -618,7 +618,7 @@ lambda_vals[lasso_yes_int_index_best]
 # potrebbe essere necessario ristimare il modello
 
 # scegli il modello migliore rispetto al criterio
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "lasso_yes_interaction",
                              cv_errs[lasso_yes_int_index_best,])
 df_err_qual
@@ -697,7 +697,7 @@ tree_size_best = which.max(cv_errs[,4]) + 1
 # potrebbe essere necessario ristimare il modello
 
 # scegli il modello migliore rispetto al criterio
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "tree",
                              cv_errs[tree_size_best - 1,])
 df_err_qual
@@ -730,7 +730,7 @@ for(j in 1:K_FOLD) {
   err_cv_tmp_array[j,] = USED.Loss(pr_tmp > threshold, dati$y[id_verifica])
 }
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "gam",
                              colMeans(err_cv_tmp_array))
 df_err_qual
@@ -781,7 +781,7 @@ for(j in 1:K_FOLD) {
   err_cv_tmp_array[j,] = USED.Loss(pr_tmp > threshold, dati$y[id_verifica])
 }
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "mars",
                              colMeans(err_cv_tmp_array))
 df_err_qual
@@ -833,7 +833,7 @@ for(k in 1:K_FOLD){
   print(k)
 }
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "Random Forest",
                              colMeans(err_cv_tmp_array))
 df_err_qual
@@ -892,7 +892,7 @@ for(k in 1:K_FOLD){
   
 }
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "Boosting Stump ",
                              colMeans(colMeans(err)))
 df_err_qual
@@ -934,7 +934,7 @@ for(k in 1:K_FOLD){
   
 }
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "Boosting 3 split ",
                              colMeans(colMeans(err)))
 df_err_qual
@@ -1018,7 +1018,7 @@ ranges[svm_range_best]
 # potrebbe essere necessario ristimare il modello
 
 # scegli il modello migliore rispetto al criterio
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "svm radial",
                              cv_errs[svm_range_best,])
 df_err_qual

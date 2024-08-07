@@ -78,7 +78,7 @@ threshold = 0.2
 
 # modello classificazione casuale
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                               "sss threshold",
                               USED.Loss(rbinom(nrow(vvv), 1, threshold), vvv$y))
 
@@ -109,7 +109,7 @@ lm_step_no_interaction = lm(y ~ x7 + x2 + x8 + anno, data = sss)
 
 pred_lm_no_interaction = predict(lm_step_no_interaction, newdata = vvv)
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                               "lm_step_no_interaction",
                               USED.Loss(pred_lm_no_interaction > threshold %>% as.numeric(),
                                         vvv$y))
@@ -153,7 +153,7 @@ glm_step_no_interaction = glm(factor(y) ~ x7 + x2 + x8 + anno,
 
 pred_glm_no_interaction = predict(glm_step_no_interaction, newdata = vvv, type = "response")
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "glm_step_no_interaction",
                              USED.Loss(pred_glm_no_interaction > threshold,
                                        vvv$y))
@@ -234,7 +234,7 @@ gc()
 # pred_ridge_no_interaction_l1se =  predict(ridge_no_interaction_l1se, newx = X_mm_no_interaction_vvv)
 # 
 # # previsione ed errore
-# df_err_qual = Add_Test_Error(df_err_qual,
+# df_err_qual = Add_Test_Metric(df_err_qual,
 #                               "ridge_no_interaction_l1se",
 #                               USED.Loss(pred_ridge_no_interaction_l1se > threshold %>% as.numeric(),
 #                                         vvv$y))
@@ -245,7 +245,7 @@ gc()
 
 pred_ridge_no_interaction_lmin =  predict(ridge_no_interaction_lmin, newx = X_mm_no_interaction_vvv)
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                               "ridge_no_interaction_lmin",
                               USED.Loss(pred_ridge_no_interaction_lmin > threshold %>% as.numeric(),
                                         vvv$y))
@@ -286,7 +286,7 @@ gc()
 # pred_ridge_yes_interaction_l1se = predict(ridge_yes_interaction_l1se, newx = X_mm_yes_interaction_vvv)
 
 # previsione ed errore
-# df_err_qual = Add_Test_Error(df_err_qual,
+# df_err_qual = Add_Test_Metric(df_err_qual,
 #                               "ridge_yes_interaction_l1se",
 #                               USED.Loss(pred_ridge_yes_interaction_l1se > threshold %>% as.numeric(),
 #                                         vvv$y))
@@ -298,7 +298,7 @@ pred_ridge_yes_interaction_lmin = predict(ridge_yes_interaction_lmin, newx = X_m
 
 
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                               "ridge_yes_interaction_lmin",
                               USED.Loss(predict(ridge_yes_interaction_lmin, newx = X_mm_yes_interaction_vvv)> threshold %>% as.numeric(),
                                         vvv$y))
@@ -344,7 +344,7 @@ gc()
 # pred_lasso_no_interaction_l1se =  predict(lasso_no_interaction_l1se, newx = X_mm_no_interaction_vvv)
 # 
 # # previsione ed errore
-# df_err_qual = Add_Test_Error(df_err_qual,
+# df_err_qual = Add_Test_Metric(df_err_qual,
 #                              "lasso_no_interaction_l1se",
 #                              USED.Loss(pred_lasso_no_interaction_l1se > threshold %>% as.numeric(),
 #                                        vvv$y))
@@ -355,7 +355,7 @@ gc()
 
 pred_lasso_no_interaction_lmin =  predict(lasso_no_interaction_lmin, newx = X_mm_no_interaction_vvv)
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "lasso_no_interaction_lmin",
                              USED.Loss(pred_lasso_no_interaction_lmin > threshold %>% as.numeric(),
                                        vvv$y))
@@ -396,7 +396,7 @@ gc()
 # pred_lasso_yes_interaction_l1se = predict(lasso_yes_interaction_l1se, newx = X_mm_yes_interaction_vvv)
 # 
 # # previsione ed errore
-# df_err_qual = Add_Test_Error(df_err_qual,
+# df_err_qual = Add_Test_Metric(df_err_qual,
 #                              "lasso_yes_interaction_l1se",
 #                              USED.Loss(pred_lasso_yes_interaction_l1se > threshold %>% as.numeric(),
 #                                        vvv$y))
@@ -408,7 +408,7 @@ pred_lasso_yes_interaction_lmin = predict(lasso_yes_interaction_lmin, newx = X_m
 
 
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "lasso_yes_interaction_lmin",
                              USED.Loss(predict(lasso_yes_interaction_lmin, newx = X_mm_yes_interaction_vvv)> threshold %>% as.numeric(),
                                        vvv$y))
@@ -463,7 +463,7 @@ text(final_tree_pruned, cex = 0.7)
 
 pred_tree_pruned = predict(final_tree_pruned, newdata = vvv)[,2]
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                               "tree_pruned best",
                               USED.Loss(pred_tree_pruned > threshold, vvv$y))
 
@@ -501,7 +501,7 @@ object.size(gam_step)
 
 pred_gam = predict(gam_step, newdata = vvv, type = "response")
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                               "additivo_step",
                               USED.Loss(pred_gam > threshold %>% as.numeric(),
                                         vvv$y))
@@ -545,7 +545,7 @@ gam_step = step.Gam(gam0, scope = my_gam_scope)
 
 object.size(gam_step)
 
-df_err_quant = Add_Test_Error(df_err_qual,
+df_err_quant = Add_Test_Metric(df_err_qual,
                               "additivo_step",
                               USED.Loss(predict(gam_step, newdata = vvv), vvv$y))
 
@@ -595,7 +595,7 @@ abline(v = min_size_mars)
 
 pred_mars = predict(mars1, x = X_mm_no_interaction_vvv)
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                               "MARS",
                               USED.Loss(pred_mars > threshold %>% as.numeric(),
                                         vvv$y))
@@ -789,7 +789,7 @@ abline(v = min_size_mars)
 
 pred_mars_class = predict(mars_class, x = X_mm_no_interaction_vvv)
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "MARS Class",
                              USED.Loss(pred_mars > threshold %>% as.numeric(),
                                        vvv$y))
@@ -890,7 +890,7 @@ random_forest_model = ranger(factor(y) ~., sss,
 
 pred_random_forest = predict(random_forest_model, data = vvv, type = "response")$predictions[,2]
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "Random Forest",
                              USED.Loss(pred_random_forest > threshold %>% as.numeric(),
                                        vvv$y))
@@ -948,7 +948,7 @@ bagging_model = bagging(factor(y) ~., sss, nbag = 400, coob = FALSE)
 
 pred_bagging = predict(bagging_model, newdata = vvv, type = "prob")[,2]
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                               "Bagging",
                               USED.Loss(pred_bagging > threshold %>% as.numeric(), vvv$y))
 
@@ -1015,7 +1015,7 @@ plot(m_boost_stump, test = T)
 pred_boost_stump = predict(m_boost_stump, vvv, type = "prob")[,2]
 pred_list$pred_boost_stump = as.vector(pred_boost_stump)
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "Boosting Stump",
                              USED.Loss(pred_boost_stump > threshold %>% as.numeric(),
                                        vvv$y))
@@ -1049,7 +1049,7 @@ plot(m_boost_2, test = T)
 
 pred_boost_2 = predict(m_boost_2, vvv, type = "prob")[,2]
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "Boosting 3 Split",
                              USED.Loss(pred_boost_2 > threshold %>% as.numeric(),
                                        vvv$y))
@@ -1093,7 +1093,7 @@ ranges[which.min(err_svm[,2])]
 m_svm =  svm( factor(y)~., data= sss, cost= ranges[which.min(err_svm[,2])])
 pred_svm_radial = attr(predict(m_svm, newdata = vvv, decision.values=TRUE), "decision.values")[,1]
 
-df_err_qual = Add_Test_Error(df_err_qual,
+df_err_qual = Add_Test_Metric(df_err_qual,
                              "SVM radial",
                              USED.Loss(pred_svm_radial > 0,
                                        vvv$y))
