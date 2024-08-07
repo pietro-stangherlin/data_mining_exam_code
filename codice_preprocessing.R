@@ -869,3 +869,32 @@ formula_no_interaction_no_intercept = MakeFormula(no_interaction_string, interce
 formula_no_interaction_yes_intercept
 formula_no_interaction_no_intercept
 
+# ///////////////////////////////////
+# Save output on file ---------------
+# //////////////////////////////////
+
+# text.txt -------------
+
+# initialize the output txt file to regularly write on in case 
+# the software crashes
+# also 
+
+TEXT_OUTPUT_FILE_NAME = "text_ouput.txt"
+
+# open sink 
+sink(TEXT_OUTPUT_FILE_NAME, append = TRUE, split = TRUE)
+
+
+# figures folder ----------
+# relative path figures folder
+FIGURES_FOLDER_RELATIVE_PATH = "figures/"
+
+# fixed image dimensions (pixels)
+FIGURE_WIDTH = 1000
+FIGURE_HEIGHT = 1000
+
+FIGURE_POINT_SIZE = 35
+FIGURE_QUALITY = 120
+
+
+

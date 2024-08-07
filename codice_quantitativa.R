@@ -36,11 +36,10 @@ vvv = dati[-id_stima,]
 
 # In caso di convalida nell'insieme di stima
 id_cb1 = sample(1:NROW(sss), 0.8 * NROW(sss))
-id_cb2 = setdiff(1:NROW(sss), id_cb1)
 
 # rimozione dati originali
 rm(dati)
-gc(dati)
+gc()
 
 
 # /////////////////////////////////////////////////////////////////
@@ -460,9 +459,7 @@ factor_index = setdiff(1:NCOL(X_mm_no_interaction_sss), num_index)
 library(polspline)
 
 # tramite gcv
-# °°°°°°°°°°°°°°°°°°°°°° Warning °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°à
-# ATTENZIONE: se prima X_mm_no_interaction_sss era sparsa ora la devo
-# definire di nuovo non sparsa
+# °°°°°°°°°°°°°°°°°°°°°° Warning °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 
 # Controllo del compromesso varianza distorsione: 
 # criterio della convalida incrociata generalizzata
@@ -663,13 +660,13 @@ mars_model_size = dim(mars1$model)[1]
 # che imoiega la convalida incrociata
 
 
-# K: numero di possibili funzioni dorsali
-K = 4
+# numero di possibili funzioni dorsali
+PPR_MAX_RIDGE_FUNCTIONS = 4
 
-err_ppr_test_validation = rep(NA, K)
+err_ppr_test_validation = rep(NA, PPR_MAX_RIDGE_FUNCTIONS)
 
 
-for(k in 1:K){
+for(k in 1:PPR_MAX_RIDGE_FUNCTIONS){
   mod = ppr(y ~ .,
             data = sss[id_cb1,],
             nterms = k)
