@@ -576,7 +576,7 @@ tree_cv_metrics = FewDataCVCycleTree(n_k_fold = K_FOLD,
 tree_best_summary = CvMetricPlotMin(my_param_values = 2:TREE_MAX_SIZE,
                                     my_metric_matrix = tree_cv_metrics,
                                     my_metric_names = METRICS_NAMES,
-                                    my_main = "Tree CV error",
+                                    my_main = "Tree CV metrics",
                                     my_xlab = "Size",
                                     my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                                          "tree_metrics_plot.jpeg"))
@@ -669,7 +669,7 @@ ppr_cv_metrics = FewDataCVCyclePPR(n_k_fold = K_FOLD,
 ppr_best_summary = CvMetricPlotMin(my_param_values = 1:PPR_MAX_RIDGE_FUNCTIONS,
                                     my_metric_matrix = ppr_cv_metrics,
                                     my_metric_names = METRICS_NAMES,
-                                    my_main = "PPR CV error",
+                                    my_main = "PPR CV metrics",
                                     my_xlab = "Number of ridge functions",
                                     my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                                          "ppr_metrics_plot.jpeg"))
@@ -716,7 +716,7 @@ library(randomForest)
 #' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
 #' @param my_data (data.frame): data.frame used
 #'
-#' @param my_n_variables: (int) or (vector of int) number of variables choosen at each split
+#' @param my_n_variables: (int) or (vector of int) number of variables chosen at each split
 #' @param my_n_bs_trees: (int) or (vector of int) number of bootstrap trees 
 #' @param fix_tress_bool (bool): TRUE if fixed number of bootstrap trees, number of variables changes,
 #' else FALSE
@@ -775,6 +775,7 @@ FewDataCVCycleRF = function(n_k_fold, my_id_list_cv,my_n_metrics,
         # prediction error
         temp_metrics_array_cv[k,m,] = USED.Loss(predict(temp_rf, my_data[id_test,]),
                                             my_data$y[id_test])
+        print(paste(c("n var = ", m), collapse = ""))
       }
     }
     
@@ -785,6 +786,7 @@ FewDataCVCycleRF = function(n_k_fold, my_id_list_cv,my_n_metrics,
         # prediction error
         temp_metrics_array_cv[k,t,] = USED.Loss(predict(temp_rf, my_data[id_test,]),
                                             my_data$y[id_test])
+        print(paste(c("n trees = ", my_n_bs_trees[t]), collapse = ""))
       }
     }
     
@@ -814,13 +816,13 @@ rf_cv_metrics = FewDataCVCycleRF(n_k_fold = K_FOLD,
                                  my_metric_names = METRICS_NAMES,
                                  my_data = dati,
                                  my_n_variables = 1:RF_MAX_VARIABLES,
-                                 my_n_bs_trees = 200,
+                                 my_n_bs_trees = 400,
                                  fix_trees_bool = TRUE)
 
 rf_best_summary = CvMetricPlotMin(my_param_values = 1:RF_MAX_VARIABLES,
                                    my_metric_matrix = rf_cv_metrics,
                                    my_metric_names = METRICS_NAMES,
-                                   my_main = "RF CV error",
+                                   my_main = "RF CV metrics",
                                    my_xlab = "Number of variables at each split",
                                    my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                                         "rf_metrics_plot.jpeg"))
@@ -844,18 +846,92 @@ rf_cv_metrics_bts_trees = FewDataCVCycleRF(n_k_fold = K_FOLD,
 rf_best_summary_bts_trees = CvMetricPlotMin(my_param_values = BTS_TREES_N_SEQ,
                                   my_metric_matrix = rf_cv_metrics_bts_trees,
                                   my_metric_names = METRICS_NAMES,
-                                  my_main = "RF CV error",
-                                  my_xlab = "Number of bootstrap tress",
+                                  my_main = "RF CV metrics",
+                                  my_xlab = "Number of bootstrap trees",
                                   my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                                        "rf_metrics_plot_bts.jpeg"))
 
+# if there's convergence add the the RF CV metrics to df_metrics
+# otherwise, do again the variable number selection fixing a new number of bootstrap trees
 
-# TO DO: variables importance plot based on full data and OOB
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "Random Forest",
+                             rf_best_summary[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
+
+df_metrics
 
 
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# consider now the full data and the two parameters selected
+# we can evaluate variable importance on the complete dataset by OOB error
+
+rf_model = randomForest(y ~., data = dati,
+                        mtry = rf_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]],
+                        ntree = rf_best_summary_bts_trees[[METRIC_CHOSEN_NAME]][["best_param_value"]],
+                        importance = TRUE)
+
+
+vimp = importance(rf_model)[,1]
+
+dotchart(vimp[order(vimp)], pch = 16,
+         main = "RF Increase MSE % variable importance",
+         xlab = "% MSE Increase")
+
+# save it 
+
+jpeg(paste(FIGURES_FOLDER_RELATIVE_PATH,
+           "rf_var_imp_plot.jpeg",
+           collapse = ""),
+     width = FIGURE_WIDTH, height = FIGURE_HEIGHT,
+     pointsize = FIGURE_POINT_SIZE, quality = FIGURE_QUALITY)
+
+dotchart(vimp[order(vimp)], pch = 16,
+         main = "RF Increase MSE % variable importance",
+         xlab = "% MSE Increase")
+
+
+dev.off()
+
+rm(rf_model)
+gc()
+
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Bagging ---------------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# Because bagging is just a Random Forest when all the variables are selected at each split
+# we can use the Random Forest CV function with fixed number of variables and check the convergence
+# with respect to the bootstrap trees number
+
+
+# sequence of bootstrap trees
+BTS_TREES_N_SEQ = seq(30, 400, 10)
+
+bagging_cv_metrics_bts_trees = FewDataCVCycleRF(n_k_fold = K_FOLD,
+                                           my_id_list_cv = id_list_cv,
+                                           my_n_metrics = N_METRICS_df_metrics,
+                                           my_metric_names = METRICS_NAMES,
+                                           my_data = dati,
+                                           my_n_variables = NCOL(dati) - 1,
+                                           my_n_bs_trees = BTS_TREES_N_SEQ,
+                                           fix_trees_bool = FALSE)
+
+bagging_best_summary_bts_trees = CvMetricPlotMin(my_param_values = BTS_TREES_N_SEQ,
+                                            my_metric_matrix = bagging_cv_metrics_bts_trees,
+                                            my_metric_names = METRICS_NAMES,
+                                            my_main = "Bagging CV metrics",
+                                            my_xlab = "Number of bootstrap trees",
+                                            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                                                 "bagging_metrics_plot_bts.jpeg"))
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "Bagging",
+                             bagging_best_summary_bts_trees[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
+
+df_metrics
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
