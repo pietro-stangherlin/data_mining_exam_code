@@ -2,7 +2,6 @@ library(dplyr)
 
 # parallel
 library(snowfall)
-parallel::detectCores()
 
 
 
@@ -93,7 +92,7 @@ if(modulo_cv != 0){
 
 
 
-#' Plot Cross-Vaidation metrics function
+#' Plot Cross-Validation metrics function
 #' 
 #' @description 
 #' 
@@ -102,6 +101,7 @@ if(modulo_cv != 0){
 #' @param my_metric_matrix (matrix): rows -> parameters in the same order of my_param_values,
 #'                                 columns -> metrics, 
 #'   each cell contains the cv metric already averaged
+#' @param my_sd_matrix (matrix): matrix of standard errors of cv metrics
 #' @param my_metric_names (vector of strings): names of the errors,
 #'
 #' WARNING, pay attention to this parameter:
@@ -122,7 +122,9 @@ if(modulo_cv != 0){
 #' list[[metric_name]][[x]]
 #' where x are: "best_param_index" (int), "best_param_value" (num), "metric_values" (vector of num)
 
-CvMetricPlotMin = function(my_param_values, my_metric_matrix, my_metric_names,
+CvMetricPlotMin = function(my_param_values, my_metric_matrix,
+                           my_sd_matrix = 0,
+                           my_metric_names,
                            indexes_metric_max = NULL,
                            my_main = "Model metrics", my_xlab = "parameter", my_legend_coords = "topright",
                            my_xlim = NULL, my_ylim = NULL,
@@ -134,6 +136,10 @@ CvMetricPlotMin = function(my_param_values, my_metric_matrix, my_metric_names,
   
   # PLOT section
   
+  # compute standard deviations matrix lower and upper
+  sd_lower = my_metric_matrix - my_sd_matrix
+  sd_upper = my_metric_matrix + my_sd_matrix
+  
   # if xlim null use entire x axis (default)
   if (is.null(my_xlim)){
     my_xlim = c(min(my_param_values), max(my_param_values))
@@ -141,7 +147,7 @@ CvMetricPlotMin = function(my_param_values, my_metric_matrix, my_metric_names,
   
   # if ylim is null use min and max over the entire matrix
   if (is.null(my_ylim)){
-    my_ylim = c(min(my_metric_matrix), max(my_metric_matrix))
+    my_ylim = c(min(sd_lower), max(sd_upper))
   }
   
   
@@ -189,9 +195,16 @@ CvMetricPlotMin = function(my_param_values, my_metric_matrix, my_metric_names,
        xlim = my_xlim,
        ylim = my_ylim)
   
+  arrows(my_param_values, sd_lower[,1],
+         my_param_values, sd_upper[,1],
+         length = 0.03, angle = 90)
+  
   for (i in 2:NCOL(my_metric_matrix)){
     points(my_param_values, my_metric_matrix[,i],
            pch = 15 + i, col = i)
+    arrows(my_param_values, sd_lower[,i],
+           my_param_values, sd_upper[,i],
+           length = 0.03, angle = 90, col = i)
   }
   
   legend(my_legend_coords,
@@ -216,9 +229,17 @@ CvMetricPlotMin = function(my_param_values, my_metric_matrix, my_metric_names,
        xlim = my_xlim,
        ylim = my_ylim)
   
+  arrows(my_param_values, sd_lower[,1],
+         my_param_values, sd_upper[,1],
+         length = 0.03, angle = 90)
+  
   for (i in 2:NCOL(my_metric_matrix)){
     points(my_param_values, my_metric_matrix[,i],
            pch = 15 + i, col = i)
+    
+    arrows(my_param_values, sd_lower[,i],
+           my_param_values, sd_upper[,i],
+           length = 0.03, angle = 90, col = i)
   }
   
   legend(my_legend_coords,
@@ -302,7 +323,7 @@ library(glmnet)
 #' GLMNET CV cycles in case of few data sample
 #' @param n_k_fold (int): number of fold used, use the global variable
 #' @param my_id_list_cv (list):ids in each fold , use the global variable
-#' @param my_n_metrics_df_metrics (int): number of metrics functions used, use global variable
+#' @param my_n_metrics (int): number of metrics functions used, use global variable
 #' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
 #'
 #' @param my_x (matrix): complete model matrix passed to glmnet
@@ -316,10 +337,11 @@ library(glmnet)
 #' the second the CV computet standard errors of those metrics
 #' first matrix is accessed by "metrics"
 #' second matrix is accessed by "sd"
-FewDataCVCycleGLMNET = function(n_k_fold, my_id_list_cv, my_n_metrics_df_metrics, my_metric_names,
+FewDataCVCycleGLMNET = function(n_k_fold, my_id_list_cv,
+                                my_n_metrics, my_metric_names,
                                 my_x, my_y, my_alpha, my_lambda_vals){
   
-  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, length(my_lambda_vals), my_n_metrics_df_metrics))
+  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, length(my_lambda_vals), my_n_metrics))
   
   
   for (k in 1:n_k_fold){
@@ -344,14 +366,14 @@ FewDataCVCycleGLMNET = function(n_k_fold, my_id_list_cv, my_n_metrics_df_metrics
   }
   
   # averaged metrics matrix
-  cv_metrics = matrix(NA, nrow = length(my_lambda_vals), ncol = my_n_metrics_df_metrics)
+  cv_metrics = matrix(NA, nrow = length(my_lambda_vals), ncol = my_n_metrics)
   
   # metrics standard deviations matrix
-  cv_metrics_sd = matrix(NA, nrow = length(my_lambda_vals), ncol = my_n_metrics_df_metrics)
+  cv_metrics_sd = matrix(NA, nrow = length(my_lambda_vals), ncol = my_n_metrics)
   colnames(cv_metrics) = my_metric_names
   colnames(cv_metrics_sd) = my_metric_names
   
-  for (i in 1:my_n_metrics_df_metrics){
+  for (i in 1:my_n_metrics){
     cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
     cv_metrics_sd[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
   }
@@ -390,7 +412,7 @@ lambda_vals = glmnet(x = X_mm_no_interaction, y = dati$y,
 
 ridge_no_interaction_metrics = FewDataCVCycleGLMNET(n_k_fold = K_FOLD,
                                                     my_id_list_cv = id_list_cv,
-                                                    my_n_metrics_df_metrics = N_METRICS_df_metrics,
+                                                    my_n_metrics = N_METRICS_df_metrics,
                                                     my_metric_names = METRICS_NAMES,
                                                     my_x = X_mm_no_interaction,
                                                     my_y = dati$y,
@@ -399,6 +421,7 @@ ridge_no_interaction_metrics = FewDataCVCycleGLMNET(n_k_fold = K_FOLD,
 
 ridge_no_int_best_summary = CvMetricPlotMin(my_param_values = lambda_vals,
                                             my_metric_matrix = ridge_no_interaction_metrics[["metrics"]],
+                                            my_sd_matrix = ridge_no_interaction_metrics[["sd"]],
                                             my_metric_names = METRICS_NAMES,
                                             my_main = "Ridge no interaction CV metrics",
                                             my_xlab = "lambda",
@@ -421,7 +444,7 @@ lambda_vals = glmnet(x = X_mm_yes_interaction, y = dati$y,
 
 ridge_yes_interaction_metrics = FewDataCVCycleGLMNET(n_k_fold = K_FOLD,
                                                   my_id_list_cv = id_list_cv,
-                                                  my_n_metrics_df_metrics = N_METRICS_df_metrics,
+                                                  my_n_metrics = N_METRICS_df_metrics,
                                                   my_metric_names = METRICS_NAMES,
                                                   my_x = X_mm_yes_interaction,
                                                   my_y = dati$y,
@@ -430,6 +453,7 @@ ridge_yes_interaction_metrics = FewDataCVCycleGLMNET(n_k_fold = K_FOLD,
 
 ridge_yes_int_best_summary = CvMetricPlotMin(my_param_values = lambda_vals,
                                             my_metric_matrix = ridge_yes_interaction_metrics[["metrics"]],
+                                            my_sd_matrix = ridge_yes_interaction_metrics[["sd"]],
                                             my_metric_names = METRICS_NAMES,
                                             my_main = "Ridge yes interaction CV metrics",
                                             my_xlab = "lambda",
@@ -454,7 +478,7 @@ lambda_vals = glmnet(x = X_mm_no_interaction, y = dati$y,
 
 lasso_no_interaction_metrics = FewDataCVCycleGLMNET(n_k_fold = K_FOLD,
                                                     my_id_list_cv = id_list_cv,
-                                                    my_n_metrics_df_metrics = N_METRICS_df_metrics,
+                                                    my_n_metrics = N_METRICS_df_metrics,
                                                     my_metric_names = METRICS_NAMES,
                                                     my_x = X_mm_no_interaction,
                                                     my_y = dati$y,
@@ -462,14 +486,14 @@ lasso_no_interaction_metrics = FewDataCVCycleGLMNET(n_k_fold = K_FOLD,
                                                     my_lambda_vals = lambda_vals)
 
 lasso_no_int_best_summary = CvMetricPlotMin(my_param_values = lambda_vals,
-                                           my_metric_matrix = lasso_no_interaction_metrics[["metrics"]],
-                                           my_metric_names = METRICS_NAMES,
-                                           my_main = "Lasso no interaction CV metrics",
-                                           my_xlab = "lambda",
-                                           my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                                                "lasso_no_int_metrics_plot.jpeg",
-                                                                collapse = ""))
-
+                                            my_metric_matrix = lasso_no_interaction_metrics[["metrics"]],
+                                            my_sd_matrix = lasso_no_interaction_metrics[["sd"]],
+                                            my_metric_names = METRICS_NAMES,
+                                            my_main = "lasso no interaction CV metrics",
+                                            my_xlab = "lambda",
+                                            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                                                 "lasso_no_int_metrics_plot.jpeg",
+                                                                 collapse = ""))
 lasso_no_int_best_summary
 
 df_metrics = Add_Test_Metric(df_metrics,
@@ -486,7 +510,7 @@ lambda_vals = glmnet(x = X_mm_yes_interaction, y = dati$y,
 
 lasso_yes_interaction_metrics = FewDataCVCycleGLMNET(n_k_fold = K_FOLD,
                                                      my_id_list_cv = id_list_cv,
-                                                     my_n_metrics_df_metrics = N_METRICS_df_metrics,
+                                                     my_n_metrics = N_METRICS_df_metrics,
                                                      my_metric_names = METRICS_NAMES,
                                                      my_x = X_mm_yes_interaction,
                                                      my_y = dati$y,
@@ -495,8 +519,9 @@ lasso_yes_interaction_metrics = FewDataCVCycleGLMNET(n_k_fold = K_FOLD,
 
 lasso_yes_int_best_summary = CvMetricPlotMin(my_param_values = lambda_vals,
                                              my_metric_matrix = lasso_yes_interaction_metrics[["metrics"]],
+                                             my_sd_matrix = lasso_yes_interaction_metrics[["sd"]],
                                              my_metric_names = METRICS_NAMES,
-                                             my_main = "Lasso yes interaction CV metrics",
+                                             my_main = "lasso yes interaction CV metrics",
                                              my_xlab = "lambda",
                                              my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                                                   "lasso_yes_int_metrics_plot.jpeg",
@@ -520,7 +545,7 @@ TREE_MAX_SIZE = 50
 
 #' @param n_k_fold (int): number of fold used, use the global variable
 #' @param my_id_list_cv (list):ids in each fold , use the global variable
-#' @param my_N_METRICS_df_metrics (int): number of loss functions used, use global variable
+#' @param my_n_metrics (int): number of loss functions used, use global variable
 #' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
 #' @param my_data (data.frame): data.frame used
 #'
@@ -574,14 +599,21 @@ FewDataCVCycleTree = function(n_k_fold, my_id_list_cv,my_n_metrics,
     print(paste("fold ", k))
   }
   
-  cv_metrics = matrix(NA, nrow = (my_max_size - 1), ncol = my_n_metrics)
+  # averaged metrics matrix
+  cv_metrics = matrix(NA, nrow = my_max_size - 1, ncol = my_n_metrics)
+  
+  # metrics standard deviations matrix
+  cv_metrics_sd = matrix(NA, nrow = my_max_size - 1, ncol = my_n_metrics)
   colnames(cv_metrics) = my_metric_names
+  colnames(cv_metrics_sd) = my_metric_names
   
   for (i in 1:my_n_metrics){
     cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+    cv_metrics_sd[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
   }
   
-  return(cv_metrics)
+  return(list("metrics" = cv_metrics,
+              "sd" = cv_metrics_sd))
   
 }
 
@@ -589,7 +621,7 @@ FewDataCVCycleTree = function(n_k_fold, my_id_list_cv,my_n_metrics,
 
 #' @param n_k_fold (int): number of fold used, use the global variable
 #' @param my_id_list_cv (list):ids in each fold , use the global variable
-#' @param my_N_METRICS_df_metrics (int): number of loss functions used, use global variable
+#' @param my_n_metrics (int): number of loss functions used, use global variable
 #' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
 #' @param my_data (data.frame): data.frame used
 #'
@@ -601,19 +633,20 @@ FewDataCVCycleTree = function(n_k_fold, my_id_list_cv,my_n_metrics,
 #' which is also the default
 #'
 #' @return matrix of CV folds averaged errors for each parameter value and each loss function 
-FewDataCVCycleTreeParallelInner = function(n_k_fold, my_id_list_cv,my_n_metrics,
+FewDataCVCycleTreeParallel = function(n_k_fold, my_id_list_cv,my_n_metrics,
                                            my_metric_names, my_data,
                                            my_max_size = TREE_MAX_SIZE,
                                            my_loss_functions = c("USED.Loss", "MAE.Loss", "MSE.Loss")){
   # init parallel
   sfInit(cpus = parallel::detectCores(), parallel = T)
+  
   sfLibrary(tree)
+  sfExport(list = c("my_data", my_loss_functions))
+  
   
   # we use my_max_size - 1 because we start with size = 2
   temp_metrics_array_cv = array(NA, dim = c(n_k_fold, my_max_size - 1, my_n_metrics))
   
-  # this has to be fixed with the losses actually used as a parameter
-  sfExport(list = c("my_data", my_loss_functions))
   
   
   for (k in 1:n_k_fold){
@@ -657,18 +690,24 @@ FewDataCVCycleTreeParallelInner = function(n_k_fold, my_id_list_cv,my_n_metrics,
     print(paste("fold ", k))
   }
   
-  cv_metrics = matrix(NA, nrow = (my_max_size - 1), ncol = my_n_metrics)
+  # stop parallel cluster
+  sfStop()
+  
+  # averaged metrics matrix
+  cv_metrics = matrix(NA, nrow = my_max_size - 1, ncol = my_n_metrics)
+  
+  # metrics standard deviations matrix
+  cv_metrics_sd = matrix(NA, nrow = my_max_size - 1, ncol = my_n_metrics)
   colnames(cv_metrics) = my_metric_names
+  colnames(cv_metrics_sd) = my_metric_names
   
   for (i in 1:my_n_metrics){
     cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+    cv_metrics_sd[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
   }
   
-  # stop parallel
-  sfStop()
-  
-  rm(temp_metrics_array_cv)
-  gc()
+  return(list("metrics" = cv_metrics,
+              "sd" = cv_metrics_sd))
   
   return(cv_metrics)
   
@@ -676,7 +715,7 @@ FewDataCVCycleTreeParallelInner = function(n_k_fold, my_id_list_cv,my_n_metrics,
 }
 
 # if parallel shows problems use the non parallel version
-tree_cv_metrics = FewDataCVCycleTreeParallelInner(n_k_fold = K_FOLD,
+tree_cv_metrics = FewDataCVCycleTreeParallel(n_k_fold = K_FOLD,
                                                   my_id_list_cv = id_list_cv,
                                                   my_n_metrics = N_METRICS_df_metrics,
                                                   my_metric_names = METRICS_NAMES,
@@ -684,7 +723,8 @@ tree_cv_metrics = FewDataCVCycleTreeParallelInner(n_k_fold = K_FOLD,
                                                   my_max_size = TREE_MAX_SIZE)
 
 tree_best_summary = CvMetricPlotMin(my_param_values = 2:TREE_MAX_SIZE,
-                                    my_metric_matrix = tree_cv_metrics,
+                                    my_metric_matrix = tree_cv_metrics[["metrics"]],
+                                    my_sd_matrix = tree_cv_metrics[["sd"]],
                                     my_metric_names = METRICS_NAMES,
                                     my_main = "Tree CV metrics",
                                     my_xlab = "Size",
@@ -723,7 +763,7 @@ PPR_MAX_RIDGE_FUNCTIONS = 4
 # PPR CV function
 #' @param n_k_fold (int): number of fold used, use the global variable
 #' @param my_id_list_cv (list):ids in each fold , use the global variable
-#' @param my_N_METRICS_df_metrics (int): number of loss functions used, use global variable
+#' @param my_n_metrics (int): number of loss functions used, use global variable
 #' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
 #' @param my_data (data.frame): data.frame used
 #'
@@ -758,14 +798,21 @@ FewDataCVCyclePPR = function(n_k_fold, my_id_list_cv,my_n_metrics,
     print(paste("fold ", k))
   }
   
+  # averaged metrics matrix
   cv_metrics = matrix(NA, nrow = my_max_ridges, ncol = my_n_metrics)
+  
+  # metrics standard deviations matrix
+  cv_metrics_sd = matrix(NA, nrow = my_max_ridges, ncol = my_n_metrics)
   colnames(cv_metrics) = my_metric_names
+  colnames(cv_metrics_sd) = my_metric_names
   
   for (i in 1:my_n_metrics){
     cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+    cv_metrics_sd[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
   }
   
-  return(cv_metrics)
+  return(list("metrics" = cv_metrics,
+              "sd" = cv_metrics_sd))
   
 }
 
@@ -778,7 +825,8 @@ ppr_cv_metrics = FewDataCVCyclePPR(n_k_fold = K_FOLD,
                                      my_max_ridges = PPR_MAX_RIDGE_FUNCTIONS)
 
 ppr_best_summary = CvMetricPlotMin(my_param_values = 1:PPR_MAX_RIDGE_FUNCTIONS,
-                                    my_metric_matrix = ppr_cv_metrics,
+                                    my_metric_matrix = ppr_cv_metrics[["metrics"]],
+                                    my_sd_matrix =  ppr_cv_metrics[["sd"]],
                                     my_metric_names = METRICS_NAMES,
                                     my_main = "PPR CV metrics",
                                     my_xlab = "Number of ridge functions",
@@ -823,7 +871,7 @@ library(randomForest)
 
 #' @param n_k_fold (int): number of fold used, use the global variable
 #' @param my_id_list_cv (list):ids in each fold , use the global variable
-#' @param my_N_METRICS_df_metrics (int): number of loss functions used, use global variable
+#' @param my_n_metrics (int): number of loss functions used, use global variable
 #' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
 #' @param my_data (data.frame): data.frame used
 #'
@@ -880,9 +928,9 @@ FewDataCVCycleRF = function(n_k_fold, my_id_list_cv,my_n_metrics,
     
     
     if(fix_trees_bool == TRUE){
-      for (m in my_n_variables){
+      for (m in 1:tuning_parameter_length){
         temp_rf = randomForest(y ~., data = my_data[id_train,],
-                               mtry = m, ntree = my_n_bs_trees)
+                               mtry = my_n_variables[m], ntree = my_n_bs_trees)
         # prediction error
         temp_metrics_array_cv[k,m,] = USED.Loss(predict(temp_rf, my_data[id_test,]),
                                             my_data$y[id_test])
@@ -908,20 +956,166 @@ FewDataCVCycleRF = function(n_k_fold, my_id_list_cv,my_n_metrics,
     print(paste("fold ", k))
   }
   
+  # averaged metrics matrix
   cv_metrics = matrix(NA, nrow = tuning_parameter_length, ncol = my_n_metrics)
+  
+  # metrics standard deviations matrix
+  cv_metrics_sd = matrix(NA, nrow = tuning_parameter_length, ncol = my_n_metrics)
   colnames(cv_metrics) = my_metric_names
+  colnames(cv_metrics_sd) = my_metric_names
   
   for (i in 1:my_n_metrics){
     cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+    cv_metrics_sd[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
   }
   
-  return(cv_metrics)
+  return(list("metrics" = cv_metrics,
+              "sd" = cv_metrics_sd))
   
 }
 
+
+# function to choose the optimal number of variables at each split
+# or alternatively (based on fix_tress_bool parameter) check convergence of validation error
+# with respect to number of tress for a fixed my_max_variables
+
+#' @param n_k_fold (int): number of fold used, use the global variable
+#' @param my_id_list_cv (list):ids in each fold , use the global variable
+#' @param my_n_metrics (int): number of loss functions used, use global variable
+#' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
+#' @param my_data (data.frame): data.frame used
+#'
+#' @param my_n_variables: (int) or (vector of int) number of variables chosen at each split
+#' @param my_n_bs_trees: (int) or (vector of int) number of bootstrap trees 
+#' @param fix_tress_bool (bool): TRUE if fixed number of bootstrap trees, number of variables changes,
+#' else FALSE
+#' 
+#' @param my_loss_functions (vector of characters): vector of loss function names feed to snowfall (parallel)
+#' example  my_loss_functions = c("USED.Loss", "MAE.Loss", "MSE.Loss").
+#' NOTE: if USED.Loss contains some other functions they must be present as well, like the example
+#' which is also the default
+
+#' 
+#' @description this function can be used (separately, not simultaneuosly) for two parameters check
+#' 1) if fix_tress_bool == TRUE -> my_n_bs_trees is fixed at its maximum if not already an integer
+#' and the procedure compute the CV error for varying number of variables at each split
+#' according to the the vector (supposed to be a sequence)
+#' 2) if fix_tress_bool == FALSE -> my_n_variables is fixed at its maximum if not already an integer,
+#' but a warning is given, because it should be just an integer, not a vector.
+#' the procedure compute the CV error for varying number of bootstrap trees
+#' according to the the vector (supposed to be a sequence)
+#'  
+#'
+#' @return matrix of CV folds averaged errors for each parameter value and each loss function 
+FewDataCVCycleRFParallel = function(n_k_fold, my_id_list_cv,my_n_metrics,
+                            my_metric_names, my_data,
+                            my_n_variables = 1:RF_MAX_VARIABLES,
+                            my_n_bs_trees = 10:RF_N_BS_TREES,
+                            fix_trees_bool = TRUE,
+                            my_loss_functions = c("USED.Loss", "MAE.Loss", "MSE.Loss")){
+  
+  # init parallel
+  sfInit(cpus = parallel::detectCores(), parallel = T)
+  
+  sfLibrary(randomForest)
+  
+  # fixed number of bootstrap trees, number of variables changes
+  if(fix_trees_bool == TRUE){
+    tuning_parameter_length = length(my_n_variables)
+    
+    # fix the number of trees to max if my_n_bs_trees is not already an int
+    my_n_bs_trees = max(my_n_bs_trees)
+  }
+  # fixed number of number of variables, number of bootstrap tress changes
+  else{
+    tuning_parameter_length = length(my_n_bs_trees)
+    
+    # check warning
+    if(length(my_n_variables) > 1){
+      print("Warning: my_n_variables should be an integer, not a sequence of numbers, maximum is taken")
+    }
+    
+    my_n_variables = max(my_n_variables)
+    
+  }
+  
+  # debug 
+  print(tuning_parameter_length)
+  
+  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, tuning_parameter_length, my_n_metrics))
+  
+  # allocate relevant variables in cluster
+  sfExport(list = c("my_data", my_loss_functions,
+                    "my_n_bs_trees", "tuning_parameter_length", "my_n_variables"))
+  
+  for (k in 1:n_k_fold){
+    id_train = unlist(my_id_list_cv[-k])
+    id_test = my_id_list_cv[[k]]
+    
+    sfExport(list = c("id_train", "id_test"))
+    
+    # it's ugly I know and a bad pratice but I'll do two separate loop based on if condition
+    
+    if(fix_trees_bool == TRUE){
+      # for better readability
+      temp_metric = sfLapply(1:tuning_parameter_length,
+                             fun = function(m) 
+                               USED.Loss(predict(randomForest(y ~., data = my_data[id_train,],
+                                                              mtry = my_n_variables[m], ntree = my_n_bs_trees),
+                                                 my_data[id_test,]), my_data$y[id_test]))
+      
+      # unlist to the right dimensions matrix
+      temp_metrics_array_cv[k,my_n_variables,] = matrix(unlist(temp_metric), ncol = my_n_metrics, byrow = T)
+      
+      rm(temp_metric)
+      gc()
+
+    }
+    
+    else{
+      
+      # for better readability
+      temp_metric = sfLapply(1:tuning_parameter_length,
+                             fun = function(t) 
+                               USED.Loss(predict(randomForest(y ~., data = my_data[id_train,],
+                                                              mtry = my_n_variables, ntree = my_n_bs_trees[t]),
+                                                 my_data[id_test,]), my_data$y[id_test]))
+      
+      # unlist to the right dimensions matrix
+      temp_metrics_array_cv[k,1:tuning_parameter_length,] = matrix(unlist(temp_metric), ncol = my_n_metrics, byrow = T)
+      
+      rm(temp_metric)
+      gc()
+    }
+    
+    gc()
+    
+    print(paste("fold ", k))
+  }
+  
+  # averaged metrics matrix
+  cv_metrics = matrix(NA, nrow = tuning_parameter_length, ncol = my_n_metrics)
+  
+  # metrics standard deviations matrix
+  cv_metrics_sd = matrix(NA, nrow = tuning_parameter_length, ncol = my_n_metrics)
+  colnames(cv_metrics) = my_metric_names
+  colnames(cv_metrics_sd) = my_metric_names
+  
+  for (i in 1:my_n_metrics){
+    cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+    cv_metrics_sd[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
+  }
+  
+  return(list("metrics" = cv_metrics,
+              "sd" = cv_metrics_sd))
+  
+}
+
+
+
 # number of split variable selection
 
-rf_cv_metrics = FewDataCVCycleRF(n_k_fold = K_FOLD,
+rf_cv_metrics = FewDataCVCycleRFParallel(n_k_fold = K_FOLD,
                                  my_id_list_cv = id_list_cv,
                                  my_n_metrics = N_METRICS_df_metrics,
                                  my_metric_names = METRICS_NAMES,
@@ -931,7 +1125,8 @@ rf_cv_metrics = FewDataCVCycleRF(n_k_fold = K_FOLD,
                                  fix_trees_bool = TRUE)
 
 rf_best_summary = CvMetricPlotMin(my_param_values = 1:RF_MAX_VARIABLES,
-                                   my_metric_matrix = rf_cv_metrics,
+                                   my_metric_matrix = rf_cv_metrics[["metrics"]],
+                                   my_sd_matrix = rf_cv_metrics[["sd"]],
                                    my_metric_names = METRICS_NAMES,
                                    my_main = "RF CV metrics",
                                    my_xlab = "Number of variables at each split",
@@ -945,7 +1140,7 @@ rf_best_summary
 # sequence of bootstrap trees
 BTS_TREES_N_SEQ = seq(30, 400, 10)
 
-rf_cv_metrics_bts_trees = FewDataCVCycleRF(n_k_fold = K_FOLD,
+rf_cv_metrics_bts_trees = FewDataCVCycleRFParallel(n_k_fold = K_FOLD,
                                  my_id_list_cv = id_list_cv,
                                  my_n_metrics = N_METRICS_df_metrics,
                                  my_metric_names = METRICS_NAMES,
@@ -955,7 +1150,8 @@ rf_cv_metrics_bts_trees = FewDataCVCycleRF(n_k_fold = K_FOLD,
                                  fix_trees_bool = FALSE)
 
 rf_best_summary_bts_trees = CvMetricPlotMin(my_param_values = BTS_TREES_N_SEQ,
-                                  my_metric_matrix = rf_cv_metrics_bts_trees,
+                                  my_metric_matrix = rf_cv_metrics_bts_trees[["metrics"]],
+                                  my_sd_matrix = rf_cv_metrics_bts_trees[["sd"]],
                                   my_metric_names = METRICS_NAMES,
                                   my_main = "RF CV metrics",
                                   my_xlab = "Number of bootstrap trees",
@@ -1021,7 +1217,7 @@ gc()
 # sequence of bootstrap trees
 BTS_TREES_N_SEQ = seq(30, 400, 10)
 
-bagging_cv_metrics_bts_trees = FewDataCVCycleRF(n_k_fold = K_FOLD,
+bagging_cv_metrics_bts_trees = FewDataCVCycleRFParallel(n_k_fold = K_FOLD,
                                            my_id_list_cv = id_list_cv,
                                            my_n_metrics = N_METRICS_df_metrics,
                                            my_metric_names = METRICS_NAMES,
@@ -1031,7 +1227,8 @@ bagging_cv_metrics_bts_trees = FewDataCVCycleRF(n_k_fold = K_FOLD,
                                            fix_trees_bool = FALSE)
 
 bagging_best_summary_bts_trees = CvMetricPlotMin(my_param_values = BTS_TREES_N_SEQ,
-                                            my_metric_matrix = bagging_cv_metrics_bts_trees,
+                                            my_metric_matrix = bagging_cv_metrics_bts_trees[["metrics"]],
+                                            my_sd_matrix = bagging_cv_metrics_bts_trees[["sd"]],
                                             my_metric_names = METRICS_NAMES,
                                             my_main = "Bagging CV metrics",
                                             my_xlab = "Number of bootstrap trees",
