@@ -22,6 +22,10 @@ USED.Loss = function(y.pred, y.test, weights = 1){
 df_metrics = data.frame(name = NA, MAE = NA, MSE = NA)
 
 
+# Function to show a plot both in classical stdin
+# and save it in the appropriate folder
+# TO DO --------------
+
 # /////////////////////////////////////////////////////////////////
 #------------------------ Stima e Verifica ------------------------
 # /////////////////////////////////////////////////////////////////
@@ -97,28 +101,14 @@ df_metrics
 
 lm0 = lm(y ~ 1, data = sss)
 
+# NO Interaction -----------
 # °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 lm_step_no_interaction = step(lm0, scope = formula_no_interaction_yes_intercept,
                  direction = "forward")
 
-# save the model as .Rdata
+formula(lm_step_no_interaction)
 
-file_name_lm_step_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
-                                         "lm_step_no_interaction",
-                                         ".Rdata", collapse = "", sep = "")
-
-file_name_lm_step_no_interaction
-
-save(lm_step_no_interaction, file = file_name_lm_step_no_interaction)
-
-rm(lm_step_no_interaction)
-
-load("models/lm_step_no_interaction.Rdata")
-
-
-# salvo la formula: ATTENZIONE: cambiare
-# y ~ x7 + x2 + x8
-# lm_step_no_interaction = lm(y ~ x7 + x2 + x8, data = sss)
+# load(file_name_lm_step_no_interaction)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "lm_step_no_interaction",
@@ -126,25 +116,47 @@ df_metrics = Add_Test_Metric(df_metrics,
 df_metrics
 
 
+# save the model as .Rdata
+# then remove it from main memory
+
+file_name_lm_step_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                         "lm_step_no_interaction",
+                                         ".Rdata", collapse = "", sep = "")
+
+save(lm_step_no_interaction, file = file_name_lm_step_no_interaction)
+
 rm(lm_step_no_interaction)
 gc()
+
+# YES Interaction -----------
 
 # computazionalmente costoso (probabilmente)
 lm_step_yes_interaction = step(lm0, scope = formula_yes_interaction_yes_intercept,
                                direction = "forward")
 
-# salvo la formula
-# x7 + x2 + x8 + x3
+formula(lm_step_yes_interaction)
 
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "lm_step_yes_interaction",
                               USED.Loss(predict(lm_step_yes_interaction, newdata = vvv), vvv$y))
 
+# save the model as .Rdata
+# then remove it from main memory
 
+file_name_lm_step_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                         "lm_step_yes_interaction",
+                                         ".Rdata", collapse = "", sep = "")
 
-rm(lm0)
+save(lm_step_yes_interaction, file = file_name_lm_step_yes_interaction)
+
 rm(lm_step_yes_interaction)
+rm(lm0)
+gc()
+
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -156,8 +168,8 @@ KFOlDS = 10
 
 # valuta: se ci sono molte esplicative qualitative -> model.matrix con molti zeri
 # library(Matrix)
-# X_mm_no_interaction_sss =  sparse.model.matrix(formula_no_interaction_no_intercept, data = sss)
-# X_mm_no_interaction_vvv =  sparse.model.matrix(formula_no_interaction_no_intercept, data = vvv)
+X_mm_no_interaction_sss =  sparse.model.matrix(formula_no_interaction_no_intercept, data = sss)
+X_mm_no_interaction_vvv =  sparse.model.matrix(formula_no_interaction_no_intercept, data = vvv)
 
 # # oneroso
 # X_mm_yes_interaction_sss =  sparse.model.matrix(formula_yes_interaction_no_intercept, data = sss)
@@ -165,12 +177,10 @@ KFOlDS = 10
 
 # default
 # stima 
-X_mm_no_interaction_sss = model.matrix(formula_no_interaction_no_intercept,
-                                             data = sss)
+# X_mm_no_interaction_sss = model.matrix(formula_no_interaction_no_intercept, data = sss)
 
 # verifica
-X_mm_no_interaction_vvv = model.matrix(formula_no_interaction_no_intercept,
-                                       data = vvv)
+# X_mm_no_interaction_vvv = model.matrix(formula_no_interaction_no_intercept, data = vvv)
 
 # Interazioni: stima 
 # X_mm_yes_interaction_sss = model.matrix(formula_yes_interaction_no_intercept,
@@ -182,10 +192,13 @@ X_mm_no_interaction_vvv = model.matrix(formula_no_interaction_no_intercept,
 #                                         data = vvv)
 
 library(glmnet)
+
+# criterion to choose the model: "1se" or "lmin"
+cv_criterion = "1se"
+
 # Ridge ------
 
-
-# No Interaction
+# NO Interaction -----------
 # Selezione tramite cv
 ridge_cv_no_interaction = cv.glmnet(x = X_mm_no_interaction_sss, y = sss$y,
                                     alpha = 0, nfols = KFOLDS,
@@ -193,170 +206,131 @@ ridge_cv_no_interaction = cv.glmnet(x = X_mm_no_interaction_sss, y = sss$y,
 
 plot(ridge_cv_no_interaction)
 
+ridge_cv_no_interaction[[cv_criterion]]
 
 
-# salvo i risultati
-# > ridge_cv_no_interaction$lambda.min
-# [1] 2.755162
-# > ridge_cv_no_interaction$lambda.1se
-# [1] 2.755162
-
-
-# ri-stimo i modelli con il lambda scelto
-
-ridge_no_interaction_l1se = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
+ridge_no_interaction = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
                                    alpha = 0, nfols = KFOLDS, nfols = KFOLDS,
-                                   lambda = ridge_cv_no_interaction$lambda.1se)
-
-ridge_no_interaction_lmin = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                   alpha = 0, nfols = KFOLDS,
-                                   lambda = ridge_cv_no_interaction$lambda.min)
-
-
+                                   lambda = ridge_cv_no_interaction[[cv_criterion]])
 
 # previsione ed errore
 df_metrics = Add_Test_Metric(df_metrics,
-                              "ridge_no_interaction_l1se",
-                              USED.Loss(predict(ridge_no_interaction_l1se, newx = X_mm_no_interaction_vvv),vvv$y))
-
-
-df_metrics = Add_Test_Metric(df_metrics,
-                              "ridge_no_interaction_lmin",
-                              USED.Loss(predict(ridge_no_interaction_lmin, newx = X_mm_no_interaction_vvv),vvv$y))
+                              "ridge_no_interaction",
+                              USED.Loss(predict(ridge_no_interaction, newx = X_mm_no_interaction_vvv),vvv$y))
 
 df_metrics
 
+file_name_ridge_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                          "ridge_no_interaction",
+                                          ".Rdata", collapse = "", sep = "")
+
+save(ridge_no_interaction, file = file_name_ridge_no_interaction)
+
 # elimino dalla memoria l'oggetto ridge_cv
 rm(ridge_cv_no_interaction)
+rm(ridge_no_interaction)
 gc()
 
-# # YES Interaction: potrebbe essere troppo computazionalmente oneroso
+# YES Interaction -----------
 # # Selezione tramite cv
-# ridge_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-#                                     alpha = 0, nfols = KFOLDS,
-#                                     lambda.min.ratio = 1e-07)
-# 
-# plot(ridge_cv_yes_interaction)
-# 
-# # salvo i risultati
-# # > ridge_cv_yes_interaction$lambda.min
-# # [1] 1866.315
-# # > ridge_cv_yes_interaction$lambda.1se
-# # [1] 1145154
-# 
-# 
-# # ri-stimo i modelli con il lambda scelto
-# 
-# ridge_yes_interaction_l1se = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-#                                    alpha = 0, nfols = KFOLDS,
-#                                    lambda = ridge_cv_yes_interaction$lambda.1se)
-# 
-# ridge_yes_interaction_lmin = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-#                                    alpha = 0, nfols = KFOLDS,
-#                                    lambda = ridge_cv_yes_interaction$lambda.min)
-# 
+ridge_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
+                                    alpha = 0, nfols = KFOLDS,
+                                    lambda.min.ratio = 1e-07)
 
-# 
-# # previsione ed errore
-# df_metrics = Add_Test_Metric(df_metrics,
-#                               "ridge_yes_interaction_l1se",
-#                               USED.Loss(predict(ridge_yes_interaction_l1se, newx = X_mm_yes_interaction_vvv),vvv$y))
-# 
-# 
-# df_metrics = Add_Test_Metric(df_metrics,
-#                               "ridge_yes_interaction_lmin",
-#                               USED.Loss(predict(ridge_yes_interaction_lmin, newx = X_mm_yes_interaction_vvv),vvv$y))
+plot(ridge_cv_yes_interaction)
 
-# # elimino dalla memoria l'oggetto ridge_cv
-# rm(ridge_cv_yes_interaction)
-# gc()
+ridge_cv_yes_interaction[[cv_criterion]]
+
+ridge_yes_interaction = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
+                                   alpha = 0, nfols = KFOLDS,
+                                   lambda = ridge_cv_yes_interaction[[cv_criterion]])
+
+df_metrics = Add_Test_Metric(df_metrics,
+                              "ridge_yes_interaction",
+                              USED.Loss(predict(ridge_yes_interaction, newx = X_mm_yes_interaction_vvv),vvv$y))
+
+file_name_ridge_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                       "ridge_yes_interaction",
+                                       ".Rdata", collapse = "", sep = "")
+
+save(ridge_yes_interaction, file = file_name_ridge_yes_interaction)
+
+
+rm(ridge_cv_yes_interaction)
+rm(ridge_yes_interaction)
+gc()
+
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
 
 # Lasso ------
 
-# NO Interaction
+# NO Interaction -----------
 # Selezione tramite cv
 lasso_cv_no_interaction = cv.glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                    alpha = 1, nfols = KFOLDS,
+                                    alpha = 0, nfols = KFOLDS,
                                     lambda.min.ratio = 1e-07)
 
 plot(lasso_cv_no_interaction)
 
-# salvo i risultati
-# > lasso_cv_no_interaction$lambda.min
-# [1] 0.002755162
-# > lasso_cv_no_interaction$lambda.1se
-# [1] 0.002755162
+lasso_cv_no_interaction[[cv_criterion]]
 
 
-# ri-stimo i modelli con il lambda scelto
-
-lasso_no_interaction_l1se = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                   alpha = 1, nfols = KFOLDS,
-                                   lambda = lasso_cv_no_interaction$lambda.1se)
-
-lasso_no_interaction_lmin = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                   alpha = 1, nfols = KFOLDS,
-                                   lambda = lasso_cv_no_interaction$lambda.min)
+lasso_no_interaction = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
+                              alpha = 0, nfols = KFOLDS, nfols = KFOLDS,
+                              lambda = lasso_cv_no_interaction[[cv_criterion]])
 
 # previsione ed errore
 df_metrics = Add_Test_Metric(df_metrics,
-                              "lasso_no_interaction_l1se",
-                              USED.Loss(predict(lasso_no_interaction_l1se, newx = X_mm_no_interaction_vvv),vvv$y))
-
-
-df_metrics = Add_Test_Metric(df_metrics,
-                              "lasso_no_interaction_lmin",
-                              USED.Loss(predict(lasso_no_interaction_lmin, newx = X_mm_no_interaction_vvv),vvv$y))
-
+                             "lasso_no_interaction",
+                             USED.Loss(predict(lasso_no_interaction, newx = X_mm_no_interaction_vvv),vvv$y))
 
 df_metrics
 
+file_name_lasso_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                       "lasso_no_interaction",
+                                       ".Rdata", collapse = "", sep = "")
+
+save(lasso_no_interaction, file = file_name_lasso_no_interaction)
+
 # elimino dalla memoria l'oggetto lasso_cv
 rm(lasso_cv_no_interaction)
+rm(lasso_no_interaction)
+gc()
+
+# YES Interaction -----------
+# # Selezione tramite cv
+lasso_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
+                                     alpha = 0, nfols = KFOLDS,
+                                     lambda.min.ratio = 1e-07)
+
+plot(lasso_cv_yes_interaction)
+
+lasso_cv_yes_interaction[[cv_criterion]]
+
+lasso_yes_interaction = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
+                               alpha = 0, nfols = KFOLDS,
+                               lambda = lasso_cv_yes_interaction[[cv_criterion]])
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "lasso_yes_interaction",
+                             USED.Loss(predict(lasso_yes_interaction, newx = X_mm_yes_interaction_vvv),vvv$y))
+
+file_name_lasso_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                        "lasso_yes_interaction",
+                                        ".Rdata", collapse = "", sep = "")
+
+save(lasso_yes_interaction, file = file_name_lasso_yes_interaction)
+
+
+rm(lasso_cv_yes_interaction)
+rm(lasso_yes_interaction)
 gc()
 
 
-# # YES Interaction: potrebbe essere troppo computazionalmente oneroso
-# 
-# # Selezione tramite cv
-# lasso_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-#                                     alpha = 1, nfols = KFOLDS,
-#                                     lambda.min.ratio = 1e-07)
-# 
-# plot(lasso_cv_yes_interaction)
-# 
-# # salvo i risultati
-# # > lasso_cv_yes_interaction$lambda.min
-# # [1] 141.1799
-# # > lasso_cv_yes_interaction$lambda.1se
-# # [1] 56994.57
-# 
-# 
-# # ri-stimo i modelli con il lambda scelto
-# 
-# lasso_yes_interaction_l1se = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-#                                    alpha = 1, nfols = KFOLDS,
-#                                    lambda = lasso_cv_yes_interaction$lambda.1se)
-# 
-# lasso_yes_interaction_lmin = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-#                                    alpha = 1, nfols = KFOLDS,
-#                                    lambda = lasso_cv_yes_interaction$lambda.min)
-# 
-# # elimino dalla memoria l'oggetto lasso_cv
-# rm(lasso_cv_yes_interaction)
-# gc()
-# 
-# # previsione ed errore
-# df_metrics = Add_Test_Metric(df_metrics,
-#                               "lasso_yes_interaction_l1se",
-#                               USED.Loss(predict(lasso_yes_interaction_l1se, newx = X_mm_yes_interaction_vvv),vvv$y))
-# 
-# 
-# df_metrics = Add_Test_Metric(df_metrics,
-#                               "lasso_yes_interaction_lmin",
-#                               USED.Loss(predict(lasso_yes_interaction_lmin, newx = X_mm_yes_interaction_vvv),vvv$y))
-# 
-# df_metrics
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -383,7 +357,7 @@ tree_full = tree(y ~.,
                  data = sss[id_cb1,],
                  control = tree.control(nobs = length(id_cb1),
                                         mindev = 1e-05,
-                                        mincut = 100))
+                                        mincut = 30))
 
 
 # controllo che sia sovraadattato
@@ -396,7 +370,7 @@ plot(tree_pruned)
 plot(tree_pruned, xlim = c(0, 20))
 
 tree_best_size = tree_pruned$size[which.min(tree_pruned$dev)]
-# 2
+tree_best_size
 
 abline(v = tree_best_size, col = "red")
 
@@ -410,14 +384,23 @@ df_metrics = Add_Test_Metric(df_metrics,
                               USED.Loss(predict(final_tree_pruned, newdata = vvv), vvv$y))
 
 
-df_metrics = Add_Test_Metric(df_metrics,
-                              "tree_pruned 10",
-                              USED.Loss(predict(prune.tree(tree_full, best = 10), newdata = vvv), vvv$y))
-
 df_metrics
 
+file_name_final_tree_pruned = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                        "final_tree_pruned",
+                                        ".Rdata", collapse = "", sep = "")
+
+save(final_tree_pruned, file = file_name_final_tree_pruned)
+
+
+rm(final_tree_pruned)
 rm(tree_full)
 gc()
+
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Modello Additivo ---------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
