@@ -5,6 +5,34 @@ library(dplyr)
 # Per Lapsus
 # CTRL + C per commentare più righe di codice
 
+
+# ///////////////////////////////////
+# Save output on file ---------------
+# //////////////////////////////////
+
+# text.txt -------------
+
+# initialize the output txt file to regularly write on in case 
+# the software crashes
+# also 
+
+# TEXT_OUTPUT_FILE_NAME = "text_ouput_preprocessing.txt"
+# 
+# # open sink 
+# sink(TEXT_OUTPUT_FILE_NAME, append = TRUE, split = TRUE)
+
+
+# figures folder ----------
+# relative path figures folder
+FIGURES_FOLDER_RELATIVE_PATH = "figures/"
+
+# fixed image dimensions (pixels)
+FIGURE_WIDTH = 1000
+FIGURE_HEIGHT = 1000
+
+FIGURE_POINT_SIZE = 35
+FIGURE_QUALITY = 120
+
 # /////////////////////////////////////////////////////////////////////////////
 #  ----------------------- Lettura e Preprocessing -----------------------------
 # /////////////////////////////////////////////////////////////////////////////
@@ -875,26 +903,18 @@ formula_no_interaction_no_intercept
 
 # text.txt -------------
 
+# # close previoulsy opened sink (if opened) -> I should make a control
+# sink()
+
 # initialize the output txt file to regularly write on in case 
 # the software crashes
-# also 
 
-TEXT_OUTPUT_FILE_NAME = "text_ouput.txt"
+
+# open new sink
+TEXT_OUTPUT_FILE_NAME = "text_ouput_models.txt"
 
 # open sink 
 sink(TEXT_OUTPUT_FILE_NAME, append = TRUE, split = TRUE)
-
-
-# figures folder ----------
-# relative path figures folder
-FIGURES_FOLDER_RELATIVE_PATH = "figures/"
-
-# fixed image dimensions (pixels)
-FIGURE_WIDTH = 1000
-FIGURE_HEIGHT = 1000
-
-FIGURE_POINT_SIZE = 35
-FIGURE_QUALITY = 120
 
 
 
