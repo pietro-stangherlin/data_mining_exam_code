@@ -1,2 +1,4 @@
 *.txt
+*.Rdata
 figures/
+models/

@@ -746,11 +746,27 @@ df_metrics
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(gam)
 
-# questo è più problematico...
+# TO DO -----------
+
+# Here the model selection is harder vs other models, except for MARS.
+# We give a brief description:
+# In additive models, under the non - interaction constraint 
+# (i.e. we do not consider variables which are a functions of two or more distinct variables),
+# we have two possible regulation parameters
+# 1) how many predictors (of course we also need to know what specific predictors)
+# 2) for each quantitative predictor in the model what is its smoothing parameter?
+
+# Since an exaustive search over all possibilities would require near infinite time and resources
+# we adopt this sub-optimal procedure:
+# for each training fold a model is selected based on a stepwise AIC selection 
+# (based on generalized degrees of freedom), its error on its cv test fold is computed (as usual);
+# The procedure is then repetead for all the folds and a 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # MARS ---------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# TO DO -----------
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1038,9 +1054,7 @@ FewDataCVCycleRFParallel = function(n_k_fold, my_id_list_cv,my_n_metrics,
     my_n_variables = max(my_n_variables)
     
   }
-  
-  # debug 
-  print(tuning_parameter_length)
+
   
   temp_metrics_array_cv = array(NA, dim = c(n_k_fold, tuning_parameter_length, my_n_metrics))
   
@@ -1252,6 +1266,7 @@ df_metrics
 # TO FIX
 
 df_metrics = na.omit(df_metrics)
+df_metrics[,-1] = as.numeric(df_metrics[,-1])
 
 df_metrics[,-1] = apply(df_metrics[,-1], 2, function(col) round(col, 3))
 

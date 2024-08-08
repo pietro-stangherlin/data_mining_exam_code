@@ -10,13 +10,23 @@ library(dplyr)
 # Save output on file ---------------
 # //////////////////////////////////
 
+# models.Rdata -------------
+# relative path figures folder
+MODELS_FOLDER_RELATIVE_PATH = "models/"
+
+# this folder is used to store the best selected models on disk as .Rdata files
+# so the main memory can be freed while fitting other models
+# and they can be retrieved in the last analysis step
+
+# Short function to save the .RData object
+
 # text.txt -------------
 
 # initialize the output txt file to regularly write on in case 
 # the software crashes
 # also 
 
-# TEXT_OUTPUT_FILE_NAME = "text_ouput_preprocessing.txt"
+# TEXT_OUTPUT_FILE_NAME = "text_output_preprocessing.txt"
 # 
 # # open sink 
 # sink(TEXT_OUTPUT_FILE_NAME, append = TRUE, split = TRUE)
@@ -41,7 +51,7 @@ FIGURE_QUALITY = 120
 # per avere un'idea del file da terminale: 
 # head nome_file.formato
 
-dati = read.csv("test_dataset/df_multi.csv", sep = ",", stringsAsFactors = F)
+dati = read.csv("test_dataset/df_quant.csv", sep = ",", stringsAsFactors = F)
 
 # NOTA: converto in fattori solo alla fine del preprocessing
 # in modo da non dover riconvertire tutto ogni volta 
@@ -541,10 +551,7 @@ PrintAllTables = function(my_df,
 # Analisi prime 40 frequenze delle modalità di tutte
 # le variabili
 
-PrintAllTables(dati, first = 40)
-
-
-
+# PrintAllTables(dati, first = 40)
 
 # ritorna le modalità di var_name con frequenza minore di soglia
 # con il "valore nuova"
@@ -659,9 +666,6 @@ for(i in index_min_modalita){
 
 str(dati)
 
-
-
-
 # +++++++++++++++++++++++++++++++++++++++++++++++++
 # Nomi e indici di colonna delle variabili
 # ++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -669,6 +673,7 @@ str(dati)
 # nomi delle esplicative qualitative e quantitative
 # potrei dover effettuare questa operazione più volte
 
+y_index = which(colnames(dati) == "y")
 
 var_factor_index = which(sapply(dati, is.factor))
 # se comprende l'indice della y  lo rimuovo
@@ -787,7 +792,7 @@ DrawQuantHist = function(my_df,
 
 
 # Analisi istogrammi
-DrawQuantHist(dati, var_num_index)
+# DrawQuantHist(dati, var_num_index)
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -897,6 +902,27 @@ formula_no_interaction_no_intercept = MakeFormula(no_interaction_string, interce
 formula_no_interaction_yes_intercept
 formula_no_interaction_no_intercept
 
+
+# /////////////////////////////////////////
+# Backup data.frame + environment ---------
+# ////////////////////////////////////////
+
+save(dati,
+     y_index,
+     var_qual_index, var_qual_names,
+     var_num_index, var_num_names,
+     formula_no_interaction_no_intercept,
+     formula_no_interaction_yes_intercept,
+     formula_yes_interaction_no_intercept,
+     formula_yes_interaction_yes_intercept,
+     file = "result_preprocessing.Rdata")
+
+# if necessary delete all
+# rm(list = ls())
+
+# in case of problems: load only useful objects
+# load("result_preprocessing.Rdata")
+
 # ///////////////////////////////////
 # Save output on file ---------------
 # //////////////////////////////////
@@ -906,12 +932,12 @@ formula_no_interaction_no_intercept
 # # close previoulsy opened sink (if opened) -> I should make a control
 # sink()
 
-# initialize the output txt file to regularly write on in case 
+# initialize the output .txt file to regularly write on in case 
 # the software crashes
 
 
 # open new sink
-TEXT_OUTPUT_FILE_NAME = "text_ouput_models.txt"
+TEXT_OUTPUT_FILE_NAME = "text_output_models.txt"
 
 # open sink 
 sink(TEXT_OUTPUT_FILE_NAME, append = TRUE, split = TRUE)
