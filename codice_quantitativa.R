@@ -17,14 +17,47 @@ USED.Loss = function(y.pred, y.test, weights = 1){
   return(c(MAE.Loss(y.pred, y.test, weights), MSE.Loss(y.pred, y.test, weights)))
 }
 
+# TO DO ----------------
+# in each model in USED.Loss -> add the weights parameter
+
 
 # anche qua
 df_metrics = data.frame(name = NA, MAE = NA, MSE = NA)
 
 
-# Function to show a plot both in classical stdin
-# and save it in the appropriate folder
-# TO DO --------------
+
+#' @param my_plotting_function (function): function with NO ARGUMENTS
+#' outputting the desired plot
+#' @param my_path_plot (char): path of the where the plot will be saved on disk
+#' @param my_width (int): pixel width of saved plot
+#' @param my_height (int): pixel height of saved plot
+#' @param my_point_size (int): point size of saved plot
+#' @param my_quality (int): quality of saved plot
+#' 
+#' @description show plot determined by my_plotting_function and save it on disk
+#' 
+#' @return None
+PlotAndSave = function(my_plotting_function,
+                       my_path_plot,
+                       my_width = FIGURE_WIDTH,
+                       my_height = FIGURE_HEIGHT,
+                       my_point_size = FIGURE_POINT_SIZE,
+                       my_quality = FIGURE_QUALITY){
+  
+  # call to shown plot
+  my_plotting_function()
+  
+  
+  # plot saved on disk
+  jpeg(my_path_plot,
+       width = my_width, height = my_height,
+       pointsize = my_point_size, quality = my_quality)
+  
+  # call to saved plot
+  my_plotting_function()
+  
+  dev.off()
+}
 
 # /////////////////////////////////////////////////////////////////
 #------------------------ Stima e Verifica ------------------------
@@ -164,7 +197,7 @@ save(df_metrics, file = "df_metrics.Rdata")
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Compromesso varianza - distorsione: convalida incrociata sull'insieme di stima
 
-KFOlDS = 10
+KFOLDS = 10
 
 # valuta: se ci sono molte esplicative qualitative -> model.matrix con molti zeri
 # library(Matrix)
@@ -172,8 +205,8 @@ X_mm_no_interaction_sss =  sparse.model.matrix(formula_no_interaction_no_interce
 X_mm_no_interaction_vvv =  sparse.model.matrix(formula_no_interaction_no_intercept, data = vvv)
 
 # # oneroso
-# X_mm_yes_interaction_sss =  sparse.model.matrix(formula_yes_interaction_no_intercept, data = sss)
-# X_mm_yes_interaction_vvv =  sparse.model.matrix(formula_yes_interaction_no_intercept, data = vvv)
+X_mm_yes_interaction_sss =  sparse.model.matrix(formula_yes_interaction_no_intercept, data = sss)
+X_mm_yes_interaction_vvv =  sparse.model.matrix(formula_yes_interaction_no_intercept, data = vvv)
 
 # default
 # stima 
@@ -194,7 +227,7 @@ X_mm_no_interaction_vvv =  sparse.model.matrix(formula_no_interaction_no_interce
 library(glmnet)
 
 # criterion to choose the model: "1se" or "lmin"
-cv_criterion = "1se"
+cv_criterion = "lambda.1se"
 
 # Ridge ------
 
@@ -204,8 +237,18 @@ ridge_cv_no_interaction = cv.glmnet(x = X_mm_no_interaction_sss, y = sss$y,
                                     alpha = 0, nfols = KFOLDS,
                                     lambda.min.ratio = 1e-07)
 
-plot(ridge_cv_no_interaction)
+# define plotting function
+temp_plotting_fun = function(){
+  plot(ridge_cv_no_interaction, main = "ridge no interaction")
+}
 
+PlotAndSave(temp_plotting_fun,
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "ridge_no_int_plot.jpeg",
+                                 collapse = ""))
+
+
+print(paste("ridge_cv_no_interaction ", cv_criterion, collapse = ""))
 ridge_cv_no_interaction[[cv_criterion]]
 
 
@@ -237,8 +280,17 @@ ridge_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
                                     alpha = 0, nfols = KFOLDS,
                                     lambda.min.ratio = 1e-07)
 
-plot(ridge_cv_yes_interaction)
+# define plotting function
+temp_plotting_fun = function(){
+  plot(ridge_cv_yes_interaction, main = "ridge yes interaction")
+}
 
+PlotAndSave(temp_plotting_fun,
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "ridge_yes_int_plot.jpeg",
+                                 collapse = ""))
+
+print(paste("ridge_cv_yes_interaction ", cv_criterion, collapse = ""))
 ridge_cv_yes_interaction[[cv_criterion]]
 
 ridge_yes_interaction = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
@@ -272,8 +324,17 @@ lasso_cv_no_interaction = cv.glmnet(x = X_mm_no_interaction_sss, y = sss$y,
                                     alpha = 0, nfols = KFOLDS,
                                     lambda.min.ratio = 1e-07)
 
-plot(lasso_cv_no_interaction)
+# define plotting function
+temp_plotting_fun = function(){
+  plot(lasso_cv_no_interaction, main = "lasso no interaction")
+}
 
+PlotAndSave(temp_plotting_fun,
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "lasso_no_int_plot.jpeg",
+                                 collapse = ""))
+
+print(paste("lasso_cv_no_interaction ", cv_criterion, collapse = ""))
 lasso_cv_no_interaction[[cv_criterion]]
 
 
@@ -305,8 +366,17 @@ lasso_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
                                      alpha = 0, nfols = KFOLDS,
                                      lambda.min.ratio = 1e-07)
 
-plot(lasso_cv_yes_interaction)
+# define plotting function
+temp_plotting_fun = function(){
+  plot(lasso_cv_yes_interaction, main = "lasso yes interaction")
+}
 
+PlotAndSave(temp_plotting_fun,
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "lasso_yes_int_plot.jpeg",
+                                 collapse = ""))
+
+print(paste("lasso_cv_yes_interaction ", cv_criterion, collapse = ""))
 lasso_cv_yes_interaction[[cv_criterion]]
 
 lasso_yes_interaction = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
@@ -370,6 +440,8 @@ plot(tree_pruned)
 plot(tree_pruned, xlim = c(0, 20))
 
 tree_best_size = tree_pruned$size[which.min(tree_pruned$dev)]
+
+print("tree best size")
 tree_best_size
 
 abline(v = tree_best_size, col = "red")

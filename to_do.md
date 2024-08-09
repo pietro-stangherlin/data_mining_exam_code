@@ -30,7 +30,8 @@ probabilmente può essere troppo lungo da implementare (per la multiclasse), ma 
 
 ## Regressione e classificazione
 
-### 
+### Gestisci dati aggregati (classificazione)
+Es. tabelle di frequenza.
 
 ### Regressione per poche osservazioni: convalida incrociata
 

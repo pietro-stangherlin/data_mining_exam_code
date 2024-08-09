@@ -90,7 +90,7 @@ if(modulo_cv != 0){
   id_list_cv[[K_FOLD]] = id_list_cv[[K_FOLD]][1:integer_division_cv]
 }
 
-
+# TO DO: parameter selection based on 1se -------------
 
 #' Plot Cross-Validation metrics function
 #' 
