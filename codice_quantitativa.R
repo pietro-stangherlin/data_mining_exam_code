@@ -1,4 +1,13 @@
+# data wrangling
 library(dplyr)
+
+# parallel computing
+library(snowfall)
+
+# number of cores
+N_CORES = parallel::detectCores()
+
+
 #////////////////////////////////////////////////////////////////////////////
 # Costruzione metrica di valutazione e relativo dataframe -------------------
 #////////////////////////////////////////////////////////////////////////////
@@ -13,16 +22,19 @@ source("loss_functions.R")
 # cambia la funzione di errore per il problema specifico
 
 # in generale uso sia MAE che MSE
-USED.Loss = function(y.pred, y.test, weights = 1){
+USED.Metrics = function(y.pred, y.test, weights = 1){
   return(c(MAE.Loss(y.pred, y.test, weights), MSE.Loss(y.pred, y.test, weights)))
 }
 
 # TO DO ----------------
-# in each model in USED.Loss -> add the weights parameter
+# in each model in USED.Metrics -> add the weights parameter
 
 
 # anche qua
 df_metrics = data.frame(name = NA, MAE = NA, MSE = NA)
+
+N_METRICS = NCOL(df_metrics) - 1
+METRICS_NAMES = colnames(df_metrics[,-1])
 
 
 
@@ -71,12 +83,62 @@ sss = dati[id_stima,]
 vvv = dati[-id_stima,]
 
 
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Selezione parametri - Convalida sulla stima  -------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
 # In caso di convalida nell'insieme di stima
 id_cb1 = sample(1:NROW(sss), 0.8 * NROW(sss))
 
 # rimozione dati originali
 rm(dati)
 gc()
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Selezione parameti Costruzione ID Fold convalida incrociata  -------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# selezione parametri tramite cv
+
+# numero fold
+K_FOLDS = 10
+
+NROW_sss = NROW(sss)
+
+# matrice degli id dei fold della convalida incrociata
+# NOTA: data la non garantita perfetta divisibilità del numero di osservazioni
+# per il numero di fold è possibile che un fold abbia meno osservazioni degli altri
+
+# ordine casuale degli id
+SHUFFLED_ID = sample(1:NROW_sss, NROW_sss)
+
+id_matrix_cv = matrix(SHUFFLED_ID, ncol = K_FOLDS)
+
+# converto la matrice in lista per poter avere degli elementi
+# (vettori) con un diverso numero di osservazioni
+# ogni colonna diventa un elemento della lista
+
+ID_CV_LIST = list()
+
+for(j in 1:ncol(id_matrix_cv)){
+  ID_CV_LIST[[j]] = id_matrix_cv[,j]
+}
+
+rm(id_matrix_cv)
+gc()
+
+# se ottengo Warning: non divisibilità perfetta
+# significa che l'ultimo elemento lista contiene 
+# degli id che sono presenti anche nel primo elemento
+# sistemo eliminando dall'ultimo elemento della lista gli id presenti anche nel primo elemento
+
+# controllo il resto della divisione
+integer_division_cv = NROW_sss %/% K_FOLDS
+modulo_cv = NROW_sss %% K_FOLDS
+
+if(modulo_cv != 0){
+  ID_CV_LIST[[K_FOLDS]] = ID_CV_LIST[[K_FOLDS]][1:integer_division_cv]
+}
 
 
 # /////////////////////////////////////////////////////////////////
@@ -116,11 +178,11 @@ hist(log(sss$y), nclass = 100)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "sss mean",
-                              USED.Loss(mean(sss$y), vvv$y))
+                              USED.Metrics(mean(sss$y), vvv$y))
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "sss median",
-                              USED.Loss(median(sss$y), vvv$y))
+                              USED.Metrics(median(sss$y), vvv$y))
 
 df_metrics = na.omit(df_metrics)
 
@@ -145,7 +207,7 @@ formula(lm_step_no_interaction)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "lm_step_no_interaction",
-                              USED.Loss(predict(lm_step_no_interaction, newdata = vvv), vvv$y))
+                              USED.Metrics(predict(lm_step_no_interaction, newdata = vvv), vvv$y))
 df_metrics
 
 
@@ -172,7 +234,7 @@ formula(lm_step_yes_interaction)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "lm_step_yes_interaction",
-                              USED.Loss(predict(lm_step_yes_interaction, newdata = vvv), vvv$y))
+                              USED.Metrics(predict(lm_step_yes_interaction, newdata = vvv), vvv$y))
 
 # save the model as .Rdata
 # then remove it from main memory
@@ -197,10 +259,8 @@ save(df_metrics, file = "df_metrics.Rdata")
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Compromesso varianza - distorsione: convalida incrociata sull'insieme di stima
 
-KFOLDS = 10
-
 # valuta: se ci sono molte esplicative qualitative -> model.matrix con molti zeri
-# library(Matrix)
+library(Matrix)
 X_mm_no_interaction_sss =  sparse.model.matrix(formula_no_interaction_no_intercept, data = sss)
 X_mm_no_interaction_vvv =  sparse.model.matrix(formula_no_interaction_no_intercept, data = vvv)
 
@@ -211,31 +271,168 @@ X_mm_yes_interaction_vvv =  sparse.model.matrix(formula_yes_interaction_no_inter
 # default
 # stima 
 # X_mm_no_interaction_sss = model.matrix(formula_no_interaction_no_intercept, data = sss)
-
-# verifica
 # X_mm_no_interaction_vvv = model.matrix(formula_no_interaction_no_intercept, data = vvv)
 
 # Interazioni: stima 
-# X_mm_yes_interaction_sss = model.matrix(formula_yes_interaction_no_intercept,
-#                                    data = sss)
-
-# Interazioni verifica
-#
-# X_mm_yes_interaction_vvv = model.matrix(formula_yes_interaction_no_intercept,
-#                                         data = vvv)
+# X_mm_yes_interaction_sss = model.matrix(formula_yes_interaction_no_intercept, data = sss)
+# X_mm_yes_interaction_vvv = model.matrix(formula_yes_interaction_no_intercept, data = vvv)
 
 library(glmnet)
 
 # criterion to choose the model: "1se" or "lmin"
 cv_criterion = "lambda.1se"
 
+# function manually implementing cv glmnet, both parallel and not
+
+
+#' @param n_k_fold (int): number of fold used, use the global variable
+#' @param my_ID_CV_LIST (list):ids in each fold , use the global variable
+#' @param my_n_metrics (int): number of metrics functions used, use global variable
+#' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
+#'
+#' @param my_x (matrix): complete model matrix passed to glmnet
+#' @param my_y (vector): y glmnet argument
+#' @param my_alpha (int): alpha passed to glmnet (0 -> ridge, 1 -> lasso)
+#' @param my_lambda_vals (vector): vector of lambda used
+#'
+#'
+#' @return (list): list of two matrix 
+#' the first contains the CV folds averaged metrics for each parameter value and each metric 
+#' the second the CV computed standard errors of those metrics
+#' first matrix is accessed by "metrics"
+#' second matrix is accessed by "sd"
+ManualCvGlmnet = function(n_k_fold, my_id_cv_list,
+                          my_n_metrics, my_metric_names,
+                          my_x, my_y, my_alpha, my_lambda_vals){
+  
+  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, length(my_lambda_vals), my_n_metrics))
+  
+  
+  for (k in 1:n_k_fold){
+    id_train = unlist(my_id_cv_list[-k])
+    id_test = my_id_cv_list[[k]]
+    
+    
+    
+    temp_glmnet = glmnet(x = my_x[id_train,], 
+                         y = my_y[id_train], alpha = my_alpha,
+                         lambda = my_lambda_vals)
+    
+    temp_predictions = predict(temp_glmnet, my_x[id_test,])
+    
+    for (j in 1:length(my_lambda_vals)){
+      temp_metrics_array_cv[k,j,] = USED.Metrics(temp_predictions[,j], my_y[id_test])
+    }
+    
+    rm(temp_glmnet)
+    rm(temp_predictions)
+    gc()
+  }
+  
+  # averaged metrics matrix
+  cv_metrics = matrix(NA, nrow = length(my_lambda_vals), ncol = my_n_metrics)
+  
+  # metrics standard deviations matrix
+  cv_metrics_se = matrix(NA, nrow = length(my_lambda_vals), ncol = my_n_metrics)
+  colnames(cv_metrics) = my_metric_names
+  colnames(cv_metrics_se) = my_metric_names
+  
+  for (i in 1:my_n_metrics){
+    cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+    cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
+  }
+  
+  return(list("metrics" = cv_metrics,
+              "se" = cv_metrics_se))
+}
+
+
+#' @param n_k_fold (int): number of fold used, use the global variable
+#' @param my_ID_CV_LIST (list):ids in each fold , use the global variable
+#' @param my_n_metrics (int): number of metrics functions used, use global variable
+#' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
+#'
+#' @param my_x (matrix): complete model matrix passed to glmnet
+#' @param my_y (vector): y glmnet argument
+#' @param my_alpha (int): alpha passed to glmnet (0 -> ridge, 1 -> lasso)
+#' @param my_lambda_vals (vector): vector of lambda used
+#'
+#'
+#' @return (list): list of two matrix 
+#' the first contains the CV folds averaged metrics for each parameter value and each metric 
+#' the second the CV computed standard errors of those metrics
+#' first matrix is accessed by "metrics"
+#' second matrix is accessed by "sd"
+ManualCvGlmnetParallel = function(n_k_fold, my_id_cv_list,
+                          my_n_metrics, my_metric_names,
+                          my_x, my_y, my_alpha, my_lambda_vals){
+  
+  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, length(my_lambda_vals), my_n_metrics))
+  
+  
+  for (k in 1:n_k_fold){
+    id_train = unlist(my_id_cv_list[-k])
+    id_test = my_id_cv_list[[k]]
+    
+    
+    
+    temp_glmnet = glmnet(x = my_x[id_train,], 
+                         y = my_y[id_train], alpha = my_alpha,
+                         lambda = my_lambda_vals)
+    
+    temp_predictions = predict(temp_glmnet, my_x[id_test,])
+    
+    for (j in 1:length(my_lambda_vals)){
+      temp_metrics_array_cv[k,j,] = USED.Metrics(temp_predictions[,j], my_y[id_test])
+    }
+    
+    rm(temp_glmnet)
+    rm(temp_predictions)
+    gc()
+  }
+  
+  # averaged metrics matrix
+  cv_metrics = matrix(NA, nrow = length(my_lambda_vals), ncol = my_n_metrics)
+  
+  # metrics standard deviations matrix
+  cv_metrics_se = matrix(NA, nrow = length(my_lambda_vals), ncol = my_n_metrics)
+  colnames(cv_metrics) = my_metric_names
+  colnames(cv_metrics_se) = my_metric_names
+  
+  for (i in 1:my_n_metrics){
+    cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+    cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
+  }
+  
+  return(list("metrics" = cv_metrics,
+              "se" = cv_metrics_se))
+}
+
+
+
 # Ridge ------
 
 # NO Interaction -----------
 # Selezione tramite cv
 ridge_cv_no_interaction = cv.glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                    alpha = 0, nfols = KFOLDS,
+                                    alpha = 0, nfols = K_FOLDS,
                                     lambda.min.ratio = 1e-07)
+
+# select lambda vals
+lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
+                     alpha = 0, lambda.min.ratio = 1e-07)$lambda
+
+ridge_cv_no_interaction = ManualCvGlmnet(n_k_fold = K_FOLDS,
+                                         my_id_cv_list = ID_CV_LIST,
+                                         my_n_metrics = N_METRICS,
+                                         my_metric_names = METRICS_NAMES,
+                                         my_x = X_mm_no_interaction_sss,
+                                         my_y = sss$y,
+                                         my_alpha = 0,
+                                         my_lambda_vals = lambda_vals)
+
+
+
 
 # define plotting function
 temp_plotting_fun = function(){
@@ -253,13 +450,13 @@ ridge_cv_no_interaction[[cv_criterion]]
 
 
 ridge_no_interaction = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                   alpha = 0, nfols = KFOLDS, nfols = KFOLDS,
+                                   alpha = 0, nfols = K_FOLDS, nfols = K_FOLDS,
                                    lambda = ridge_cv_no_interaction[[cv_criterion]])
 
 # previsione ed errore
 df_metrics = Add_Test_Metric(df_metrics,
                               "ridge_no_interaction",
-                              USED.Loss(predict(ridge_no_interaction, newx = X_mm_no_interaction_vvv),vvv$y))
+                              USED.Metrics(predict(ridge_no_interaction, newx = X_mm_no_interaction_vvv),vvv$y))
 
 df_metrics
 
@@ -277,7 +474,7 @@ gc()
 # YES Interaction -----------
 # # Selezione tramite cv
 ridge_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-                                    alpha = 0, nfols = KFOLDS,
+                                    alpha = 0, nfols = K_FOLDS,
                                     lambda.min.ratio = 1e-07)
 
 # define plotting function
@@ -294,12 +491,12 @@ print(paste("ridge_cv_yes_interaction ", cv_criterion, collapse = ""))
 ridge_cv_yes_interaction[[cv_criterion]]
 
 ridge_yes_interaction = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-                                   alpha = 0, nfols = KFOLDS,
+                                   alpha = 0, nfols = K_FOLDS,
                                    lambda = ridge_cv_yes_interaction[[cv_criterion]])
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "ridge_yes_interaction",
-                              USED.Loss(predict(ridge_yes_interaction, newx = X_mm_yes_interaction_vvv),vvv$y))
+                              USED.Metrics(predict(ridge_yes_interaction, newx = X_mm_yes_interaction_vvv),vvv$y))
 
 file_name_ridge_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                        "ridge_yes_interaction",
@@ -321,7 +518,7 @@ save(df_metrics, file = "df_metrics.Rdata")
 # NO Interaction -----------
 # Selezione tramite cv
 lasso_cv_no_interaction = cv.glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                    alpha = 0, nfols = KFOLDS,
+                                    alpha = 0, nfols = K_FOLDS,
                                     lambda.min.ratio = 1e-07)
 
 # define plotting function
@@ -339,13 +536,13 @@ lasso_cv_no_interaction[[cv_criterion]]
 
 
 lasso_no_interaction = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                              alpha = 0, nfols = KFOLDS, nfols = KFOLDS,
+                              alpha = 0, nfols = K_FOLDS, nfols = K_FOLDS,
                               lambda = lasso_cv_no_interaction[[cv_criterion]])
 
 # previsione ed errore
 df_metrics = Add_Test_Metric(df_metrics,
                              "lasso_no_interaction",
-                             USED.Loss(predict(lasso_no_interaction, newx = X_mm_no_interaction_vvv),vvv$y))
+                             USED.Metrics(predict(lasso_no_interaction, newx = X_mm_no_interaction_vvv),vvv$y))
 
 df_metrics
 
@@ -363,7 +560,7 @@ gc()
 # YES Interaction -----------
 # # Selezione tramite cv
 lasso_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-                                     alpha = 0, nfols = KFOLDS,
+                                     alpha = 0, nfols = K_FOLDS,
                                      lambda.min.ratio = 1e-07)
 
 # define plotting function
@@ -380,12 +577,12 @@ print(paste("lasso_cv_yes_interaction ", cv_criterion, collapse = ""))
 lasso_cv_yes_interaction[[cv_criterion]]
 
 lasso_yes_interaction = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-                               alpha = 0, nfols = KFOLDS,
+                               alpha = 0, nfols = K_FOLDS,
                                lambda = lasso_cv_yes_interaction[[cv_criterion]])
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "lasso_yes_interaction",
-                             USED.Loss(predict(lasso_yes_interaction, newx = X_mm_yes_interaction_vvv),vvv$y))
+                             USED.Metrics(predict(lasso_yes_interaction, newx = X_mm_yes_interaction_vvv),vvv$y))
 
 file_name_lasso_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                         "lasso_yes_interaction",
@@ -396,6 +593,9 @@ save(lasso_yes_interaction, file = file_name_lasso_yes_interaction)
 
 rm(lasso_cv_yes_interaction)
 rm(lasso_yes_interaction)
+
+rm(X_mm_yes_interaction_sss)
+rm(X_mm_yes_interaction_vvv)
 gc()
 
 
@@ -409,6 +609,10 @@ save(df_metrics, file = "df_metrics.Rdata")
 library(tree)
 
 # Gestione del compromesso varianza - distorsione:
+
+# 1) tree : stima - verifica -----------
+
+
 # sottoinsiemi di stima e di convalida sull'insieme di stima ()
 
 # albero che sovraadatta
@@ -453,7 +657,7 @@ text(final_tree_pruned, cex = 0.7)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "tree_pruned best",
-                              USED.Loss(predict(final_tree_pruned, newdata = vvv), vvv$y))
+                              USED.Metrics(predict(final_tree_pruned, newdata = vvv), vvv$y))
 
 
 df_metrics
@@ -504,7 +708,7 @@ object.size(gam_step)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "additivo_step",
-                              USED.Loss(predict(gam_step, newdata = vvv), vvv$y))
+                              USED.Metrics(predict(gam_step, newdata = vvv), vvv$y))
 
 df_metrics
 
@@ -553,7 +757,7 @@ abline(v = min_size_mars)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "MARS",
-                              USED.Loss(predict(mars1, x = X_mm_no_interaction_vvv),vvv$y))
+                              USED.Metrics(predict(mars1, x = X_mm_no_interaction_vvv),vvv$y))
 
 df_metrics
 
@@ -648,7 +852,7 @@ mars_model_size = dim(mars1$model)[1]
 # # attenzione poiché potrebbe essere singolare
 # # previsione con il modello MARS
 # df_metrics[8,] = c("mars",
-#                      USED.Loss(X_mars_vvv %*%
+#                      USED.Metrics(X_mars_vvv %*%
 #                                 solve(t(X_mars_sss) %*% X_mars_sss) %*%
 #                                 t(X_mars_sss) %*% as.matrix(sss$y) %>% as.numeric(),
 #                                       vvv$y))
@@ -667,7 +871,7 @@ mars_model_size = dim(mars1$model)[1]
 
 # Nota: il parametro di lisciamento per il lisciatore
 # è scelto tramite il metodo SuperSmoother di Friedman
-# che imoiega la convalida incrociata
+# che impiega la convalida incrociata
 
 
 # numero di possibili funzioni dorsali
@@ -694,7 +898,7 @@ mod_ppr1 = ppr(y ~ .,
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "PPR",
-                              USED.Loss(predict(mod_ppr1, vvv), vvv$y))
+                              USED.Metrics(predict(mod_ppr1, vvv), vvv$y))
 
 df_metrics
 
@@ -794,7 +998,7 @@ random_forest_model = ranger(y ~., sss,
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "Random Forest",
-                              USED.Loss(predict(random_forest_model, data = vvv,
+                              USED.Metrics(predict(random_forest_model, data = vvv,
                                                 type = "response")$predictions, vvv$y))
 
 df_metrics
@@ -853,7 +1057,7 @@ bagging_model = bagging(y ~., sss, nbag = 400, coob = FALSE)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "Bagging",
-                              USED.Loss(predict(bagging_model, newdata = vvv), vvv$y))
+                              USED.Metrics(predict(bagging_model, newdata = vvv), vvv$y))
 
 
 df_metrics
