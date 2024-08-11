@@ -166,7 +166,8 @@ Add_Test_Metric = function(df_metric, model_name, metric_value){
 #' list[[metric_name]][[x]]
 #' where x are: "best_param_index" (int), "best_param_value" (num), "metric_values" (vector of num)
 
-CvMetricBest = function(my_param_values, my_metric_matrix,
+CvMetricBest = function(my_param_values,
+                        my_metric_matrix,
                         my_se_matrix = 0,
                         my_metric_names,
                         my_one_se_best = TRUE,
@@ -209,11 +210,11 @@ CvMetricBest = function(my_param_values, my_metric_matrix,
       temp_param_indexes = which(my_param_values %in% my_param_values[which(temp_best_metric > se_lower[,i] &
                                                                               temp_best_metric < se_upper[,i])])
       if(my_higher_more_complex == TRUE){
-        indexes_best_params[i]= temp_param_indexes[which.min(lambda_vals[temp_param_indexes])]
+        indexes_best_params[i]= temp_param_indexes[which.min(my_param_values[temp_param_indexes])]
       }
       
       if(my_higher_more_complex == FALSE){
-        indexes_best_params[i]= temp_param_indexes[which.max(lambda_vals[temp_param_indexes])]
+        indexes_best_params[i]= temp_param_indexes[which.max(my_param_values[temp_param_indexes])]
       }
     }
   }

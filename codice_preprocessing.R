@@ -942,5 +942,12 @@ TEXT_OUTPUT_FILE_NAME = "text_output_models.txt"
 # open sink 
 sink(TEXT_OUTPUT_FILE_NAME, append = TRUE, split = TRUE)
 
+# ///////////////////////////////////
+# Weights ---------------
+# //////////////////////////////////
+
+# weights used for each metric function
+# default 1
+MY_WEIGHTS = 1
 
 

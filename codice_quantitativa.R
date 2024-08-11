@@ -26,50 +26,25 @@ USED.Metrics = function(y.pred, y.test, weights = 1){
   return(c(MAE.Loss(y.pred, y.test, weights), MSE.Loss(y.pred, y.test, weights)))
 }
 
-# TO DO ----------------
-# in each model in USED.Metrics -> add the weights parameter
 
-
-# anche qua
 df_metrics = data.frame(name = NA, MAE = NA, MSE = NA)
 
-N_METRICS = NCOL(df_metrics) - 1
 METRICS_NAMES = colnames(df_metrics[,-1])
 
+N_METRICS = length(METRICS_NAMES)
 
+# names used to extract the metric added to df_metrics
+# change based on the spefific problem
+METRIC_VALUES_NAME = "metric_values"
+METRIC_CHOSEN_NAME = "MSE"
 
-#' @param my_plotting_function (function): function with NO ARGUMENTS
-#' outputting the desired plot
-#' @param my_path_plot (char): path of the where the plot will be saved on disk
-#' @param my_width (int): pixel width of saved plot
-#' @param my_height (int): pixel height of saved plot
-#' @param my_point_size (int): point size of saved plot
-#' @param my_quality (int): quality of saved plot
-#' 
-#' @description show plot determined by my_plotting_function and save it on disk
-#' 
-#' @return None
-PlotAndSave = function(my_plotting_function,
-                       my_path_plot,
-                       my_width = FIGURE_WIDTH,
-                       my_height = FIGURE_HEIGHT,
-                       my_point_size = FIGURE_POINT_SIZE,
-                       my_quality = FIGURE_QUALITY){
-  
-  # call to shown plot
-  my_plotting_function()
-  
-  
-  # plot saved on disk
-  jpeg(my_path_plot,
-       width = my_width, height = my_height,
-       pointsize = my_point_size, quality = my_quality)
-  
-  # call to saved plot
-  my_plotting_function()
-  
-  dev.off()
-}
+# names used for accessing list CV matrix (actual metrics and metrics se)
+LIST_METRICS_ACCESS_NAME = "metrics"
+LIST_SD_ACCESS_NAME = "se"
+
+# metrics names + USED.Loss
+# WARNING: the order should be same as in df_metrics
+MY_USED_METRICS = c("USED.Metrics", "MAE.Loss", "MSE.Loss")
 
 # /////////////////////////////////////////////////////////////////
 #------------------------ Stima e Verifica ------------------------
@@ -95,7 +70,7 @@ rm(dati)
 gc()
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Selezione parameti Costruzione ID Fold convalida incrociata  -------------------
+# Selezione parametri Costruzione ID Fold convalida incrociata  -------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 # selezione parametri tramite cv
@@ -139,6 +114,8 @@ modulo_cv = NROW_sss %% K_FOLDS
 if(modulo_cv != 0){
   ID_CV_LIST[[K_FOLDS]] = ID_CV_LIST[[K_FOLDS]][1:integer_division_cv]
 }
+
+source("cv_functions.R")
 
 
 # /////////////////////////////////////////////////////////////////
@@ -282,176 +259,89 @@ library(glmnet)
 # criterion to choose the model: "1se" or "lmin"
 cv_criterion = "lambda.1se"
 
-# function manually implementing cv glmnet, both parallel and not
-
-
-#' @param n_k_fold (int): number of fold used, use the global variable
-#' @param my_ID_CV_LIST (list):ids in each fold , use the global variable
-#' @param my_n_metrics (int): number of metrics functions used, use global variable
-#' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
-#'
-#' @param my_x (matrix): complete model matrix passed to glmnet
-#' @param my_y (vector): y glmnet argument
-#' @param my_alpha (int): alpha passed to glmnet (0 -> ridge, 1 -> lasso)
-#' @param my_lambda_vals (vector): vector of lambda used
-#'
-#'
-#' @return (list): list of two matrix 
-#' the first contains the CV folds averaged metrics for each parameter value and each metric 
-#' the second the CV computed standard errors of those metrics
-#' first matrix is accessed by "metrics"
-#' second matrix is accessed by "sd"
-ManualCvGlmnet = function(n_k_fold, my_id_cv_list,
-                          my_n_metrics, my_metric_names,
-                          my_x, my_y, my_alpha, my_lambda_vals){
-  
-  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, length(my_lambda_vals), my_n_metrics))
-  
-  
-  for (k in 1:n_k_fold){
-    id_train = unlist(my_id_cv_list[-k])
-    id_test = my_id_cv_list[[k]]
-    
-    
-    
-    temp_glmnet = glmnet(x = my_x[id_train,], 
-                         y = my_y[id_train], alpha = my_alpha,
-                         lambda = my_lambda_vals)
-    
-    temp_predictions = predict(temp_glmnet, my_x[id_test,])
-    
-    for (j in 1:length(my_lambda_vals)){
-      temp_metrics_array_cv[k,j,] = USED.Metrics(temp_predictions[,j], my_y[id_test])
-    }
-    
-    rm(temp_glmnet)
-    rm(temp_predictions)
-    gc()
-  }
-  
-  # averaged metrics matrix
-  cv_metrics = matrix(NA, nrow = length(my_lambda_vals), ncol = my_n_metrics)
-  
-  # metrics standard deviations matrix
-  cv_metrics_se = matrix(NA, nrow = length(my_lambda_vals), ncol = my_n_metrics)
-  colnames(cv_metrics) = my_metric_names
-  colnames(cv_metrics_se) = my_metric_names
-  
-  for (i in 1:my_n_metrics){
-    cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
-    cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
-  }
-  
-  return(list("metrics" = cv_metrics,
-              "se" = cv_metrics_se))
-}
-
-
-#' @param n_k_fold (int): number of fold used, use the global variable
-#' @param my_ID_CV_LIST (list):ids in each fold , use the global variable
-#' @param my_n_metrics (int): number of metrics functions used, use global variable
-#' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
-#'
-#' @param my_x (matrix): complete model matrix passed to glmnet
-#' @param my_y (vector): y glmnet argument
-#' @param my_alpha (int): alpha passed to glmnet (0 -> ridge, 1 -> lasso)
-#' @param my_lambda_vals (vector): vector of lambda used
-#'
-#'
-#' @return (list): list of two matrix 
-#' the first contains the CV folds averaged metrics for each parameter value and each metric 
-#' the second the CV computed standard errors of those metrics
-#' first matrix is accessed by "metrics"
-#' second matrix is accessed by "sd"
-ManualCvGlmnetParallel = function(n_k_fold, my_id_cv_list,
-                          my_n_metrics, my_metric_names,
-                          my_x, my_y, my_alpha, my_lambda_vals){
-  
-  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, length(my_lambda_vals), my_n_metrics))
-  
-  
-  for (k in 1:n_k_fold){
-    id_train = unlist(my_id_cv_list[-k])
-    id_test = my_id_cv_list[[k]]
-    
-    
-    
-    temp_glmnet = glmnet(x = my_x[id_train,], 
-                         y = my_y[id_train], alpha = my_alpha,
-                         lambda = my_lambda_vals)
-    
-    temp_predictions = predict(temp_glmnet, my_x[id_test,])
-    
-    for (j in 1:length(my_lambda_vals)){
-      temp_metrics_array_cv[k,j,] = USED.Metrics(temp_predictions[,j], my_y[id_test])
-    }
-    
-    rm(temp_glmnet)
-    rm(temp_predictions)
-    gc()
-  }
-  
-  # averaged metrics matrix
-  cv_metrics = matrix(NA, nrow = length(my_lambda_vals), ncol = my_n_metrics)
-  
-  # metrics standard deviations matrix
-  cv_metrics_se = matrix(NA, nrow = length(my_lambda_vals), ncol = my_n_metrics)
-  colnames(cv_metrics) = my_metric_names
-  colnames(cv_metrics_se) = my_metric_names
-  
-  for (i in 1:my_n_metrics){
-    cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
-    cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
-  }
-  
-  return(list("metrics" = cv_metrics,
-              "se" = cv_metrics_se))
-}
-
-
-
 # Ridge ------
 
 # NO Interaction -----------
-# Selezione tramite cv
-ridge_cv_no_interaction = cv.glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                    alpha = 0, nfols = K_FOLDS,
-                                    lambda.min.ratio = 1e-07)
 
-# select lambda vals
 lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
                      alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
-ridge_cv_no_interaction = ManualCvGlmnet(n_k_fold = K_FOLDS,
-                                         my_id_cv_list = ID_CV_LIST,
-                                         my_n_metrics = N_METRICS,
-                                         my_metric_names = METRICS_NAMES,
-                                         my_x = X_mm_no_interaction_sss,
-                                         my_y = sss$y,
-                                         my_alpha = 0,
-                                         my_lambda_vals = lambda_vals)
+ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+                                              my_metric_names = METRICS_NAMES,
+                                              my_x = X_mm_no_interaction_sss,
+                                              my_y = sss$y,
+                                              my_alpha = 0,
+                                              my_lambda_vals = lambda_vals,
+                                              my_weights = MY_WEIGHTS)
 
+# ridge_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+#                                                       my_metric_names = METRICS_NAMES,
+#                                                       my_x = X_mm_no_interaction_sss,
+#                                                       my_y = sss$y,
+#                                                       my_alpha = 0,
+#                                                       my_lambda_vals = lambda_vals,
+#                                                       my_weights = MY_WEIGHTS,
+#                                                       my_metrics_functions = MY_USED_METRICS,
+#                                                       my_ncores = N_CORES)
 
+ridge_no_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
+                                         my_metric_matrix = ridge_no_interaction_metrics[["metrics"]],
+                                         my_one_se_best = TRUE,
+                                         my_higher_more_complex = FALSE,
+                                         my_se_matrix = ridge_no_interaction_metrics[["se"]],
+                                         my_metric_names = METRICS_NAMES)
 
-
-# define plotting function
-temp_plotting_fun = function(){
-  plot(ridge_cv_no_interaction, main = "ridge no interaction")
+temp_plot_function = function(){
+  PlotCvMetrics(my_param_values = log(lambda_vals),
+                my_metric_matrix = ridge_no_interaction_metrics[["metrics"]],
+                my_se_matrix = ridge_no_interaction_metrics[["se"]],
+                my_best_param_values =log(ExtractBestParams(ridge_no_int_best_summary)),
+                my_metric_names = METRICS_NAMES,
+                my_main = "Ridge no interaction CV metrics",
+                my_xlab = " log lambda")
 }
 
-PlotAndSave(temp_plotting_fun,
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "ridge_no_int_plot.jpeg",
-                                 collapse = ""))
+PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                                     "ridge_no_int_metrics_plot.jpeg",
+                                                     collapse = ""))
+
+print("ridge_no_int_best_summary")
+ridge_no_int_best_summary
+
+ridge_no_interaction = glmnet(x = X_mm_no_interaction_sss,
+                              y = sss$y,
+                              alpha = 0,
+                              lambda = ridge_no_int_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]])
 
 
-print(paste("ridge_cv_no_interaction ", cv_criterion, collapse = ""))
-ridge_cv_no_interaction[[cv_criterion]]
 
+# Plan B using default R library 
+# ridge_cv_no_interaction = cv.glmnet(x = X_mm_no_interaction_sss, y = sss$y,
+#                                     alpha = 0, nfols = K_FOLDS,
+#                                     lambda.min.ratio = 1e-07)
+# 
+# plot(ridge_cv_no_interaction)
+# 
+# # define plotting function
+# temp_plotting_fun = function(){
+#   plot(ridge_cv_no_interaction, main = "ridge no interaction")
+# }
+# 
+# PlotAndSave(temp_plotting_fun,
+#             my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+#                                  "ridge_no_int_plot.jpeg",
+#                                  collapse = ""))
+# 
+# 
+# print(paste("ridge_cv_no_interaction ", cv_criterion, collapse = ""))
+# ridge_cv_no_interaction[[cv_criterion]]
+# 
+# 
+# ridge_no_interaction = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
+#                                    alpha = 0,
+#                                    lambda = ridge_cv_no_interaction[[cv_criterion]])
 
-ridge_no_interaction = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                   alpha = 0, nfols = K_FOLDS, nfols = K_FOLDS,
-                                   lambda = ridge_cv_no_interaction[[cv_criterion]])
+# rm(ridge_cv_no_interaction)
 
 # previsione ed errore
 df_metrics = Add_Test_Metric(df_metrics,
@@ -467,36 +357,96 @@ file_name_ridge_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
 save(ridge_no_interaction, file = file_name_ridge_no_interaction)
 
 # elimino dalla memoria l'oggetto ridge_cv
-rm(ridge_cv_no_interaction)
 rm(ridge_no_interaction)
 gc()
 
 # YES Interaction -----------
-# # Selezione tramite cv
-ridge_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-                                    alpha = 0, nfols = K_FOLDS,
-                                    lambda.min.ratio = 1e-07)
+lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
+                     alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
-# define plotting function
-temp_plotting_fun = function(){
-  plot(ridge_cv_yes_interaction, main = "ridge yes interaction")
+# ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+#                                               my_metric_names = METRICS_NAMES,
+#                                               my_x = X_mm_yes_interaction_sss,
+#                                               my_y = sss$y,
+#                                               my_alpha = 0,
+#                                               my_lambda_vals = lambda_vals,
+#                                               my_weights = MY_WEIGHTS)
+
+ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+                                                      my_metric_names = METRICS_NAMES,
+                                                      my_x = X_mm_yes_interaction_sss,
+                                                      my_y = sss$y,
+                                                      my_alpha = 0,
+                                                      my_lambda_vals = lambda_vals,
+                                                      my_weights = MY_WEIGHTS,
+                                                      my_metrics_functions = MY_USED_METRICS,
+                                                      my_ncores = N_CORES)
+
+ridge_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
+                                         my_metric_matrix = ridge_yes_interaction_metrics[["metrics"]],
+                                         my_one_se_best = TRUE,
+                                         my_higher_more_complex = FALSE,
+                                         my_se_matrix = ridge_yes_interaction_metrics[["se"]],
+                                         my_metric_names = METRICS_NAMES)
+
+temp_plot_function = function(){
+  PlotCvMetrics(my_param_values = log(lambda_vals),
+                my_metric_matrix = ridge_yes_interaction_metrics[["metrics"]],
+                my_se_matrix = ridge_yes_interaction_metrics[["se"]],
+                my_best_param_values =log(ExtractBestParams(ridge_yes_int_best_summary)),
+                my_metric_names = METRICS_NAMES,
+                my_main = "Ridge yes interaction CV metrics",
+                my_xlab = " log lambda")
 }
 
-PlotAndSave(temp_plotting_fun,
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "ridge_yes_int_plot.jpeg",
-                                 collapse = ""))
+PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                                     "ridge_yes_int_metrics_plot.jpeg",
+                                                     collapse = ""))
 
-print(paste("ridge_cv_yes_interaction ", cv_criterion, collapse = ""))
-ridge_cv_yes_interaction[[cv_criterion]]
+print("ridge_yes_int_best_summary")
+ridge_yes_int_best_summary
 
-ridge_yes_interaction = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-                                   alpha = 0, nfols = K_FOLDS,
-                                   lambda = ridge_cv_yes_interaction[[cv_criterion]])
+ridge_yes_interaction = glmnet(x = X_mm_yes_interaction_sss,
+                              y = sss$y,
+                              alpha = 0,
+                              lambda = ridge_yes_int_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]])
 
+
+
+# Plan B using default R library 
+# ridge_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
+#                                     alpha = 0, nfols = K_FOLDS,
+#                                     lambda.min.ratio = 1e-07)
+# 
+# plot(ridge_cv_yes_interaction)
+# 
+# # define plotting function
+# temp_plotting_fun = function(){
+#   plot(ridge_cv_yes_interaction, main = "ridge yes interaction")
+# }
+# 
+# PlotAndSave(temp_plotting_fun,
+#             my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+#                                  "ridge_yes_int_plot.jpeg",
+#                                  collapse = ""))
+# 
+# 
+# print(paste("ridge_cv_yes_interaction ", cv_criterion, collapse = ""))
+# ridge_cv_yes_interaction[[cv_criterion]]
+# 
+# 
+# ridge_yes_interaction = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
+#                                    alpha = 0,
+#                                    lambda = ridge_cv_yes_interaction[[cv_criterion]])
+
+# rm(ridge_cv_yes_interaction)
+
+# previsione ed errore
 df_metrics = Add_Test_Metric(df_metrics,
-                              "ridge_yes_interaction",
-                              USED.Metrics(predict(ridge_yes_interaction, newx = X_mm_yes_interaction_vvv),vvv$y))
+                             "ridge_yes_interaction",
+                             USED.Metrics(predict(ridge_yes_interaction, newx = X_mm_yes_interaction_vvv),vvv$y))
+
+df_metrics
 
 file_name_ridge_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                        "ridge_yes_interaction",
@@ -504,40 +454,94 @@ file_name_ridge_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
 
 save(ridge_yes_interaction, file = file_name_ridge_yes_interaction)
 
-
-rm(ridge_cv_yes_interaction)
+# elimino dalla memoria l'oggetto ridge_cv
 rm(ridge_yes_interaction)
 gc()
 
 
-# save the df_metrics as .Rdata
-save(df_metrics, file = "df_metrics.Rdata")
 
 # Lasso ------
-
 # NO Interaction -----------
-# Selezione tramite cv
-lasso_cv_no_interaction = cv.glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                                    alpha = 0, nfols = K_FOLDS,
-                                    lambda.min.ratio = 1e-07)
 
-# define plotting function
-temp_plotting_fun = function(){
-  plot(lasso_cv_no_interaction, main = "lasso no interaction")
+lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
+                     alpha = 1, lambda.min.ratio = 1e-07)$lambda
+
+lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+                                              my_metric_names = METRICS_NAMES,
+                                              my_x = X_mm_no_interaction_sss,
+                                              my_y = sss$y,
+                                              my_alpha = 1,
+                                              my_lambda_vals = lambda_vals,
+                                              my_weights = MY_WEIGHTS)
+
+# lasso_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+#                                                       my_metric_names = METRICS_NAMES,
+#                                                       my_x = X_mm_no_interaction_sss,
+#                                                       my_y = sss$y,
+#                                                       my_alpha = 1,
+#                                                       my_lambda_vals = lambda_vals,
+#                                                       my_weights = MY_WEIGHTS,
+#                                                       my_metrics_functions = MY_USED_METRICS,
+#                                                       my_ncores = N_CORES)
+
+lasso_no_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
+                                         my_metric_matrix = lasso_no_interaction_metrics[["metrics"]],
+                                         my_one_se_best = TRUE,
+                                         my_higher_more_complex = FALSE,
+                                         my_se_matrix = lasso_no_interaction_metrics[["se"]],
+                                         my_metric_names = METRICS_NAMES)
+
+temp_plot_function = function(){
+  PlotCvMetrics(my_param_values = log(lambda_vals),
+                my_metric_matrix = lasso_no_interaction_metrics[["metrics"]],
+                my_se_matrix = lasso_no_interaction_metrics[["se"]],
+                my_best_param_values =log(ExtractBestParams(lasso_no_int_best_summary)),
+                my_metric_names = METRICS_NAMES,
+                my_main = "lasso no interaction CV metrics",
+                my_xlab = " log lambda")
 }
 
-PlotAndSave(temp_plotting_fun,
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "lasso_no_int_plot.jpeg",
-                                 collapse = ""))
+PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                                     "lasso_no_int_metrics_plot.jpeg",
+                                                     collapse = ""))
 
-print(paste("lasso_cv_no_interaction ", cv_criterion, collapse = ""))
-lasso_cv_no_interaction[[cv_criterion]]
+print("lasso_no_int_best_summary")
+lasso_no_int_best_summary
+
+lasso_no_interaction = glmnet(x = X_mm_no_interaction_sss,
+                              y = sss$y,
+                              alpha = 1,
+                              lambda = lasso_no_int_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]])
 
 
-lasso_no_interaction = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
-                              alpha = 0, nfols = K_FOLDS, nfols = K_FOLDS,
-                              lambda = lasso_cv_no_interaction[[cv_criterion]])
+
+# Plan B using default R library 
+# lasso_cv_no_interaction = cv.glmnet(x = X_mm_no_interaction_sss, y = sss$y,
+#                                     alpha = 1, nfols = K_FOLDS,
+#                                     lambda.min.ratio = 1e-07)
+# 
+# plot(lasso_cv_no_interaction)
+# 
+# # define plotting function
+# temp_plotting_fun = function(){
+#   plot(lasso_cv_no_interaction, main = "lasso no interaction")
+# }
+# 
+# PlotAndSave(temp_plotting_fun,
+#             my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+#                                  "lasso_no_int_plot.jpeg",
+#                                  collapse = ""))
+# 
+# 
+# print(paste("lasso_cv_no_interaction ", cv_criterion, collapse = ""))
+# lasso_cv_no_interaction[[cv_criterion]]
+# 
+# 
+# lasso_no_interaction = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
+#                                    alpha = 1,
+#                                    lambda = lasso_cv_no_interaction[[cv_criterion]])
+
+# rm(lasso_cv_no_interaction)
 
 # previsione ed errore
 df_metrics = Add_Test_Metric(df_metrics,
@@ -553,36 +557,96 @@ file_name_lasso_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
 save(lasso_no_interaction, file = file_name_lasso_no_interaction)
 
 # elimino dalla memoria l'oggetto lasso_cv
-rm(lasso_cv_no_interaction)
 rm(lasso_no_interaction)
 gc()
 
 # YES Interaction -----------
-# # Selezione tramite cv
-lasso_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-                                     alpha = 0, nfols = K_FOLDS,
-                                     lambda.min.ratio = 1e-07)
+lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
+                     alpha = 1, lambda.min.ratio = 1e-07)$lambda
 
-# define plotting function
-temp_plotting_fun = function(){
-  plot(lasso_cv_yes_interaction, main = "lasso yes interaction")
+# lasso_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+#                                                my_metric_names = METRICS_NAMES,
+#                                                my_x = X_mm_yes_interaction_sss,
+#                                                my_y = sss$y,
+#                                                my_alpha = 1,
+#                                                my_lambda_vals = lambda_vals,
+#                                                my_weights = MY_WEIGHTS)
+
+lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+                                                      my_metric_names = METRICS_NAMES,
+                                                      my_x = X_mm_yes_interaction_sss,
+                                                      my_y = sss$y,
+                                                      my_alpha = 1,
+                                                      my_lambda_vals = lambda_vals,
+                                                      my_weights = MY_WEIGHTS,
+                                                      my_metrics_functions = MY_USED_METRICS,
+                                                      my_ncores = N_CORES)
+
+lasso_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
+                                          my_metric_matrix = lasso_yes_interaction_metrics[["metrics"]],
+                                          my_one_se_best = TRUE,
+                                          my_higher_more_complex = FALSE,
+                                          my_se_matrix = lasso_yes_interaction_metrics[["se"]],
+                                          my_metric_names = METRICS_NAMES)
+
+temp_plot_function = function(){
+  PlotCvMetrics(my_param_values = log(lambda_vals),
+                my_metric_matrix = lasso_yes_interaction_metrics[["metrics"]],
+                my_se_matrix = lasso_yes_interaction_metrics[["se"]],
+                my_best_param_values =log(ExtractBestParams(lasso_yes_int_best_summary)),
+                my_metric_names = METRICS_NAMES,
+                my_main = "lasso yes interaction CV metrics",
+                my_xlab = " log lambda")
 }
 
-PlotAndSave(temp_plotting_fun,
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "lasso_yes_int_plot.jpeg",
-                                 collapse = ""))
+PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                                     "lasso_yes_int_metrics_plot.jpeg",
+                                                     collapse = ""))
 
-print(paste("lasso_cv_yes_interaction ", cv_criterion, collapse = ""))
-lasso_cv_yes_interaction[[cv_criterion]]
+print("lasso_yes_int_best_summary")
+lasso_yes_int_best_summary
 
-lasso_yes_interaction = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
-                               alpha = 0, nfols = K_FOLDS,
-                               lambda = lasso_cv_yes_interaction[[cv_criterion]])
+lasso_yes_interaction = glmnet(x = X_mm_yes_interaction_sss,
+                               y = sss$y,
+                               alpha = 1,
+                               lambda = lasso_yes_int_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]])
 
+
+
+# Plan B using default R library 
+# lasso_cv_yes_interaction = cv.glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
+#                                     alpha = 1, nfols = K_FOLDS,
+#                                     lambda.min.ratio = 1e-07)
+# 
+# plot(lasso_cv_yes_interaction)
+# 
+# # define plotting function
+# temp_plotting_fun = function(){
+#   plot(lasso_cv_yes_interaction, main = "lasso yes interaction")
+# }
+# 
+# PlotAndSave(temp_plotting_fun,
+#             my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+#                                  "lasso_yes_int_plot.jpeg",
+#                                  collapse = ""))
+# 
+# 
+# print(paste("lasso_cv_yes_interaction ", cv_criterion, collapse = ""))
+# lasso_cv_yes_interaction[[cv_criterion]]
+# 
+# 
+# lasso_yes_interaction = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
+#                                    alpha = 1,
+#                                    lambda = lasso_cv_yes_interaction[[cv_criterion]])
+
+# rm(lasso_cv_yes_interaction)
+
+# previsione ed errore
 df_metrics = Add_Test_Metric(df_metrics,
                              "lasso_yes_interaction",
                              USED.Metrics(predict(lasso_yes_interaction, newx = X_mm_yes_interaction_vvv),vvv$y))
+
+df_metrics
 
 file_name_lasso_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                         "lasso_yes_interaction",
@@ -590,17 +654,15 @@ file_name_lasso_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
 
 save(lasso_yes_interaction, file = file_name_lasso_yes_interaction)
 
-
-rm(lasso_cv_yes_interaction)
+# elimiyes dalla memoria l'oggetto lasso_cv
 rm(lasso_yes_interaction)
+gc()
+
+
 
 rm(X_mm_yes_interaction_sss)
 rm(X_mm_yes_interaction_vvv)
 gc()
-
-
-# save the df_metrics as .Rdata
-save(df_metrics, file = "df_metrics.Rdata")
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -608,63 +670,113 @@ save(df_metrics, file = "df_metrics.Rdata")
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(tree)
 
-# Gestione del compromesso varianza - distorsione:
+# Selezione del modello
 
-# 1) tree : stima - verifica -----------
-
-
-# sottoinsiemi di stima e di convalida sull'insieme di stima ()
-
-# albero che sovraadatta
+# 0) Full tree which will be pruned ------
 
 # default: molto fitto
-# tree_full = tree(y ~.,
-#                  data = sss[id_cb1,],
-#                  control = tree.control(nobs = length(id_cb1),
-#                                         mindev = 1e-05,
-#                                         minsize = 2))
-
-# se per motivi computazionali l'albero sopra non può essere stimato
-# aumento il numero di elementi in ogni foglia (sub-ottimale,
-# ma meglio di non stimare il modello).
 tree_full = tree(y ~.,
                  data = sss[id_cb1,],
                  control = tree.control(nobs = length(id_cb1),
-                                        mindev = 1e-05,
-                                        mincut = 30))
+                                        mindev = 1e-04,
+                                        minsize = 5))
+
 
 
 # controllo che sia sovraadattato
 plot(tree_full)
 
-# potatura
-tree_pruned = prune.tree(tree_full, newdata = sss[-id_cb1,])
 
-plot(tree_pruned)
-plot(tree_pruned, xlim = c(0, 20))
+# Selection of size parameter, we have two possible ways
 
-tree_best_size = tree_pruned$size[which.min(tree_pruned$dev)]
+# 1.a) Size: CV ----------
+# Selection of size parameter
+
+TREE_MAX_SIZE = 100
+
+
+# if parallel shows problems use the non parallel version
+tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv = ID_CV_LIST,
+                                       my_metric_names = METRICS_NAMES,
+                                       my_data = sss,
+                                       my_max_size = TREE_MAX_SIZE,
+                                       my_metrics_functions = MY_USED_METRICS,
+                                       my_ncores = N_CORES,
+                                       my_weights = MY_WEIGHTS,
+                                       my_mindev = 1e-04,
+                                       my_minsize = 5)
+
+tree_best_summary = CvMetricBest(my_param_values = 2:TREE_MAX_SIZE,
+                                 my_metric_matrix = tree_cv_metrics[["metrics"]],
+                                 my_one_se_best = TRUE,
+                                 my_higher_more_complex = TRUE,
+                                 my_se_matrix = tree_cv_metrics[["se"]],
+                                 my_metric_names = METRICS_NAMES)
+
+
+temp_plot_function = function(){
+  PlotCvMetrics(my_param_values = 2:TREE_MAX_SIZE,
+                my_metric_matrix = tree_cv_metrics[["metrics"]],
+                my_se_matrix = tree_cv_metrics[["se"]],
+                my_best_param_values = ExtractBestParams(tree_best_summary),
+                my_metric_names = METRICS_NAMES,
+                my_main = "Tree CV metrics",
+                my_xlab = "size")
+}
+
+PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                                     "tree_cv_metrics_plot.jpeg",
+                                                     collapse = ""))
+
+
+tree_best_size = tree_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]]
 
 print("tree best size")
 tree_best_size
 
-abline(v = tree_best_size, col = "red")
 
-final_tree_pruned = prune.tree(tree_full, best = tree_best_size)
+# 1.b) Size: train - test -----------
+
+# potatura
+# tree_pruned = prune.tree(tree_full,
+#                          newdata = sss[-id_cb1,])
+# 
+# tree_best_size = tree_pruned$size[which.min(tree_pruned$dev)]
+# 
+# print("tree best size")
+# tree_best_size
+# 
+# temp_plot_function = function(){
+#   plot(tree_pruned)
+#   plot(tree_pruned, xlim = c(0, 40))
+#   
+#   abline(v = tree_best_size, col = "red")
+# }
+# 
+# PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+#                                                      "tree_test_deviance_plot.jpeg",
+#                                                      collapse = ""))
+
+
+
+# 2) tree : final model --------------------- 
+
+final_tree_pruned = prune.tree(tree_full,
+                               best = tree_best_size)
 
 plot(final_tree_pruned)
 text(final_tree_pruned, cex = 0.7)
 
 df_metrics = Add_Test_Metric(df_metrics,
-                              "tree_pruned best",
-                              USED.Metrics(predict(final_tree_pruned, newdata = vvv), vvv$y))
+                             "tree_pruned best",
+                             USED.Metrics(predict(final_tree_pruned, newdata = vvv), vvv$y))
 
 
 df_metrics
 
 file_name_final_tree_pruned = paste(MODELS_FOLDER_RELATIVE_PATH,
-                                        "final_tree_pruned",
-                                        ".Rdata", collapse = "", sep = "")
+                                    "final_tree_pruned",
+                                    ".Rdata", collapse = "", sep = "")
 
 save(final_tree_pruned, file = file_name_final_tree_pruned)
 
@@ -677,6 +789,7 @@ gc()
 # save the df_metrics as .Rdata
 save(df_metrics, file = "df_metrics.Rdata")
 
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Modello Additivo ---------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -685,16 +798,16 @@ library(gam)
 # Controllo del compromesso varianza distorsione: 
 # selezione step tramite gradi di libertà equivalenti
 
-# °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-# stepwise forward
+# stepwise forward: AIC based on generalized df
 gam0 = gam(y ~ 1, data = sss)
+
 # riconosce le qualitative se sono fattori
 my_gam_scope = gam.scope(sss[,-y_index], arg = c("df=2", "df=3", "df=4", "df=5", "df=6"))
 
 # prova anche parallelo
 # require(doMC)
-# registerDoMC(cores=4)
-# step.Gam(Gam.object,scope ,parallel=TRUE)
+# registerDoMC(cores= N_CORES)
+# step.Gam(gam0, my_gam_scope, parallel=TRUE)
 
 gam_step = step.Gam(gam0, scope = my_gam_scope)
 
@@ -704,16 +817,25 @@ gam_step = step.Gam(gam0, scope = my_gam_scope)
 # gam_step = gam(y ~ Sottocategoria + s(Obiettivo, df = 4) + s(Durata, df = 4) + Anno,
 #                 data = sss)
 
-object.size(gam_step)
-
 df_metrics = Add_Test_Metric(df_metrics,
-                              "additivo_step",
+                              "gam_step",
                               USED.Metrics(predict(gam_step, newdata = vvv), vvv$y))
 
 df_metrics
 
+file_name_gam_step = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                    "gam_step",
+                                    ".Rdata", collapse = "", sep = "")
+
+save(gam_step, file = file_name_gam_step)
+
+
+
 rm(gam_step)
 gc()
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # MARS ---------------------------------------
@@ -721,146 +843,70 @@ gc()
 
 # devo ottenere gli indici delle colonne
 # delle variabili qualitative della matrice del disegno (senza intercetta)
+# poichè trasformando il data.frame in matrice del modello 
+# i nomi delle variabili quantitative rimangono invariati
+# selezioniamo prima quest'ultime 
 num_index = which(colnames(X_mm_no_interaction_sss) %in% var_num_names)
 factor_index = setdiff(1:NCOL(X_mm_no_interaction_sss), num_index)
 
 
 library(polspline)
 
-# tramite gcv
-# °°°°°°°°°°°°°°°°°°°°°° Warning °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-
 # Controllo del compromesso varianza distorsione: 
 # criterio della convalida incrociata generalizzata
 
-mars1 = polymars(responses = sss$y,
+mars_step = polymars(responses = sss$y,
                  predictors = X_mm_no_interaction_sss,
                  gcv = 1,
                  factors = factor_index,
                  maxsize = 60)
 
 
-mars1$fitting
+print("mars min size gcv")
+min_size_mars = mars_step$fitting$size[which.min(mars_step$fitting$GCV)]
+min_size_mars
 
-plot(mars1$fitting$size, mars1$fitting$GCV,
-     col = as.factor(mars1$fitting$`0/1`),
-     pch = 16,
-     xlab = "numero di basi",
-     ylab = "GCV")
-legend(c("topright"),
-       legend = c("crescita", "potatura"),
-       col = c("black","red"),
-       pch = 16)
+temp_plot_function = function(){
+  plot(mars_step$fitting$size, mars_step$fitting$GCV,
+       col = as.factor(mars_step$fitting$`0/1`),
+       pch = 16,
+       xlab = "basis number",
+       ylab = "GCV",
+       main = "MARS step GCV")
+  legend(c("topright"),
+         legend = c("crescita", "potatura"),
+         col = c("black","red"),
+         pch = 16)
+  
+  
+  abline(v = min_size_mars)
+}
 
-min_size_mars = mars1$fitting$size[which.min(mars1$fitting$GCV)]
-abline(v = min_size_mars)
+PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                                     "mars_gcv_plot.jpeg",
+                                                     collapse = ""))
+
+
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "MARS",
-                              USED.Metrics(predict(mars1, x = X_mm_no_interaction_vvv),vvv$y))
+                              USED.Metrics(predict(mars_step, x = X_mm_no_interaction_vvv),vvv$y))
 
 df_metrics
 
-mars1$model 
-# paste(mars1$model, collapse = ", ") >>
-mars_model_str = "c(0, 65, 35, 40, 14, 7, 42, 39, 5, 64, 74, 73, 66, 65, 9, 23, 65, 65, 44, 8, 72, 65, 65, 31, 66, 66, 65, 65, 66, 6, 20, 27, 66, 65, 65, 66, 65, 65, 66, 65, 65, 66, 65, 65, 66, 65, 56, 46, 63, 66, 65, 65, 65, 65, 65, 65, 66, 65, 65, 65, 65), c(NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, 61640, 61640, NA, NA, NA, 39106, 39106, NA, 29, 53, NA, 61640, 25, NA, NA, NA, 49, NA, 61640, 61, NA, 61640, 37, NA, 61640, 41, NA, 61640, 21, NA, NA, NA, NA, 45, NA, 39106, 22881, 22881, 22881, 8019, 33, NA, 61640, 8019, 8019), c(NA, NA, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, NA, NA, 1, 0, NA, NA, 1, 0, 0, NA, NA, 0, NA, NA, NA, NA, NA, 1, 0, 0, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, 1, 1, 0, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA), c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66, 0, 0, 0, 66, 0, 0, 0, 0, 66, 0, 0, 0, 66, 66, 0, 0, 0, 0, 0, 66, 66, 0, 66, 66, 0, 66, 66, 0, 66, 66, 0, 66, 0, 0, 0, 0, 66, 66, 0, 66, 66, 0, 0, 66, 66, 66, 66), c(NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, 53, 53, NA, NA, NA, NA, NA, 49, 49, NA, 61, 61, NA, 37, 37, NA, 41, 41, NA, 21, NA, NA, NA, NA, 45, 45, NA, NA, 37, NA, NA, 33, 33, NA, 45), c(56160.0631406908, 4.73277017883286, -23722.4847921431, -26499.997282827, -29572.9437134434, 6787.65765429342, 25603.830121484, -7391.67360114537, -13911.3615710762, 9471.22949762025, -6452.49995908382, -5331.89055605198, 343.657905419548, -0.147100207961118, 10043.494368162, 8165.46181493377, -15.9332665886454, 0.507565575879143, 42816.0258459062, 9106.50736492801, -2966.77040866398, -7.0907303398058, 0.250915140971562, 7635.25430281457, 2908.24916300038, 11198.3541000731, -2.62272663574175, 2.91293188853425, \n-2645.5380484128, 3962.88127773202, -5668.80475847789, -7710.38719582726, -11320.8205438702, 2.19156945453529, -2.54024674697911, -3098.0463083301, 0.814312749986175, -1.06222825868313, -1496.82362442338, 0.281646955935303, -4.61694441939485, 3962.50295425648, -0.665486853742289, 3.63617321587881, 774.646320168858, 0.115476314131583, 11959.3946078128, 5835.52653387644, -4582.0707975685, 1128.31027277246, 0.0782701604358963, -0.243041781133891, 21.1309073042109, -0.680179836618281, 0.904444424864142, \n-4.91996252551403, -1884.74035776914, 0.0231791121362013, 0.886180656064442, 0.18733573102221, -0.39901614518142), c(12241.3253497659, 0.944519224779928, 3511.9397804544, 3726.51534326978, 2121.84988891918, 1748.9048688927, 4620.38939405852, 2525.49057438518, 3101.93474739228, 1922.01143205711, 1347.91279549189, 1326.30219251576, 250.5787358557, 0.0385741581613282, 3357.95126834383, 2613.16776757678, 1.39172063796444, 0.0426892922924196, 14599.1760280404, 3050.15209063977, 1250.16712671446, 1.99340378208462, 0.0580307892633984, 3829.45212751458, 1086.45572368882, 3164.38159367924, 0.209859520473076, 0.372413991146252, \n1267.6955928324, 2179.83087062679, 3147.28072282541, 4032.88022219072, 3561.81633919439, 0.20264335437014, 0.285897820545355, 1092.02347467678, 0.0822105768383733, 0.205054028083917, 2248.99961200262, 0.119797592397846, 0.153240118574596, 2192.79615881063, 0.114441120910513, 0.148312324194143, 865.681280878214, 0.0410378235105948, 6556.28326720728, 3013.4038378269, 2301.34651364492, 2162.8267452113, 0.131197481699462, 0.105081736202582, 2.05041558877983, 0.0637745464799678, 0.0807479446101127, 1.42388811331726, \n1608.86597381876, 0.059983378802878, 0.0721447067054154, 0.0444338477480245, 0.0877355535122962)"
-# incolla dentro ""
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
 
+file_name_mars_step = paste(MODELS_FOLDER_RELATIVE_PATH,
+                           "mars_step",
+                           ".Rdata", collapse = "", sep = "")
 
-mars1_pred2_names
-
-mars1_pred2_names = rep(NA, length(mars1$model$pred2))
-mars1_pred2_names[which(mars1$model$pred2 != 0)] = colnames(X_mm_no_interaction_sss[,mars1$model$pred2[which(mars1$model$pred2 != 0)]])
-mars1_pred2_names[which(mars1$model$pred2 == 0)] = "None"
-
-mars1_pred_names_matrix = cbind(c("Intercept", colnames(X_mm_no_interaction_sss[,mars1$model$pred1])),
-                                mars1_pred2_names)
-
-colnames(mars1_pred_names_matrix) = c("pred1", "pred2")
-
-mars1_pred_names_matrix
+save(mars_step, file = file_name_mars_step)
 
 
 
-# rm(mars1)
-# gc()
-
-# °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: solo se necessario°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-# default commentato
-
-# in caso di perdita dell'oggetto mars1
-# uso un trucco (pigro) per ricavare le matrice del disegno
-
-dim(mars1$ranges.and.medians)
-# 3 74
-
-# paste(mars1$ranges.and.medians %>% as.numeric, collapse = ",")
-# c(0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,1,0,2015609,3840,1,92,30,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0)
-# c()
-
-# ricava di nuovo la matrice
-mars_ranges_medians_matrix = matrix(c(0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,1,0,2015609,3840,1,92,30,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0),
-                                    nrow = 3, ncol = 74) # ATTENZIONE da modificare con le dimensioni sopra
-
-
-# salvo il numero di righe e colonne di mars1$model
-# dim(mars1$model)
-# 61  7
-mars_model_size = dim(mars1$model)[1]
-
-# rimozione \n e ()
-
-# mars_model_str = gsub("\\n", "", mars_model_str)
-# mars_model_str = gsub("\\(", "", mars_model_str) 
-# mars_model_str = gsub("\\)", "", mars_model_str) 
-# 
-# # separa nei vari vettori
-# 
-# mars_model_list = strsplit(mars_model_str, "c")[[1]]
-# 
-# # elimino l'elemento vuoto
-# mars_model_list_2 = mars_model_list[-1]
-# mars_model_list_2 = strsplit(mars_model_list_2, ", ")
-# 
-# names(mars_model_list_2) = c("pred1",  "knot1",  "level1", "pred2",  "knot2",  "coefs",  "SE")
-# 
-# mars_model_list_2 = lapply(mars_model_list_2, as.numeric) %>% as.data.frame()
-# 
-# # controllo 
-# mars_model_list_2
-# 
-# 
-# # design.polymars() ritorna la matrice del disegno voluta, 
-# # ma richiede come primo argomento un oggetto polspline
-# # nessun problema: 
-# 
-# empty_mars = polymars(responses = runif((NCOL(X_mm_no_interaction_sss))),
-#                       predictors = matrix(1:(NCOL(X_mm_no_interaction_sss)^2),
-#                                           ncol = NCOL(X_mm_no_interaction_sss)),
-#                       gcv = 1)
-# 
-# # sostituisco la matrice del modello con quella di mars1
-# empty_mars$model.size = mars_model_size # numero righe matrice del modello precedente
-# empty_mars$ranges.and.medians = mars_ranges_medians_matrix
-# empty_mars$model = mars_model_list_2
-# 
-# X_mars_sss = design.polymars(empty_mars, X_mm_no_interaction_sss)
-# X_mars_vvv = design.polymars(empty_mars, X_mm_no_interaction_vvv)
-# 
-# W = t(X_mars_sss) %*% X_mars_sss
-# 
-# # attenzione poiché potrebbe essere singolare
-# # previsione con il modello MARS
-# df_metrics[8,] = c("mars",
-#                      USED.Metrics(X_mars_vvv %*%
-#                                 solve(t(X_mars_sss) %*% X_mars_sss) %*%
-#                                 t(X_mars_sss) %*% as.matrix(sss$y) %>% as.numeric(),
-#                                       vvv$y))
-
-
-# tramite stima e verifica (per risposta qualitativa)
-
-
+rm(mars_step)
+gc()
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # PPR ------------------------------------
@@ -869,32 +915,48 @@ mars_model_size = dim(mars1$model)[1]
 # Scelgo il parametro di regolazione: numero di funzioni dorsali tramite
 # stima convalida sul sottoinsieme di stima
 
-# Nota: il parametro di lisciamento per il lisciatore
-# è scelto tramite il metodo SuperSmoother di Friedman
-# che impiega la convalida incrociata
-
-
 # numero di possibili funzioni dorsali
 PPR_MAX_RIDGE_FUNCTIONS = 4
 
-err_ppr_test_validation = rep(NA, PPR_MAX_RIDGE_FUNCTIONS)
+# numero di possibili gradi di libertà (equivalenti) delle smoothing splines
+PPR_E_DF_SM = 2:6
 
+# 1.a) Regulation: train - test ---------
 
-for(k in 1:PPR_MAX_RIDGE_FUNCTIONS){
-  mod = ppr(y ~ .,
-            data = sss[id_cb1,],
-            nterms = k)
-  err_ppr_test_validation[k] = MSE.Loss(predict(mod, sss[-id_cb1,]), sss$y[-id_cb1])
+metrics_ppr_array = array(NA,
+                          dim = c(PPR_MAX_RIDGE_FUNCTIONS, length(PPR_E_DF_SM), N_METRICS),
+                          dimnames = list(1:PPR_MAX_RIDGE_FUNCTIONS,
+                                          PPR_E_DF_SM,
+                                          METRICS_NAMES))
+
+for(r in 1:PPR_MAX_RIDGE_FUNCTIONS){
+  for(df in 1: length(PPR_E_DF_SM)){
+    mod = ppr(y ~ .,
+              data = sss[id_cb1,],
+              nterms = r,
+              sm.method = "spline",
+              df = PPR_E_DF_SM[df])
+    
+    metrics_ppr_array[r, df, ] = USED.Metrics(predict(mod, sss[-id_cb1,]),
+                                           sss$y[-id_cb1],
+                                           weights = MY_WEIGHTS)
+  }
+  print(r)
 }
 
 rm(mod)
+gc()
 
-err_ppr_test_validation
+# 1.b) Regulation: CV -------
 
+
+# 2) final model -------
 
 mod_ppr1 = ppr(y ~ .,
                data = sss,
-               nterms = which.min(err_ppr_test_validation)) # attenzione: modifica n-terms 
+               nterms = ppr_best_n_ridges,
+               sm.method = "spline",
+               df = 2) 
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "PPR",
@@ -1157,12 +1219,12 @@ cbind(df_metrics[,1],
 # summary(gam_step)
 
 # MARS:
-# mars1$model
+# mars_step$model
 
-# mars1_pred_names_matrix
+# mars_step_pred_names_matrix
 
 # per il grafico lo devo ristimare
-# plot(mars1, predictor1 = 40, predictor2 = 30)
+# plot(mars_step, predictor1 = 40, predictor2 = 30)
 
 # Random Forest: guarda grafico importanza variabili
 
