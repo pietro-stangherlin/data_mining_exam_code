@@ -291,17 +291,16 @@ ridge_no_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_se_matrix = ridge_no_interaction_metrics[["se"]],
                                          my_metric_names = METRICS_NAMES)
 
-temp_plot_function = function(){
+
+PlotAndSave(function()(
   PlotCvMetrics(my_param_values = log(lambda_vals),
                 my_metric_matrix = ridge_no_interaction_metrics[["metrics"]],
                 my_se_matrix = ridge_no_interaction_metrics[["se"]],
                 my_best_param_values =log(ExtractBestParams(ridge_no_int_best_summary)),
                 my_metric_names = METRICS_NAMES,
                 my_main = "Ridge no interaction CV metrics",
-                my_xlab = " log lambda")
-}
-
-PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                my_xlab = " log lambda")),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                                      "ridge_no_int_metrics_plot.jpeg",
                                                      collapse = ""))
 
@@ -389,17 +388,17 @@ ridge_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_se_matrix = ridge_yes_interaction_metrics[["se"]],
                                          my_metric_names = METRICS_NAMES)
 
-temp_plot_function = function(){
+
+
+PlotAndSave(function()(
   PlotCvMetrics(my_param_values = log(lambda_vals),
                 my_metric_matrix = ridge_yes_interaction_metrics[["metrics"]],
                 my_se_matrix = ridge_yes_interaction_metrics[["se"]],
                 my_best_param_values =log(ExtractBestParams(ridge_yes_int_best_summary)),
                 my_metric_names = METRICS_NAMES,
                 my_main = "Ridge yes interaction CV metrics",
-                my_xlab = " log lambda")
-}
-
-PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                my_xlab = " log lambda")),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                                      "ridge_yes_int_metrics_plot.jpeg",
                                                      collapse = ""))
 
@@ -491,17 +490,17 @@ lasso_no_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_se_matrix = lasso_no_interaction_metrics[["se"]],
                                          my_metric_names = METRICS_NAMES)
 
-temp_plot_function = function(){
+
+
+PlotAndSave(function()(
   PlotCvMetrics(my_param_values = log(lambda_vals),
                 my_metric_matrix = lasso_no_interaction_metrics[["metrics"]],
                 my_se_matrix = lasso_no_interaction_metrics[["se"]],
                 my_best_param_values =log(ExtractBestParams(lasso_no_int_best_summary)),
                 my_metric_names = METRICS_NAMES,
                 my_main = "lasso no interaction CV metrics",
-                my_xlab = " log lambda")
-}
-
-PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                my_xlab = " log lambda")),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                                      "lasso_no_int_metrics_plot.jpeg",
                                                      collapse = ""))
 
@@ -589,17 +588,15 @@ lasso_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                           my_se_matrix = lasso_yes_interaction_metrics[["se"]],
                                           my_metric_names = METRICS_NAMES)
 
-temp_plot_function = function(){
+PlotAndSave(function()(
   PlotCvMetrics(my_param_values = log(lambda_vals),
                 my_metric_matrix = lasso_yes_interaction_metrics[["metrics"]],
                 my_se_matrix = lasso_yes_interaction_metrics[["se"]],
                 my_best_param_values =log(ExtractBestParams(lasso_yes_int_best_summary)),
                 my_metric_names = METRICS_NAMES,
                 my_main = "lasso yes interaction CV metrics",
-                my_xlab = " log lambda")
-}
-
-PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                my_xlab = " log lambda")),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                                      "lasso_yes_int_metrics_plot.jpeg",
                                                      collapse = ""))
 
@@ -672,7 +669,7 @@ library(tree)
 
 # Selezione del modello
 
-# 0) Full tree which will be pruned ------
+# 0) Full tree which to be pruned ------
 
 # default: molto fitto
 tree_full = tree(y ~.,
@@ -714,17 +711,15 @@ tree_best_summary = CvMetricBest(my_param_values = 2:TREE_MAX_SIZE,
                                  my_metric_names = METRICS_NAMES)
 
 
-temp_plot_function = function(){
+PlotAndSave(function()(
   PlotCvMetrics(my_param_values = 2:TREE_MAX_SIZE,
                 my_metric_matrix = tree_cv_metrics[["metrics"]],
                 my_se_matrix = tree_cv_metrics[["se"]],
                 my_best_param_values = ExtractBestParams(tree_best_summary),
                 my_metric_names = METRICS_NAMES,
                 my_main = "Tree CV metrics",
-                my_xlab = "size")
-}
-
-PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                my_xlab = "size")),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                                      "tree_cv_metrics_plot.jpeg",
                                                      collapse = ""))
 
@@ -919,33 +914,207 @@ gc()
 PPR_MAX_RIDGE_FUNCTIONS = 4
 
 # numero di possibili gradi di libertà (equivalenti) delle smoothing splines
-PPR_E_DF_SM = 2:6
+PPR_DF_SM = 2:6
+
+#' @param my_metrics_array (array): returned by PPRRegulation:
+#' first dimension (with names): 1:my_max_ridge_functions
+#' second dimension (with names): my_spline_df
+#' third dimension (with names): my_metrics_names
+#' 
+#' WARNING, pay attention to this parameter:
+#' @param indexes_metric_max (vector of ints): indexes for which high metric values is best (ex f1 score)
+#' (default NULL)
+#' 
+#' @return (list):nested list: first level elements are metrics names
+#' for each metric name three elements are given:
+#' 1) best value of ridge functions number: accessed by ridge_fun_num
+#' 2) best value of spline equivalent degrees of freedom: accessed by spline_df
+#' 3) the metric value (minimum or maximum, depending on context) associated with 1) and 2)
+PPRExtractBestParams = function(my_metrics_array,
+                                indexes_metric_max = NULL){
+  
+  
+  
+  # first build the matrix of indexes
+  # this is needed since in che come below the which.min and which.max
+  # functions return the index of the vectorized matrix
+  # hence we need to retrieve the row and column given the index
+  
+  indexes_matrix = matrix(1:(NROW(my_metrics_array[,,1] * NCOL(my_metrics_array[,,1]))),
+                          nrow = NROW(my_metrics_array[,,1]),
+                          ncol = NCOL(my_metrics_array[,,1]),
+                          byrow = T)
+  
+  # Check metrics min and max best
+  
+  metrics_names = my_metrics_array[[3]]
+  indexes_metrics = length(metrics_names)
+  
+  returned_best_list = list(metrics_names)
+  
+  for(i in 1:indexes_metrics){
+    if(i %in% indexes_metric_max){
+      # index of best cell with matrix as vector
+      temp_best_index = which.max(my_metrics_array[,,i])
+    }
+    
+    else{
+      # index of best cell with matrix as vector
+      temp_best_index = which.min(my_metrics_array[,,i])
+    }
+    
+    temp_index_row = which(indexes_matrix)
+    temp_index_col = 
+    
+    returned_best_list[[metrics_names[i]]][[]]
+  }
+}
+
 
 # 1.a) Regulation: train - test ---------
 
-metrics_ppr_array = array(NA,
-                          dim = c(PPR_MAX_RIDGE_FUNCTIONS, length(PPR_E_DF_SM), N_METRICS),
-                          dimnames = list(1:PPR_MAX_RIDGE_FUNCTIONS,
-                                          PPR_E_DF_SM,
-                                          METRICS_NAMES))
-
-for(r in 1:PPR_MAX_RIDGE_FUNCTIONS){
-  for(df in 1: length(PPR_E_DF_SM)){
-    mod = ppr(y ~ .,
-              data = sss[id_cb1,],
-              nterms = r,
-              sm.method = "spline",
-              df = PPR_E_DF_SM[df])
-    
-    metrics_ppr_array[r, df, ] = USED.Metrics(predict(mod, sss[-id_cb1,]),
-                                           sss$y[-id_cb1],
-                                           weights = MY_WEIGHTS)
+#' @param my_data (data.frame)
+#' @param my_id_train (vector of ints)
+#' @param my_max_ridge_functions (vector of ints)
+#' @param my_spline_df (vector in mums): values of possibile smoothing splines degrees of freedom
+#' @param my_metrics_names (vector of chars)
+#' @param my_weights (vector of nums):
+#'  same length as the difference: NROW(my_data) - length(my_id_train)
+#' 
+#' @return (array):
+#' first dimension (with names): 1:my_max_ridge_functions
+#' second dimension (with names): my_spline_df
+#' third dimension (with names): my_metrics_names
+#' 
+#' each cell contains the metric value of the model fitted on my_data[my_id_train,]
+#' and tested on my_data[-my_id_train,] for each metric value used
+PPRRegulationTrainTest = function(my_data = sss,
+                                  my_id_train = id_cb1,
+                                  my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+                                  my_spline_df = PPR_DF_SM,
+                                  my_metrics_names = METRICS_NAMES,
+                                  my_weights = MY_WEIGHTS){
+  metrics_array = array(NA,
+                        dim = c(my_max_ridge_functions,
+                                length(my_spline_df),
+                                length(my_metrics_names)),
+                        
+                        dimnames = list(1:my_max_ridge_functions,
+                                        my_spline_df,
+                                        my_metrics_names))
+  
+  for(r in 1:my_max_ridge_functions){
+    for(df in 1: length(my_spline_df)){
+      mod = ppr(y ~ .,
+                data = my_data[my_id_train,],
+                nterms = r,
+                sm.method = "spline",
+                df = my_spline_df[df])
+      
+      metrics_array[r, df, ] = USED.Metrics(predict(mod, my_data[-my_id_train,]),
+                                                my_data$y[-my_id_train],
+                                                weights = MY_WEIGHTS)
+    }
+    print(paste0("n ridge functions: ", r, collapse = ""))
   }
-  print(r)
+  
+  rm(mod)
+  gc()
+  
+  
+  return(metrics_array)
 }
 
-rm(mod)
-gc()
+#' @param my_data (data.frame)
+#' @param my_id_train (vector of ints)
+#' @param my_max_ridge_functions (vector of ints)
+#' @param my_spline_df (vector in mums): values of possibile smoothing splines degrees of freedom
+#' @param my_metrics_names (vector of chars)
+#' @param my_weights (vector of nums):
+#'  same length as the difference: NROW(my_data) - length(my_id_train)
+#'  
+#'  
+#' @param my_metrics_functions (vector of characters): vector of loss function names feed to snowfall (parallel)
+#' example  my_metrics_functions = c("USED.Metrics", "MAE.Loss", "MSE.Loss").
+#' NOTE: if USED.Metrics contains some other functions they must be present as well, like the example
+#' which is also the default
+#' @param my_ncores
+#' 
+#' @return (array):
+#' first dimension (with names): 1:my_max_ridge_functions
+#' second dimension (with names): my_spline_df
+#' third dimension (with names): my_metrics_names
+#' 
+#' each cell contains the metric value of the model fitted on my_data[my_id_train,]
+#' and tested on my_data[-my_id_train,] for each metric value used
+PPRRegulationTrainTestParallel = function(my_data = sss,
+                                  my_id_train = id_cb1,
+                                  my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+                                  my_spline_df = PPR_DF_SM,
+                                  my_metrics_names = METRICS_NAMES,
+                                  my_weights = MY_WEIGHTS,
+                                  my_metrics_functions = MY_USED_METRICS,
+                                  my_ncores = N_CORES){
+  
+  metrics_array = array(NA,
+                        dim = c(my_max_ridge_functions,
+                                length(my_spline_df),
+                                length(my_metrics_names)),
+                        
+                        dimnames = list(1:my_max_ridge_functions,
+                                        my_spline_df,
+                                        my_metrics_names))
+  
+  my_n_metrics = length(my_metrics_names)
+  
+  
+  # init parallel
+  sfInit(cpus = my_ncores, parallel = T)
+  
+  sfExport(list = c("my_data", my_metrics_functions,
+                    "my_id_train", "my_max_ridge_functions", "my_spline_df",
+                    "my_weights"))
+  
+  for(r in 1:my_max_ridge_functions){
+    sfExport(list = c("r"))
+    
+    temp_metric = sfLapply(my_spline_df,
+                           fun = function(df) 
+                             USED.Metrics(predict(ppr(y ~ .,
+                                                      data = my_data[my_id_train,],
+                                                      nterms = r,
+                                                      sm.method = "spline",
+                                                      df = df),
+                                                  my_data[-my_id_train,]), my_data$y[-my_id_train],
+                                          weights = my_weights))
+
+    # unlist to the right dimensions matrix
+    metrics_array[r,,] = matrix(unlist(temp_metric), ncol = my_n_metrics, byrow = T)
+    
+     
+    
+    print(paste0("n ridge functions: ", r, collapse = ""))
+  }
+  
+  rm(temp_metric)
+  gc()
+  
+  
+  return(metrics_array)
+}
+
+
+ppr_metrics = PPRRegulationTrainTestParallel(my_data = sss,
+                                             my_id_train = id_cb1,
+                                             my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+                                             my_spline_df = PPR_DF_SM,
+                                             my_metrics_names = METRICS_NAMES,
+                                             my_weights = MY_WEIGHTS,
+                                             my_metrics_functions = MY_USED_METRICS,
+                                             my_ncores = N_CORES)
+
+  
+
 
 # 1.b) Regulation: CV -------
 
