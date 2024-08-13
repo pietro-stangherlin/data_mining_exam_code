@@ -258,6 +258,81 @@ ExtractBestParams = function(my_cv_metric_best_object){
   return(best_params_vector)
 }
 
+
+# numero di possibili funzioni dorsali
+PPR_MAX_RIDGE_FUNCTIONS = 4
+
+# numero di possibili gradi di libertà (equivalenti) delle smoothing splines
+PPR_DF_SM = 2:6
+
+#' @param my_metrics_array (array): returned by PPRRegulation:
+#' first dimension (with names): 1:my_max_ridge_functions
+#' second dimension (with names): my_spline_df
+#' third dimension (with names): my_metrics_names
+#' 
+#' WARNING, pay attention to this parameter:
+#' @param indexes_metric_max (vector of ints): indexes for which high metric values is best (ex f1 score)
+#' (default NULL)
+#' 
+#' @return (list):nested list: first level elements are metrics names
+#' for each metric name three elements are given:
+#' 1) best value of ridge functions number: accessed by ridge_fun_num
+#' 2) best value of spline equivalent degrees of freedom: accessed by spline_df
+#' 3) the metric value (minimum or maximum, depending on context) associated with 1) and 2)
+PPRExtractBestParams = function(my_metrics_array,
+                                indexes_metric_max = NULL){
+  
+  
+  
+  # first build the matrix of indexes
+  # this is needed since below the which.min and which.max
+  # functions return the index of the vectorized matrix
+  # hence we need to retrieve the row and column given the index
+  
+  n_row_metrics = NROW(my_metrics_array[,,1])
+  n_col_metrics = NCOL(my_metrics_array[,,1])
+  
+  n_ridge_functions_values = as.numeric(rownames(my_metrics_array[,,1]))
+  spline_df_values = as.numeric(colnames(my_metrics_array[,,1]))
+  
+  indexes_matrix = matrix(1:(n_row_metrics * n_col_metrics),
+                          nrow = n_row_metrics,
+                          ncol = n_col_metrics)
+  
+  # Check metrics min and max best
+  
+  metrics_names = dimnames(my_metrics_array)[[3]]
+  indexes_metrics = length(metrics_names)
+  
+  returned_best_list = list(metrics_names)
+  
+  for(i in 1:indexes_metrics){
+    if(i %in% indexes_metric_max){
+      # index of best cell with matrix as vector
+      temp_best_index = which.max(my_metrics_array[,,i])
+    }
+    
+    else{
+      # index of best cell with matrix as vector
+      temp_best_index = which.min(my_metrics_array[,,i])
+    }
+    
+    # get the indexes of the matrix 
+    temp_index_col = temp_best_index %/% n_row_metrics + temp_best_index %% n_row_metrics
+    temp_index_row = which(indexes_matrix[,temp_index_col] == temp_best_index)
+    
+    # save the optimal values
+    returned_best_list[[metrics_names[i]]][["n_ridge_functions"]] = n_ridge_functions_values[temp_index_row]
+    returned_best_list[[metrics_names[i]]][["spline_df"]] = spline_df_values[temp_index_col]
+    returned_best_list[[metrics_names[i]]][["metric_value"]] = my_metrics_array[temp_index_row,
+                                                                                temp_index_col,
+                                                                                i]
+  }
+  
+  return(returned_best_list)
+}
+
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Parameter Selection Plotting --------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

@@ -179,92 +179,152 @@ ManualCvGlmnetParallel = function(my_id_list_cv,
 # K: numero di possibili funzioni dorsali
 PPR_MAX_RIDGE_FUNCTIONS = 4
 
-# PPR CV function
+#' @param my_data (data.frame)
 #' @param my_id_list_cv (list):ids in each fold , use the global variable
-#' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
-#' @param my_data (data.frame): data.frame used
-#'
-#' @param my_max_ridges (int): max number of ridge functions
-#'
-#' @return matrix of CV folds averaged errors for each parameter value and each loss function 
-ManualCvPPR = function(my_id_list_cv,
-                       my_metric_names,
-                       my_data,
-                       my_max_ridges = PPR_MAX_RIDGE_FUNCTIONS,
-                       my_weights = MY_WEIGHTS){
+#' @param my_max_ridge_functions (vector of ints)
+#' @param my_spline_df (vector in mums): values of possibile smoothing splines degrees of freedom
+#' @param my_metrics_names (vector of chars)
+#' @param my_weights (vector of nums):
+#'  same length as the difference: NROW(my_data) - length(my_id_train)
+#' 
+#' @return (array):
+#' first dimension (with names): 1:my_max_ridge_functions
+#' second dimension (with names): my_spline_df
+#' third dimension (with names): my_metrics_names
+#' 
+#' each cell contains the metric value of the model fitted on my_data[my_id_train,]
+#' and tested on my_data[-my_id_train,] for each metric value used
+PPRRegulationCV = function(my_data = sss,
+                           my_id_list_cv,
+                           my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+                           my_spline_df = PPR_DF_SM,
+                           my_metrics_names = METRICS_NAMES,
+                           my_weights = MY_WEIGHTS){
   
   n_k_fold = length(my_id_list_cv)
-  my_n_metrics = length(my_metric_names)
+  my_n_metrics = length(my_metrics_names)
   
-  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, my_max_ridges, my_n_metrics))
-  
+  temp_metrics_array_cv = array(NA,
+                        dim = c(my_max_ridge_functions,
+                                length(my_spline_df),
+                                length(my_metrics_names),
+                                n_k_fold),
+                        
+                        dimnames = list(1:my_max_ridge_functions,
+                                        my_spline_df,
+                                        my_metrics_names,
+                                        rep(NA, n_k_fold)))
   
   for (k in 1:n_k_fold){
     id_train = unlist(my_id_list_cv[-k])
     id_test = my_id_list_cv[[k]]
     
-    # cycle through different numbers of ridge functions
-    for (r in 1:my_max_ridges){
-      temp_ppr = ppr(y ~ .,
-                     data = my_data[id_train,],
-                     nterms = r)
-      # prediction error
-      temp_metrics_array_cv[k,r,] = USED.Metrics(predict(temp_ppr, my_data[id_test,]),
-                                                 my_data$y[id_test],
-                                                 weights = my_weights)
+    for(r in 1:my_max_ridge_functions){
+      for(df in 1:length(my_spline_df)){
+        mod = ppr(y ~ .,
+                  data = my_data[id_train,],
+                  nterms = r,
+                  sm.method = "spline",
+                  df = my_spline_df[df])
+        
+        temp_metrics_array_cv[r, df, ,k] = USED.Metrics(predict(mod, my_data[-id_train,]),
+                                              my_data$y[id_test],
+                                              weights = MY_WEIGHTS)
+      }
+      print(paste0("n ridge functions: ", r, collapse = ""))
     }
-    
-    
-    rm(temp_ppr)
-    gc()
-    
-    print(paste("fold ", k))
+    print(paste("fold = ", k, collapse = ""))
   }
   
-  # averaged metrics matrix
-  cv_metrics = matrix(NA, nrow = my_max_ridges, ncol = my_n_metrics)
+  metrics_array = array(0,
+                        dim = c(my_max_ridge_functions,
+                                length(my_spline_df),
+                                length(my_metrics_names)),
+                        dimnames = list(1:my_max_ridge_functions,
+                                        my_spline_df,
+                                        my_metrics_names))
   
-  # metrics standard deviations matrix
-  cv_metrics_se = matrix(NA, nrow = my_max_ridges, ncol = my_n_metrics)
-  colnames(cv_metrics) = my_metric_names
-  colnames(cv_metrics_se) = my_metric_names
-  
-  for (i in 1:my_n_metrics){
-    cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
-    cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
+  # average over ridge functions
+  for(k in 1:n_k_fold){
+    metrics_array = metrics_array + temp_metrics_array_cv[, , ,k]
   }
   
-  return(list("metrics" = cv_metrics,
-              "se" = cv_metrics_se))
+  metrics_array = metrics_array / n_k_fold
+
+  rm(mod)
+  gc()
   
+  return(metrics_array)
 }
 
-# PPR CV function
+#' @param my_data (data.frame)
 #' @param my_id_list_cv (list):ids in each fold , use the global variable
-#' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
-#' @param my_data (data.frame): data.frame used
+#' @param my_max_ridge_functions (vector of ints)
+#' @param my_spline_df (vector in mums): values of possibile smoothing splines degrees of freedom
+#' @param my_metrics_names (vector of chars)
+#' @param my_weights (vector of nums):
+#'  same length as the difference: NROW(my_data) - length(my_id_train)
 #'
-#' @param my_max_ridges (int): max number of ridge functions
+#' @param my_metrics_functions (vector of characters): vector of loss function names feed to snowfall (parallel)
+#' example  my_metrics_functions = c("USED.Metrics", "MAE.Loss", "MSE.Loss").
+#' NOTE: if USED.Metrics contains some other functions they must be present as well, like the example
+#' which is also the default
 #'
-#' @return matrix of CV folds averaged errors for each parameter value and each loss function 
-ManualCvPPRParallel = function(my_id_list_cv,
-                       my_metric_names,
-                       my_data,
-                       my_max_ridges = PPR_MAX_RIDGE_FUNCTIONS,
-                       my_weights = 1,
-                       my_metrics_functions = MY_USED_METRICS,
-                       my_ncores = N_CORES){
+#' 
+#' @return (array):
+#' first dimension (with names): 1:my_max_ridge_functions
+#' second dimension (with names): my_spline_df
+#' third dimension (with names): my_metrics_names
+#' 
+#' each cell contains the metric value of the model fitted on my_data[my_id_train,]
+#' and tested on my_data[-my_id_train,] for each metric value used
+PPRRegulationCVParallel = function(my_data = sss,
+                                   my_id_list_cv,
+                                   my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+                                   my_spline_df = PPR_DF_SM,
+                                   my_metrics_names = METRICS_NAMES,
+                                   my_weights = MY_WEIGHTS,
+                                   my_metrics_functions = MY_USED_METRICS,
+                                   my_ncores = N_CORES){
   
   n_k_fold = length(my_id_list_cv)
-  my_n_metrics = length(my_metric_names)
+  my_n_metrics = length(my_metrics_names)
   
-  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, my_max_ridges, my_n_metrics))
+  # needed to do parallel
+  # each list element contains a vector of length 2
+  # first element is the number of ridge functions
+  # second element are the spline degrees of freedom
+  params_list = list()
   
+  counter = 1
   
-  sfInit(cpus =my_ncores, parallel = T)
+  for (r in 1:my_max_ridge_functions){
+    for(df in my_spline_df){
+      params_list[[counter]] = c(r, df)
+      
+      counter = counter + 1
+    }
+  }
   
-  sfExport(list = c("my_data", my_metrics_functions, "my_max_ridges", "my_weights"))
+  # init parallel
+  sfInit(cpus = my_ncores, parallel = T)
   
+  sfExport(list = c("my_data", my_metrics_functions,
+                    "my_max_ridge_functions", "my_spline_df", "params_list",
+                    "my_weights"))
+  
+  temp_metrics_array_cv = array(NA,
+                                dim = c(my_max_ridge_functions,
+                                        length(my_spline_df),
+                                        length(my_metrics_names),
+                                        n_k_fold),
+                                
+                                dimnames = list(1:my_max_ridge_functions,
+                                                my_spline_df,
+                                                my_metrics_names,
+                                                rep(NA, n_k_fold)))
+  
+  print("lol")
   
   for (k in 1:n_k_fold){
     id_train = unlist(my_id_list_cv[-k])
@@ -272,55 +332,51 @@ ManualCvPPRParallel = function(my_id_list_cv,
     
     sfExport(list = c("id_train", "id_test"))
     
-    
-    # for better readability
-    temp_metric = sfLapply(1:my_max_ridges,
-                           fun = function(r) 
+    temp_metric = sfLapply(params_list,
+                           fun = function(el) 
                              USED.Metrics(predict(ppr(y ~ .,
                                                       data = my_data[id_train,],
-                                                      nterms = r),
-                                                  my_data[id_test,]), my_data$y[id_test]))
+                                                      nterms = el[1],
+                                                      sm.method = "spline",
+                                                      df = el[2]),
+                                                  my_data[id_test,]), my_data$y[id_test],
+                                          weights = my_weights))
     
-    # unlist to the right dimensions matrix
-    temp_metrics_array_cv[k,,] = matrix(unlist(temp_metric), ncol = my_n_metrics, byrow = T)
     
-    rm(temp_metric)
-  
+    counter = 1
     
-    # cycle through different numbers of ridge functions
-    for (r in 1:my_max_ridges){
-      temp_ppr = ppr(y ~ .,
-                     data = my_data[id_train,],
-                     nterms = r)
-      # prediction error
-      temp_metrics_array_cv[k,r,] = USED.Metrics(predict(temp_ppr, my_data[id_test,]),
-                                                 my_data$y[id_test],
-                                                 weights = my_weights)
+    print("lul")
+    for (r in 1:my_max_ridge_functions){
+      for(df in 1:length(my_spline_df)){
+        temp_metrics_array_cv[r, df, ,k] = temp_metric[[counter]]
+        
+        counter = counter + 1
+      }
     }
     
-    
-    rm(temp_ppr)
-    gc()
-    
-    print(paste("fold ", k))
+    print(paste("fold = ", k, collapse = ""))
   }
   
-  # averaged metrics matrix
-  cv_metrics = matrix(NA, nrow = my_max_ridges, ncol = my_n_metrics)
+  print("lel")
+  metrics_array = array(0,
+                        dim = c(my_max_ridge_functions,
+                                length(my_spline_df),
+                                length(my_metrics_names)),
+                        dimnames = list(1:my_max_ridge_functions,
+                                        my_spline_df,
+                                        my_metrics_names))
   
-  # metrics standard deviations matrix
-  cv_metrics_se = matrix(NA, nrow = my_max_ridges, ncol = my_n_metrics)
-  colnames(cv_metrics) = my_metric_names
-  colnames(cv_metrics_se) = my_metric_names
-  
-  for (i in 1:my_n_metrics){
-    cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
-    cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
+  # average over ridge functions
+  for(k in 1:n_k_fold){
+    metrics_array = metrics_array + temp_metrics_array_cv[, , ,k]
   }
   
-  return(list("metrics" = cv_metrics,
-              "se" = cv_metrics_se))
+  metrics_array = metrics_array / n_k_fold
   
+  rm(mod)
+  gc()
+  
+  return(metrics_array)
 }
 
 

@@ -916,60 +916,10 @@ PPR_MAX_RIDGE_FUNCTIONS = 4
 # numero di possibili gradi di libertà (equivalenti) delle smoothing splines
 PPR_DF_SM = 2:6
 
-#' @param my_metrics_array (array): returned by PPRRegulation:
-#' first dimension (with names): 1:my_max_ridge_functions
-#' second dimension (with names): my_spline_df
-#' third dimension (with names): my_metrics_names
-#' 
-#' WARNING, pay attention to this parameter:
-#' @param indexes_metric_max (vector of ints): indexes for which high metric values is best (ex f1 score)
-#' (default NULL)
-#' 
-#' @return (list):nested list: first level elements are metrics names
-#' for each metric name three elements are given:
-#' 1) best value of ridge functions number: accessed by ridge_fun_num
-#' 2) best value of spline equivalent degrees of freedom: accessed by spline_df
-#' 3) the metric value (minimum or maximum, depending on context) associated with 1) and 2)
-PPRExtractBestParams = function(my_metrics_array,
-                                indexes_metric_max = NULL){
-  
-  
-  
-  # first build the matrix of indexes
-  # this is needed since in che come below the which.min and which.max
-  # functions return the index of the vectorized matrix
-  # hence we need to retrieve the row and column given the index
-  
-  indexes_matrix = matrix(1:(NROW(my_metrics_array[,,1] * NCOL(my_metrics_array[,,1]))),
-                          nrow = NROW(my_metrics_array[,,1]),
-                          ncol = NCOL(my_metrics_array[,,1]),
-                          byrow = T)
-  
-  # Check metrics min and max best
-  
-  metrics_names = my_metrics_array[[3]]
-  indexes_metrics = length(metrics_names)
-  
-  returned_best_list = list(metrics_names)
-  
-  for(i in 1:indexes_metrics){
-    if(i %in% indexes_metric_max){
-      # index of best cell with matrix as vector
-      temp_best_index = which.max(my_metrics_array[,,i])
-    }
-    
-    else{
-      # index of best cell with matrix as vector
-      temp_best_index = which.min(my_metrics_array[,,i])
-    }
-    
-    temp_index_row = which(indexes_matrix)
-    temp_index_col = 
-    
-    returned_best_list[[metrics_names[i]]][[]]
-  }
-}
 
+# given a list with elements parameters
+# number of  ridge_functions
+# spline degrees of freedom
 
 # 1.a) Regulation: train - test ---------
 
@@ -1025,6 +975,8 @@ PPRRegulationTrainTest = function(my_data = sss,
   return(metrics_array)
 }
 
+
+
 #' @param my_data (data.frame)
 #' @param my_id_train (vector of ints)
 #' @param my_max_ridge_functions (vector of ints)
@@ -1048,13 +1000,13 @@ PPRRegulationTrainTest = function(my_data = sss,
 #' each cell contains the metric value of the model fitted on my_data[my_id_train,]
 #' and tested on my_data[-my_id_train,] for each metric value used
 PPRRegulationTrainTestParallel = function(my_data = sss,
-                                  my_id_train = id_cb1,
-                                  my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
-                                  my_spline_df = PPR_DF_SM,
-                                  my_metrics_names = METRICS_NAMES,
-                                  my_weights = MY_WEIGHTS,
-                                  my_metrics_functions = MY_USED_METRICS,
-                                  my_ncores = N_CORES){
+                                          my_id_train = id_cb1,
+                                          my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+                                          my_spline_df = PPR_DF_SM,
+                                          my_metrics_names = METRICS_NAMES,
+                                          my_weights = MY_WEIGHTS,
+                                          my_metrics_functions = MY_USED_METRICS,
+                                          my_ncores = N_CORES){
   
   metrics_array = array(NA,
                         dim = c(my_max_ridge_functions,
@@ -1068,41 +1020,60 @@ PPRRegulationTrainTestParallel = function(my_data = sss,
   my_n_metrics = length(my_metrics_names)
   
   
+  # needed to do parallel
+  # each list element contains a vector of length 2
+  # first element is the number of ridge functions
+  # second element are the spline degrees of freedom
+  params_list = list()
+  
+  counter = 1
+  
+  for (r in 1:my_max_ridge_functions){
+    for(df in my_spline_df){
+      params_list[[counter]] = c(r, df)
+      
+      counter = counter + 1
+    }
+  }
+  
+  
   # init parallel
   sfInit(cpus = my_ncores, parallel = T)
   
   sfExport(list = c("my_data", my_metrics_functions,
-                    "my_id_train", "my_max_ridge_functions", "my_spline_df",
+                    "my_id_train", "my_max_ridge_functions", "my_spline_df", "params_list",
                     "my_weights"))
   
-  for(r in 1:my_max_ridge_functions){
-    sfExport(list = c("r"))
-    
-    temp_metric = sfLapply(my_spline_df,
-                           fun = function(df) 
-                             USED.Metrics(predict(ppr(y ~ .,
-                                                      data = my_data[my_id_train,],
-                                                      nterms = r,
-                                                      sm.method = "spline",
-                                                      df = df),
-                                                  my_data[-my_id_train,]), my_data$y[-my_id_train],
-                                          weights = my_weights))
+  temp_metric = sfLapply(params_list,
+                         fun = function(el) 
+                           USED.Metrics(predict(ppr(y ~ .,
+                                                    data = my_data[my_id_train,],
+                                                    nterms = el[1],
+                                                    sm.method = "spline",
+                                                    df = el[2]),
+                                                my_data[-my_id_train,]), my_data$y[-my_id_train],
+                                        weights = my_weights))
+  
 
-    # unlist to the right dimensions matrix
-    metrics_array[r,,] = matrix(unlist(temp_metric), ncol = my_n_metrics, byrow = T)
-    
-     
-    
-    print(paste0("n ridge functions: ", r, collapse = ""))
+  counter = 1
+  
+  for (r in 1:my_max_ridge_functions){
+    for(df in 1:length(my_spline_df)){
+      metrics_array[r, df, ] = temp_metric[[counter]]
+      
+      counter = counter + 1
+    }
   }
   
+  print(paste0("n ridge functions: ", r, collapse = ""))
   rm(temp_metric)
   gc()
   
-  
   return(metrics_array)
-}
+  }
 
+# test
+sss = sss[1:100,]
 
 ppr_metrics = PPRRegulationTrainTestParallel(my_data = sss,
                                              my_id_train = id_cb1,
@@ -1113,25 +1084,51 @@ ppr_metrics = PPRRegulationTrainTestParallel(my_data = sss,
                                              my_metrics_functions = MY_USED_METRICS,
                                              my_ncores = N_CORES)
 
-  
-
-
 # 1.b) Regulation: CV -------
+
+ppr_metrics_cv = PPRRegulationCVParallel(my_data = sss,
+                                      my_id_list_cv = ID_CV_LIST,
+                                      my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+                                      my_spline_df = PPR_DF_SM,
+                                      my_metrics_names = METRICS_NAMES,
+                                      my_weights = MY_WEIGHTS,
+                                      my_metrics_functions = MY_USED_METRICS,
+                                      my_ncores = N_CORES)
+
 
 
 # 2) final model -------
 
-mod_ppr1 = ppr(y ~ .,
+ppr_best_params = PPRExtractBestParams(ppr_metrics)
+
+print("ppr best params")
+ppr_best_params
+
+ppr_model = ppr(y ~ .,
                data = sss,
-               nterms = ppr_best_n_ridges,
+               nterms = ppr_best_params[[METRIC_CHOSEN_NAME]][["n_ridge_functions"]],
                sm.method = "spline",
-               df = 2) 
+               df = ppr_best_params[[METRIC_CHOSEN_NAME]][["spline_df"]]) 
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "PPR",
-                              USED.Metrics(predict(mod_ppr1, vvv), vvv$y))
+                              USED.Metrics(predict(ppr_model, vvv), vvv$y))
 
 df_metrics
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
+
+file_name_ppr_model = paste(MODELS_FOLDER_RELATIVE_PATH,
+                            "ppr_model",
+                            ".Rdata", collapse = "", sep = "")
+
+save(ppr_model, file = file_name_ppr_model)
+
+rm(ppr_model)
+gc()
+
+
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Random Forest ------------------------------
