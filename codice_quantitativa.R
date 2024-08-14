@@ -9,17 +9,17 @@ N_CORES = parallel::detectCores()
 
 
 #////////////////////////////////////////////////////////////////////////////
-# Costruzione metrica di valutazione e relativo dataframe -------------------
+# Metrics and data.frame --------------------------------------------------
 #////////////////////////////////////////////////////////////////////////////
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Quantitativa -------------------------------
+# Quantitative response ---------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 source("loss_functions.R")
 
 # °°°°°°°°°°°°°°°°°°°°°°° Warning: °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-# cambia la funzione di errore per il problema specifico
+# change functions for specific problems
 
 # in generale uso sia MAE che MSE
 USED.Metrics = function(y.pred, y.test, weights = 1){
@@ -47,11 +47,11 @@ LIST_SD_ACCESS_NAME = "se"
 MY_USED_METRICS = c("USED.Metrics", "MAE.Loss", "MSE.Loss")
 
 # /////////////////////////////////////////////////////////////////
-#------------------------ Stima e Verifica ------------------------
+#------------------------ Train & Test ------------------------
 # /////////////////////////////////////////////////////////////////
 
 
-# Eventualmente modificare la proporzione
+# eventually change the proportion
 id_stima = sample(1:NROW(dati), 0.75 * NROW(dati))
 
 sss = dati[id_stima,]
@@ -59,40 +59,32 @@ vvv = dati[-id_stima,]
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Selezione parametri - Convalida sulla stima  -------------------
+# Parameter tuning: Train & Test on Train subset  --------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# In caso di convalida nell'insieme di stima
 id_cb1 = sample(1:NROW(sss), 0.8 * NROW(sss))
 
-# rimozione dati originali
+# delete original data.frame from main memory
 rm(dati)
 gc()
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Selezione parametri Costruzione ID Fold convalida incrociata  -------------------
+# Parameter tuning: cross validation on train: building cv folds  -------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# selezione parametri tramite cv
-
-# numero fold
 K_FOLDS = 10
 
 NROW_sss = NROW(sss)
 
-# matrice degli id dei fold della convalida incrociata
-# NOTA: data la non garantita perfetta divisibilità del numero di osservazioni
-# per il numero di fold è possibile che un fold abbia meno osservazioni degli altri
-
-# ordine casuale degli id
 SHUFFLED_ID = sample(1:NROW_sss, NROW_sss)
 
+# NOTE: if the row number of sss is not a multiple of K_FOLDS
+# the last fold repeats some ids from the first
+# this is fixed in the code below
 id_matrix_cv = matrix(SHUFFLED_ID, ncol = K_FOLDS)
 
-# converto la matrice in lista per poter avere degli elementi
-# (vettori) con un diverso numero di osservazioni
-# ogni colonna diventa un elemento della lista
 
+# conversion of matrix in list of elements: each element contains a subset of ids
 ID_CV_LIST = list()
 
 for(j in 1:ncol(id_matrix_cv)){
@@ -102,12 +94,8 @@ for(j in 1:ncol(id_matrix_cv)){
 rm(id_matrix_cv)
 gc()
 
-# se ottengo Warning: non divisibilità perfetta
-# significa che l'ultimo elemento lista contiene 
-# degli id che sono presenti anche nel primo elemento
-# sistemo eliminando dall'ultimo elemento della lista gli id presenti anche nel primo elemento
 
-# controllo il resto della divisione
+# repeated ids fixing
 integer_division_cv = NROW_sss %/% K_FOLDS
 modulo_cv = NROW_sss %% K_FOLDS
 
@@ -117,41 +105,36 @@ if(modulo_cv != 0){
 
 source("cv_functions.R")
 
-
+# FALSE = traditional CV on all folds
+# TRUE -> use only first fold to test and all other to fit
+USE_ONLY_FIRST_FOLD = FALSE
 # /////////////////////////////////////////////////////////////////
-#------------------------ Analisi esplorative ---------------------
+#------------------------ Explorative Data Analysis ---------------
 # /////////////////////////////////////////////////////////////////
 
-# Analisi esplorativa sulla stima 
-# eventuali inflazioni di zeri
+
+# (on train set)
+
+# check distribution of marginal response
 
 hist(sss$y,nclass = 100)
 summary(sss$y)
 
-# possiamo provare a trasformare la risposta
-# ATTENZIONE se y è <= 0 -> trasforma in modo adeguato
+# check logaritm, a transformation (traslation) is maybe needed before
 hist(log(sss$y), nclass = 100)
 
-# anche se le distribuzioni marginali non 
-# forniscono informazioni riguardo alle condizionate
-# se per il problema in questione è sensato possiamo impiegare 
-# come nuova rispota il logaritmo della precedente y
-
-# nota: in in questo modo la differenza dei logaritmi corrisponde
-# al logaritmo del rapporto
-
-
+# NOTE: if logarithm is considered as response the difference of log
+# is the log of the ratio
 
 # /////////////////////////////////////////////////////////////////
-#------------------------ Modelli ---------------------------------
+#------------------------ MODELS ---------------------------------
 # /////////////////////////////////////////////////////////////////
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Media e Mediana --------------------
+# Mean and Median --------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# aggiunta media e mediana della risposta sull'insieme di stima come possibili modelli
-# (per valutare se modelli più complessi hanno senso)
+# Not considering predictors
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "sss mean",
@@ -165,16 +148,15 @@ df_metrics = na.omit(df_metrics)
 
 df_metrics
 
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Modello lineare Forward --------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Step linear model --------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 # AIC criterion is used for model selection
 
 lm0 = lm(y ~ 1, data = sss)
 
 # NO Interaction -----------
-# °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 lm_step_no_interaction = step(lm0, scope = formula_no_interaction_yes_intercept,
                  direction = "forward")
 
@@ -202,7 +184,7 @@ gc()
 
 # YES Interaction -----------
 
-# computazionalmente costoso (probabilmente)
+# °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: slow°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 lm_step_yes_interaction = step(lm0, scope = formula_yes_interaction_yes_intercept,
                                direction = "forward")
 
@@ -213,9 +195,10 @@ df_metrics = Add_Test_Metric(df_metrics,
                               "lm_step_yes_interaction",
                               USED.Metrics(predict(lm_step_yes_interaction, newdata = vvv), vvv$y))
 
+df_metrics
+
 # save the model as .Rdata
 # then remove it from main memory
-
 file_name_lm_step_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                          "lm_step_yes_interaction",
                                          ".Rdata", collapse = "", sep = "")
@@ -232,25 +215,23 @@ save(df_metrics, file = "df_metrics.Rdata")
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Ridge e Lasso ------------------------------
+# Ridge & Lasso ------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Compromesso varianza - distorsione: convalida incrociata sull'insieme di stima
 
-# valuta: se ci sono molte esplicative qualitative -> model.matrix con molti zeri
+
+# sparse is preferred is there are many categorical predictors (sparse matrix)
 library(Matrix)
 X_mm_no_interaction_sss =  sparse.model.matrix(formula_no_interaction_no_intercept, data = sss)
 X_mm_no_interaction_vvv =  sparse.model.matrix(formula_no_interaction_no_intercept, data = vvv)
 
-# # oneroso
+# computational heavy
 X_mm_yes_interaction_sss =  sparse.model.matrix(formula_yes_interaction_no_intercept, data = sss)
 X_mm_yes_interaction_vvv =  sparse.model.matrix(formula_yes_interaction_no_intercept, data = vvv)
 
 # default
-# stima 
 # X_mm_no_interaction_sss = model.matrix(formula_no_interaction_no_intercept, data = sss)
 # X_mm_no_interaction_vvv = model.matrix(formula_no_interaction_no_intercept, data = vvv)
 
-# Interazioni: stima 
 # X_mm_yes_interaction_sss = model.matrix(formula_yes_interaction_no_intercept, data = sss)
 # X_mm_yes_interaction_vvv = model.matrix(formula_yes_interaction_no_intercept, data = vvv)
 
@@ -272,7 +253,8 @@ ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
                                               my_y = sss$y,
                                               my_alpha = 0,
                                               my_lambda_vals = lambda_vals,
-                                              my_weights = MY_WEIGHTS)
+                                              my_weights = MY_WEIGHTS,
+                                              use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
 # ridge_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
 #                                                       my_metric_names = METRICS_NAMES,
@@ -282,7 +264,8 @@ ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
 #                                                       my_lambda_vals = lambda_vals,
 #                                                       my_weights = MY_WEIGHTS,
 #                                                       my_metrics_functions = MY_USED_METRICS,
-#                                                       my_ncores = N_CORES)
+#                                                       my_ncores = N_CORES,
+#                                                       use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
 ridge_no_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_metric_matrix = ridge_no_interaction_metrics[["metrics"]],
@@ -342,12 +325,14 @@ ridge_no_interaction = glmnet(x = X_mm_no_interaction_sss,
 
 # rm(ridge_cv_no_interaction)
 
-# previsione ed errore
 df_metrics = Add_Test_Metric(df_metrics,
                               "ridge_no_interaction",
                               USED.Metrics(predict(ridge_no_interaction, newx = X_mm_no_interaction_vvv),vvv$y))
 
 df_metrics
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
 
 file_name_ridge_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                           "ridge_no_interaction",
@@ -355,7 +340,6 @@ file_name_ridge_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
 
 save(ridge_no_interaction, file = file_name_ridge_no_interaction)
 
-# elimino dalla memoria l'oggetto ridge_cv
 rm(ridge_no_interaction)
 gc()
 
@@ -369,7 +353,8 @@ lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
 #                                               my_y = sss$y,
 #                                               my_alpha = 0,
 #                                               my_lambda_vals = lambda_vals,
-#                                               my_weights = MY_WEIGHTS)
+#                                               my_weights = MY_WEIGHTS,
+#                                               use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
 ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
                                                       my_metric_names = METRICS_NAMES,
@@ -379,11 +364,12 @@ ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIS
                                                       my_lambda_vals = lambda_vals,
                                                       my_weights = MY_WEIGHTS,
                                                       my_metrics_functions = MY_USED_METRICS,
-                                                      my_ncores = N_CORES)
+                                                      my_ncores = N_CORES,
+                                                      use_only_first_fold = TRUE)
 
 ridge_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_metric_matrix = ridge_yes_interaction_metrics[["metrics"]],
-                                         my_one_se_best = TRUE,
+                                         my_one_se_best = FALSE,
                                          my_higher_more_complex = FALSE,
                                          my_se_matrix = ridge_yes_interaction_metrics[["se"]],
                                          my_metric_names = METRICS_NAMES)
@@ -447,13 +433,15 @@ df_metrics = Add_Test_Metric(df_metrics,
 
 df_metrics
 
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
+
 file_name_ridge_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                        "ridge_yes_interaction",
                                        ".Rdata", collapse = "", sep = "")
 
 save(ridge_yes_interaction, file = file_name_ridge_yes_interaction)
 
-# elimino dalla memoria l'oggetto ridge_cv
 rm(ridge_yes_interaction)
 gc()
 
@@ -471,7 +459,8 @@ lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
                                               my_y = sss$y,
                                               my_alpha = 1,
                                               my_lambda_vals = lambda_vals,
-                                              my_weights = MY_WEIGHTS)
+                                              my_weights = MY_WEIGHTS,
+                                              use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
 # lasso_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
 #                                                       my_metric_names = METRICS_NAMES,
@@ -481,7 +470,8 @@ lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
 #                                                       my_lambda_vals = lambda_vals,
 #                                                       my_weights = MY_WEIGHTS,
 #                                                       my_metrics_functions = MY_USED_METRICS,
-#                                                       my_ncores = N_CORES)
+#                                                       my_ncores = N_CORES,
+#                                                       use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
 lasso_no_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_metric_matrix = lasso_no_interaction_metrics[["metrics"]],
@@ -542,12 +532,14 @@ lasso_no_interaction = glmnet(x = X_mm_no_interaction_sss,
 
 # rm(lasso_cv_no_interaction)
 
-# previsione ed errore
 df_metrics = Add_Test_Metric(df_metrics,
                              "lasso_no_interaction",
                              USED.Metrics(predict(lasso_no_interaction, newx = X_mm_no_interaction_vvv),vvv$y))
 
 df_metrics
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
 
 file_name_lasso_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                        "lasso_no_interaction",
@@ -555,7 +547,7 @@ file_name_lasso_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
 
 save(lasso_no_interaction, file = file_name_lasso_no_interaction)
 
-# elimino dalla memoria l'oggetto lasso_cv
+
 rm(lasso_no_interaction)
 gc()
 
@@ -569,7 +561,8 @@ lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
 #                                                my_y = sss$y,
 #                                                my_alpha = 1,
 #                                                my_lambda_vals = lambda_vals,
-#                                                my_weights = MY_WEIGHTS)
+#                                                my_weights = MY_WEIGHTS,
+#                                                use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
 lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
                                                       my_metric_names = METRICS_NAMES,
@@ -579,11 +572,12 @@ lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIS
                                                       my_lambda_vals = lambda_vals,
                                                       my_weights = MY_WEIGHTS,
                                                       my_metrics_functions = MY_USED_METRICS,
-                                                      my_ncores = N_CORES)
+                                                      my_ncores = N_CORES,
+                                                      use_only_first_fold = FALSE)
 
 lasso_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                           my_metric_matrix = lasso_yes_interaction_metrics[["metrics"]],
-                                          my_one_se_best = TRUE,
+                                          my_one_se_best = FALSE,
                                           my_higher_more_complex = FALSE,
                                           my_se_matrix = lasso_yes_interaction_metrics[["se"]],
                                           my_metric_names = METRICS_NAMES)
@@ -638,12 +632,14 @@ lasso_yes_interaction = glmnet(x = X_mm_yes_interaction_sss,
 
 # rm(lasso_cv_yes_interaction)
 
-# previsione ed errore
 df_metrics = Add_Test_Metric(df_metrics,
                              "lasso_yes_interaction",
                              USED.Metrics(predict(lasso_yes_interaction, newx = X_mm_yes_interaction_vvv),vvv$y))
 
 df_metrics
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
 
 file_name_lasso_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                         "lasso_yes_interaction",
@@ -651,7 +647,6 @@ file_name_lasso_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
 
 save(lasso_yes_interaction, file = file_name_lasso_yes_interaction)
 
-# elimiyes dalla memoria l'oggetto lasso_cv
 rm(lasso_yes_interaction)
 gc()
 
@@ -663,15 +658,15 @@ gc()
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Albero -------------------------------------
+# Tree -------------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(tree)
 
-# Selezione del modello
+# Model selection
 
 # 0) Full tree which to be pruned ------
 
-# default: molto fitto
+# default: overfit
 tree_full = tree(y ~.,
                  data = sss[id_cb1,],
                  control = tree.control(nobs = length(id_cb1),
@@ -680,7 +675,7 @@ tree_full = tree(y ~.,
 
 
 
-# controllo che sia sovraadattato
+# check overfitting
 plot(tree_full)
 
 
@@ -701,7 +696,8 @@ tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv = ID_CV_LIST,
                                        my_ncores = N_CORES,
                                        my_weights = MY_WEIGHTS,
                                        my_mindev = 1e-04,
-                                       my_minsize = 5)
+                                       my_minsize = 5,
+                                       use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
 tree_best_summary = CvMetricBest(my_param_values = 2:TREE_MAX_SIZE,
                                  my_metric_matrix = tree_cv_metrics[["metrics"]],
@@ -732,7 +728,7 @@ tree_best_size
 
 # 1.b) Size: train - test -----------
 
-# potatura
+# pruning
 # tree_pruned = prune.tree(tree_full,
 #                          newdata = sss[-id_cb1,])
 # 
@@ -790,27 +786,20 @@ save(df_metrics, file = "df_metrics.Rdata")
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(gam)
 
-# Controllo del compromesso varianza distorsione: 
-# selezione step tramite gradi di libertà equivalenti
+# step selection via GCV
 
 # stepwise forward: AIC based on generalized df
 gam0 = gam(y ~ 1, data = sss)
 
-# riconosce le qualitative se sono fattori
+# gam recognizes factor predictors
 my_gam_scope = gam.scope(sss[,-y_index], arg = c("df=2", "df=3", "df=4", "df=5", "df=6"))
 
-# prova anche parallelo
+# try parallel (linux only)
 # require(doMC)
 # registerDoMC(cores= N_CORES)
 # step.Gam(gam0, my_gam_scope, parallel=TRUE)
 
 gam_step = step.Gam(gam0, scope = my_gam_scope)
-
-# salvo il modello finale
-# y ~ x2 + x3 + x7 + s(x8, df = 2)
-
-# gam_step = gam(y ~ Sottocategoria + s(Obiettivo, df = 4) + s(Durata, df = 4) + Anno,
-#                 data = sss)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "gam_step",
@@ -836,19 +825,21 @@ save(df_metrics, file = "df_metrics.Rdata")
 # MARS ---------------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# devo ottenere gli indici delle colonne
-# delle variabili qualitative della matrice del disegno (senza intercetta)
-# poichè trasformando il data.frame in matrice del modello 
-# i nomi delle variabili quantitative rimangono invariati
-# selezioniamo prima quest'ultime 
+# factor predictors indexes are needed
+# since in the model.matrix quantitative predictors don't change colum names
+# (opposite to factors -> indicator matrix for each except one value)
+# we first get the quantitative predictor indexes
+# and then we do a set difference
+
 num_index = which(colnames(X_mm_no_interaction_sss) %in% var_num_names)
 factor_index = setdiff(1:NCOL(X_mm_no_interaction_sss), num_index)
 
 
 library(polspline)
 
-# Controllo del compromesso varianza distorsione: 
-# criterio della convalida incrociata generalizzata
+# step selection via GCV
+# only interaction of two terms are admitted 
+# (computational and time constraint)
 
 mars_step = polymars(responses = sss$y,
                  predictors = X_mm_no_interaction_sss,
@@ -907,13 +898,10 @@ gc()
 # PPR ------------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# Scelgo il parametro di regolazione: numero di funzioni dorsali tramite
-# stima convalida sul sottoinsieme di stima
-
-# numero di possibili funzioni dorsali
+# max number of ridge functions
 PPR_MAX_RIDGE_FUNCTIONS = 4
 
-# numero di possibili gradi di libertà (equivalenti) delle smoothing splines
+# possible spline degrees of freedom
 PPR_DF_SM = 2:6
 
 
@@ -1054,6 +1042,9 @@ PPRRegulationTrainTestParallel = function(my_data = sss,
                                                 my_data[-my_id_train,]), my_data$y[-my_id_train],
                                         weights = my_weights))
   
+  # stop cluster
+  sfStop()
+  
 
   counter = 1
   
@@ -1065,15 +1056,12 @@ PPRRegulationTrainTestParallel = function(my_data = sss,
     }
   }
   
-  print(paste0("n ridge functions: ", r, collapse = ""))
   rm(temp_metric)
   gc()
   
   return(metrics_array)
   }
 
-# test
-sss = sss[1:100,]
 
 ppr_metrics = PPRRegulationTrainTestParallel(my_data = sss,
                                              my_id_train = id_cb1,
@@ -1084,16 +1072,19 @@ ppr_metrics = PPRRegulationTrainTestParallel(my_data = sss,
                                              my_metrics_functions = MY_USED_METRICS,
                                              my_ncores = N_CORES)
 
+
+
 # 1.b) Regulation: CV -------
 
-ppr_metrics_cv = PPRRegulationCVParallel(my_data = sss,
+ppr_metrics = PPRRegulationCVParallel(my_data = sss,
                                       my_id_list_cv = ID_CV_LIST,
                                       my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
                                       my_spline_df = PPR_DF_SM,
                                       my_metrics_names = METRICS_NAMES,
                                       my_weights = MY_WEIGHTS,
                                       my_metrics_functions = MY_USED_METRICS,
-                                      my_ncores = N_CORES)
+                                      my_ncores = N_CORES,
+                                      use_only_first_fold = TRUE)
 
 
 
@@ -1143,13 +1134,14 @@ library(ranger)
 
 library(snowfall)
 
-parallel::detectCores() # quanti core a disposizione?
 
+
+sfInit(cpus = N_CORES, parallel = T)
 sfLibrary(ranger)
+sfExport(list = c("sss"))
 
 
 # esportiamo tutti gli oggetti necessari
-
 
 
 # scelta del numero di esplicative a ogni split
@@ -1173,7 +1165,7 @@ err = rep(NA, m_max - 1)
 for(i in seq(2, m_max)){
   sfExport(list = c("i"))
   
-  err[i] = sum(sfSapply(rep(1:4),
+  err[i] = sum(sfSapply(rep(1:8),
                         function(x) ranger(y ~., data = sss,
                                            mtry = i,
                                            num.trees = 50,
@@ -1185,8 +1177,9 @@ for(i in seq(2, m_max)){
 err 
 
 best_mtry = which.min(err)
+
+print("best mtry random forest")
 best_mtry
-# 2
 
 sfExport(list = c("best_mtry"))
 
@@ -1234,7 +1227,19 @@ df_metrics
 # Importanza delle variabili
 vimp = importance(random_forest_model)
 
-dotchart(vimp[order(vimp)])
+PlotAndSave(my_plotting_function =  function() dotchart(vimp[order(vimp)]),
+            my_path_plot = my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                                "random_forest_importance_plot.jpeg",
+                                                collapse = ""))
+
+# save metrics and model
+file_name_random_forest = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                       "random_forests",
+                                       ".Rdata", collapse = "", sep = "")
+
+save(random_forest_model, file = file_name_random_forest)
+
+
 
 rm(random_forest_model)
 gc()
@@ -1248,7 +1253,7 @@ gc()
 # varianza distorsione tramite errore out of bag (bootstrap)
 
 library(ipred)
-sfInit(cpus = 4, parallel = T)
+sfInit(cpus = N_CORES, parallel = T)
 sfExport(list = c("sss"))
 
 sfLibrary(ipred)
@@ -1290,6 +1295,14 @@ df_metrics = Add_Test_Metric(df_metrics,
 
 df_metrics
 
+# save metrics and model
+file_name_bagging = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                 "bagging",
+                                 ".Rdata", collapse = "", sep = "")
+
+save(bagging_model, file = file_name_bagging)
+
+
 rm(bagging_model)
 gc()
 
@@ -1304,22 +1317,22 @@ nodi = 1:10
 
 hyp_grid = expand.grid(decay,nodi)
 
-# Costruiamo una funzione che prenda come input una matrice parametri,
-# stimi la rete per ogni valore, e restiuisca una matrice con valori dei parametri + errori su convalida
-regola_nn = function(pars, sss, id_cb1){
-  err = data.frame(pars, err = NA)
-  for(i in 1:NROW(pars)){
-    n1 = nnet(y ~ . , data=sss[id_cb1,], 
-              size=pars[i,2], decay=pars[i,1],
-              MaxNWts = 1500, maxit = 500, 
-              trace = T)
-    err$err[i] = MSE.Loss(predict(n1, sss[-id_cb1,], type = 'raw'), sss$y[-id_cb1])
-  }
-  return(err)
-}
-
-# proviamo
-regola_nn(hyp_grid[21:23,], sss, id_cb1)
+# # Costruiamo una funzione che prenda come input una matrice parametri,
+# # stimi la rete per ogni valore, e restiuisca una matrice con valori dei parametri + errori su convalida
+# regola_nn = function(pars, sss, id_cb1){
+#   err = data.frame(pars, err = NA)
+#   for(i in 1:NROW(pars)){
+#     n1 = nnet(y ~ . , data=sss[id_cb1,], 
+#               size=pars[i,2], decay=pars[i,1],
+#               MaxNWts = 1500, maxit = 500, 
+#               trace = T)
+#     err$err[i] = MSE.Loss(predict(n1, sss[-id_cb1,], type = 'raw'), sss$y[-id_cb1])
+#   }
+#   return(err)
+# }
+# 
+# # proviamo
+# regola_nn(hyp_grid[21:23,], sss, id_cb1)
 
 
 # Parallelo

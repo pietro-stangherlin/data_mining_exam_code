@@ -19,6 +19,8 @@ N_CORES = parallel::detectCores()
 #' @param my_y (vector): y glmnet argument
 #' @param my_alpha (int): alpha passed to glmnet (0 -> ridge, 1 -> lasso)
 #' @param my_lambda_vals (vector): vector of lambda used
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
 #'
 #'
 #' @return (list): list of two matrix 
@@ -32,10 +34,15 @@ ManualCvGlmnet = function(my_id_list_cv,
                           my_y,
                           my_alpha,
                           my_lambda_vals,
-                          my_weights = 1){
+                          my_weights = 1,
+                          use_only_first_fold = FALSE){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metric_names)
+  
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
   
   temp_metrics_array_cv = array(NA, dim = c(n_k_fold, length(my_lambda_vals), my_n_metrics))
   
@@ -73,8 +80,16 @@ ManualCvGlmnet = function(my_id_list_cv,
   colnames(cv_metrics_se) = my_metric_names
   
   for (i in 1:my_n_metrics){
-    cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
-    cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
+    for (i in 1:my_n_metrics){
+      if(use_only_first_fold == FALSE){
+        cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+        cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)}
+      
+      else{
+        cv_metrics[,i] = temp_metrics_array_cv[1,,i]
+        cv_metrics_se[,i] = 0
+      }
+    }
   }
   
   return(list("metrics" = cv_metrics,
@@ -92,14 +107,16 @@ ManualCvGlmnet = function(my_id_list_cv,
 #' @param my_y (vector): y glmnet argument
 #' @param my_alpha (int): alpha passed to glmnet (0 -> ridge, 1 -> lasso)
 #' @param my_lambda_vals (vector): vector of lambda used
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
+
 #' 
 #' @param my_metrics_functions (vector of characters): vector of loss function names feed to snowfall (parallel)
 #' example  my_metrics_functions = c("USED.Metrics", "MAE.Loss", "MSE.Loss").
 #' NOTE: if USED.Metrics contains some other functions they must be present as well, like the example
 #' which is also the default
-#' 
-#' @param my_ncores (int): number of cores used for parallel computing
 #'
+#' @param my_ncores (int): number of cores used for parallel computing
 #'
 #' @return (list): list of two matrix 
 #' the first contains the CV folds averaged metrics for each parameter value and each metric 
@@ -114,18 +131,24 @@ ManualCvGlmnetParallel = function(my_id_list_cv,
                                   my_lambda_vals,
                                   my_weights = 1,
                                   my_metrics_functions = c("USED.Metrics", "MAE.Loss", "MSE.Loss"),
-                                  my_ncores = N_CORES){
+                                  my_ncores = N_CORES,
+                                  use_only_first_fold = FALSE){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metric_names)
   
-  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, length(my_lambda_vals), my_n_metrics))
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
+  
+  temp_metrics_array_cv = array(0, dim = c(n_k_fold, length(my_lambda_vals), my_n_metrics))
   
   # init parallel cluster
   sfInit(cpus = my_ncores, parallel = T)
   
   sfLibrary(glmnet)
-  sfExport(list = c("my_x", "my_y", "my_alpha", "my_lambda_vals", "my_weights", my_metrics_functions))
+  sfExport(list = c("my_x", "my_y", "my_alpha",
+                    "my_lambda_vals", "my_weights", my_metrics_functions))
   
   
   for (k in 1:n_k_fold){
@@ -163,8 +186,14 @@ ManualCvGlmnetParallel = function(my_id_list_cv,
   colnames(cv_metrics_se) = my_metric_names
   
   for (i in 1:my_n_metrics){
-    cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
-    cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
+    if(use_only_first_fold == FALSE){
+      cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+      cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)}
+    
+    else{
+      cv_metrics[,i] = temp_metrics_array_cv[1,,i]
+      cv_metrics_se[,i] = 0
+    }
   }
   
   return(list("metrics" = cv_metrics,
@@ -186,6 +215,8 @@ PPR_MAX_RIDGE_FUNCTIONS = 4
 #' @param my_metrics_names (vector of chars)
 #' @param my_weights (vector of nums):
 #'  same length as the difference: NROW(my_data) - length(my_id_train)
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
 #' 
 #' @return (array):
 #' first dimension (with names): 1:my_max_ridge_functions
@@ -199,10 +230,15 @@ PPRRegulationCV = function(my_data = sss,
                            my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
                            my_spline_df = PPR_DF_SM,
                            my_metrics_names = METRICS_NAMES,
-                           my_weights = MY_WEIGHTS){
+                           my_weights = MY_WEIGHTS,
+                           use_only_first_fold = FALSE){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metrics_names)
+  
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
   
   temp_metrics_array_cv = array(NA,
                         dim = c(my_max_ridge_functions,
@@ -264,7 +300,8 @@ PPRRegulationCV = function(my_data = sss,
 #' @param my_metrics_names (vector of chars)
 #' @param my_weights (vector of nums):
 #'  same length as the difference: NROW(my_data) - length(my_id_train)
-#'
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
 #' @param my_metrics_functions (vector of characters): vector of loss function names feed to snowfall (parallel)
 #' example  my_metrics_functions = c("USED.Metrics", "MAE.Loss", "MSE.Loss").
 #' NOTE: if USED.Metrics contains some other functions they must be present as well, like the example
@@ -285,10 +322,15 @@ PPRRegulationCVParallel = function(my_data = sss,
                                    my_metrics_names = METRICS_NAMES,
                                    my_weights = MY_WEIGHTS,
                                    my_metrics_functions = MY_USED_METRICS,
-                                   my_ncores = N_CORES){
+                                   my_ncores = N_CORES,
+                                   use_only_first_fold = FALSE){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metrics_names)
+  
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
   
   # needed to do parallel
   # each list element contains a vector of length 2
@@ -318,17 +360,16 @@ PPRRegulationCVParallel = function(my_data = sss,
                                         length(my_spline_df),
                                         length(my_metrics_names),
                                         n_k_fold),
-                                
                                 dimnames = list(1:my_max_ridge_functions,
                                                 my_spline_df,
                                                 my_metrics_names,
-                                                rep(NA, n_k_fold)))
-  
-  print("lol")
+                                                1:n_k_fold))
+
   
   for (k in 1:n_k_fold){
     id_train = unlist(my_id_list_cv[-k])
     id_test = my_id_list_cv[[k]]
+    
     
     sfExport(list = c("id_train", "id_test"))
     
@@ -345,7 +386,6 @@ PPRRegulationCVParallel = function(my_data = sss,
     
     counter = 1
     
-    print("lul")
     for (r in 1:my_max_ridge_functions){
       for(df in 1:length(my_spline_df)){
         temp_metrics_array_cv[r, df, ,k] = temp_metric[[counter]]
@@ -357,7 +397,9 @@ PPRRegulationCVParallel = function(my_data = sss,
     print(paste("fold = ", k, collapse = ""))
   }
   
-  print("lel")
+  # stop cluster
+  sfStop()
+  
   metrics_array = array(0,
                         dim = c(my_max_ridge_functions,
                                 length(my_spline_df),
@@ -373,11 +415,12 @@ PPRRegulationCVParallel = function(my_data = sss,
   
   metrics_array = metrics_array / n_k_fold
   
-  rm(mod)
+  rm(temp_metric)
   gc()
   
   return(metrics_array)
 }
+
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -393,7 +436,9 @@ library(tree)
 #' @param my_n_metrics (int): number of loss functions used, use global variable
 #' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
 #' @param my_data (data.frame): data.frame used
-#'
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
+#' 
 #' @param my_max_size (int): max size of the pruned tree
 #'
 #' @return matrix of CV folds averaged errors for each parameter value and each loss function 
@@ -404,11 +449,16 @@ ManualCvTree = function(n_k_fold,
                         my_max_size = TREE_MAX_SIZE,
                         my_weights = 1,
                         my_mindev = 1e-05,
-                        my_minsize = 2){
+                        my_minsize = 2,
+                        use_only_first_fold = FALSE){
   
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metric_names)
+  
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
   
   # we use my_max_size - 1 because we start with size = 2
   temp_metrics_array_cv = array(NA, dim = c(n_k_fold, my_max_size - 1, my_n_metrics))
@@ -478,8 +528,14 @@ ManualCvTree = function(n_k_fold,
   colnames(cv_metrics_se) = my_metric_names
   
   for (i in 1:my_n_metrics){
-    cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
-    cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
+    if(use_only_first_fold == FALSE){
+      cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+      cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)}
+    
+    else{
+      cv_metrics[,i] = temp_metrics_array_cv[1,,i]
+      cv_metrics_se[,i] = 0
+    }
   }
   
   return(list("metrics" = cv_metrics,
@@ -494,6 +550,8 @@ ManualCvTree = function(n_k_fold,
 #' @param my_n_metrics (int): number of loss functions used, use global variable
 #' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
 #' @param my_data (data.frame): data.frame used
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
 #'
 #' @param my_max_size (int): max size of the pruned tree
 #' 
@@ -511,10 +569,15 @@ ManualCvTreeParallel = function(my_id_list_cv,
                                 my_ncores = N_CORES,
                                 my_weights = 1,
                                 my_mindev = 1e-05,
-                                my_minsize = 2){
+                                my_minsize = 2,
+                                use_only_first_fold = FALSE){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metric_names)
+  
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
   
   
   # init parallel
@@ -597,8 +660,14 @@ ManualCvTreeParallel = function(my_id_list_cv,
   colnames(cv_metrics_se) = my_metric_names
   
   for (i in 1:my_n_metrics){
-    cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
-    cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
+    if(use_only_first_fold == FALSE){
+      cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+      cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)}
+    
+    else{
+      cv_metrics[,i] = temp_metrics_array_cv[1,,i]
+      cv_metrics_se[,i] = 0
+    }
   }
   
   return(list("metrics" = cv_metrics,
@@ -638,6 +707,8 @@ library(randomForest)
 #' @param my_n_bs_trees: (int) or (vector of int) number of bootstrap trees 
 #' @param fix_tress_bool (bool): TRUE if fixed number of bootstrap trees, number of variables changes,
 #' else FALSE
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
 #' 
 #' @description this function can be used (separately, not simultaneuosly) for two parameters check
 #' 1) if fix_tress_bool == TRUE -> my_n_bs_trees is fixed at its maximum if not already an integer
@@ -656,10 +727,15 @@ ManualCvRF = function(my_id_list_cv,
                       my_n_variables = 1:RF_MAX_VARIABLES,
                       my_n_bs_trees = 10:RF_N_BS_TREES,
                       fix_trees_bool = TRUE,
-                      my_weights = 1){
+                      my_weights = 1,
+                      use_only_first_fold = FALSE){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metric_names)
+  
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
   
   # fixed number of bootstrap trees, number of variables changes
   if(fix_trees_bool == TRUE){
@@ -752,6 +828,8 @@ ManualCvRF = function(my_id_list_cv,
 #' @param my_n_bs_trees: (int) or (vector of int) number of bootstrap trees 
 #' @param fix_tress_bool (bool): TRUE if fixed number of bootstrap trees, number of variables changes,
 #' else FALSE
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
 #' 
 #' @param my_metrics_functions (vector of characters): vector of loss function names feed to snowfall (parallel)
 #' example  my_metrics_functions = c("USED.Metrics", "MAE.Loss", "MSE.Loss").
@@ -777,10 +855,15 @@ ManualCvRFParallel = function(my_id_list_cv,
                               fix_trees_bool = TRUE,
                               my_metrics_functions = MY_USED_METRICS,
                               my_weights = MY_WEIGHTS,
-                              my_ncores = N_CORES){
+                              my_ncores = N_CORES,
+                              use_only_first_fold = FALSE){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metric_names)
+  
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
   
   # init parallel
   sfInit(cpus = my_ncores, parallel = T)
