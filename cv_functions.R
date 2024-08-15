@@ -61,7 +61,7 @@ ManualCvGlmnet = function(my_id_list_cv,
     
     for (j in 1:length(my_lambda_vals)){
       temp_metrics_array_cv[k,j,] = USED.Metrics(temp_predictions[,j], my_y[id_test],
-                                                 weights = my_weights)
+                                                 weights = my_weights[id_test])
     }
     
     rm(temp_glmnet)
@@ -163,7 +163,8 @@ ManualCvGlmnetParallel = function(my_id_list_cv,
                              USED.Metrics(predict(glmnet(x = my_x[id_train,], 
                                                          y = my_y[id_train], alpha = my_alpha,
                                                          lambda = lambda),
-                                                  my_x[id_test,]), my_y[id_test]))
+                                                  my_x[id_test,]), my_y[id_test],
+                                          weights = my_weights[id_test]))
     
     # unlist to the right dimensions matrix
     temp_metrics_array_cv[k,,] = matrix(unlist(temp_metric), ncol = my_n_metrics, byrow = T)
@@ -265,7 +266,7 @@ PPRRegulationCV = function(my_data = sss,
         
         temp_metrics_array_cv[r, df, ,k] = USED.Metrics(predict(mod, my_data[-id_train,]),
                                               my_data$y[id_test],
-                                              weights = MY_WEIGHTS)
+                                              weights = my_weights[id_test])
       }
       print(paste0("n ridge functions: ", r, collapse = ""))
     }
@@ -381,7 +382,7 @@ PPRRegulationCVParallel = function(my_data = sss,
                                                       sm.method = "spline",
                                                       df = el[2]),
                                                   my_data[id_test,]), my_data$y[id_test],
-                                          weights = my_weights))
+                                          weights = my_weights[id_test]))
     
     
     counter = 1
@@ -507,7 +508,8 @@ ManualCvTree = function(n_k_fold,
       # prediction error
       # s-1 because we start by size = 2
       temp_metrics_array_cv[k,s-1,] = USED.Metrics(predict(temp_tree_pruned, my_data[id_test,]),
-                                                   my_data$y[id_test], weights = my_weights)
+                                                   my_data$y[id_test],
+                                                   weights = my_weights[id_test])
       print(paste("tree size: ", s, collapse = ""))
     }
     
@@ -635,7 +637,7 @@ ManualCvTreeParallel = function(my_id_list_cv,
                              USED.Metrics(predict(prune.tree(temp_tree_full, best = s,
                                                              newdata = my_data[id_pruning,]),
                                                   my_data[id_test,]), my_data$y[id_test],
-                                          weights = my_weights))
+                                          weights = my_weights[id_test]))
     
     # unlist to the right dimensions matrix
     temp_metrics_array_cv[k,,] = matrix(unlist(temp_metric), ncol = my_n_metrics, byrow = T)
@@ -784,7 +786,8 @@ ManualCvRF = function(my_id_list_cv,
                                mtry = my_n_variables, ntree = my_n_bs_trees[t])
         # prediction error
         temp_metrics_array_cv[k,t,] = USED.Metrics(predict(temp_rf, my_data[id_test,]),
-                                                   my_data$y[id_test], weights = my_weights)
+                                                   my_data$y[id_test],
+                                                   weights = my_weights[id_test])
         print(paste(c("n trees = ", my_n_bs_trees[t]), collapse = ""))
       }
     }
@@ -912,7 +915,7 @@ ManualCvRFParallel = function(my_id_list_cv,
                                USED.Metrics(predict(randomForest(y ~., data = my_data[id_train,],
                                                                  mtry = my_n_variables[m], ntree = my_n_bs_trees),
                                                     my_data[id_test,]), my_data$y[id_test],
-                                            weights = my_weights))
+                                            weights = my_weights[id_test]))
       
       # unlist to the right dimensions matrix
       temp_metrics_array_cv[k,my_n_variables,] = matrix(unlist(temp_metric), ncol = my_n_metrics, byrow = T)

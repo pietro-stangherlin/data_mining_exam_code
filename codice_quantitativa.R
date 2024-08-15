@@ -68,6 +68,16 @@ id_cb1 = sample(1:NROW(sss), 0.8 * NROW(sss))
 rm(dati)
 gc()
 
+
+# ///////////////////////////////////
+# Weights ---------------
+# //////////////////////////////////
+
+# weights used for each metric function
+# default 1
+MY_WEIGHTS_sss = rep(1, NROW(sss))
+MY_WEIGHTS_vvv = rep(1, NROW(vvv))
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Parameter tuning: cross validation on train: building cv folds  -------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -138,11 +148,15 @@ hist(log(sss$y), nclass = 100)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "sss mean",
-                              USED.Metrics(mean(sss$y), vvv$y))
+                              USED.Metrics(mean(sss$y),
+                                           vvv$y,
+                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "sss median",
-                              USED.Metrics(median(sss$y), vvv$y))
+                              USED.Metrics(median(sss$y),
+                                           vvv$y,
+                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics = na.omit(df_metrics)
 
@@ -166,7 +180,9 @@ formula(lm_step_no_interaction)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "lm_step_no_interaction",
-                              USED.Metrics(predict(lm_step_no_interaction, newdata = vvv), vvv$y))
+                              USED.Metrics(predict(lm_step_no_interaction, newdata = vvv),
+                                           vvv$y,
+                                           weights = MY_WEIGHTS_vvv))
 df_metrics
 
 
@@ -193,7 +209,9 @@ formula(lm_step_yes_interaction)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "lm_step_yes_interaction",
-                              USED.Metrics(predict(lm_step_yes_interaction, newdata = vvv), vvv$y))
+                              USED.Metrics(predict(lm_step_yes_interaction, newdata = vvv),
+                                           vvv$y,
+                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
@@ -253,7 +271,7 @@ ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
                                               my_y = sss$y,
                                               my_alpha = 0,
                                               my_lambda_vals = lambda_vals,
-                                              my_weights = MY_WEIGHTS,
+                                              my_weights = MY_WEIGHTS_sss,
                                               use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
 # ridge_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
@@ -262,7 +280,7 @@ ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
 #                                                       my_y = sss$y,
 #                                                       my_alpha = 0,
 #                                                       my_lambda_vals = lambda_vals,
-#                                                       my_weights = MY_WEIGHTS,
+#                                                       my_weights = MY_WEIGHTS_sss,
 #                                                       my_metrics_functions = MY_USED_METRICS,
 #                                                       my_ncores = N_CORES,
 #                                                       use_only_first_fold = USE_ONLY_FIRST_FOLD)
@@ -327,7 +345,9 @@ ridge_no_interaction = glmnet(x = X_mm_no_interaction_sss,
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "ridge_no_interaction",
-                              USED.Metrics(predict(ridge_no_interaction, newx = X_mm_no_interaction_vvv),vvv$y))
+                              USED.Metrics(predict(ridge_no_interaction, newx = X_mm_no_interaction_vvv),
+                                           vvv$y,
+                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
@@ -353,7 +373,7 @@ lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
 #                                               my_y = sss$y,
 #                                               my_alpha = 0,
 #                                               my_lambda_vals = lambda_vals,
-#                                               my_weights = MY_WEIGHTS,
+#                                               my_weights = MY_WEIGHTS_sss,
 #                                               use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
 ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
@@ -362,7 +382,7 @@ ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIS
                                                       my_y = sss$y,
                                                       my_alpha = 0,
                                                       my_lambda_vals = lambda_vals,
-                                                      my_weights = MY_WEIGHTS,
+                                                      my_weights = MY_WEIGHTS_sss,
                                                       my_metrics_functions = MY_USED_METRICS,
                                                       my_ncores = N_CORES,
                                                       use_only_first_fold = TRUE)
@@ -382,7 +402,7 @@ PlotAndSave(function()(
                 my_se_matrix = ridge_yes_interaction_metrics[["se"]],
                 my_best_param_values =log(ExtractBestParams(ridge_yes_int_best_summary)),
                 my_metric_names = METRICS_NAMES,
-                my_main = "Ridge yes interaction CV metrics",
+                my_main = "Ridge yes interaction metrics",
                 my_xlab = " log lambda")),
             my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                                      "ridge_yes_int_metrics_plot.jpeg",
@@ -429,7 +449,9 @@ ridge_yes_interaction = glmnet(x = X_mm_yes_interaction_sss,
 # previsione ed errore
 df_metrics = Add_Test_Metric(df_metrics,
                              "ridge_yes_interaction",
-                             USED.Metrics(predict(ridge_yes_interaction, newx = X_mm_yes_interaction_vvv),vvv$y))
+                             USED.Metrics(predict(ridge_yes_interaction, newx = X_mm_yes_interaction_vvv),
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
@@ -459,7 +481,7 @@ lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
                                               my_y = sss$y,
                                               my_alpha = 1,
                                               my_lambda_vals = lambda_vals,
-                                              my_weights = MY_WEIGHTS,
+                                              my_weights = MY_WEIGHTS_sss,
                                               use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
 # lasso_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
@@ -468,7 +490,7 @@ lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
 #                                                       my_y = sss$y,
 #                                                       my_alpha = 1,
 #                                                       my_lambda_vals = lambda_vals,
-#                                                       my_weights = MY_WEIGHTS,
+#                                                       my_weights = MY_WEIGHTS_sss,
 #                                                       my_metrics_functions = MY_USED_METRICS,
 #                                                       my_ncores = N_CORES,
 #                                                       use_only_first_fold = USE_ONLY_FIRST_FOLD)
@@ -534,7 +556,9 @@ lasso_no_interaction = glmnet(x = X_mm_no_interaction_sss,
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "lasso_no_interaction",
-                             USED.Metrics(predict(lasso_no_interaction, newx = X_mm_no_interaction_vvv),vvv$y))
+                             USED.Metrics(predict(lasso_no_interaction, newx = X_mm_no_interaction_vvv),
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
@@ -561,7 +585,7 @@ lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
 #                                                my_y = sss$y,
 #                                                my_alpha = 1,
 #                                                my_lambda_vals = lambda_vals,
-#                                                my_weights = MY_WEIGHTS,
+#                                                my_weights = MY_WEIGHTS_sss,
 #                                                use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
 lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
@@ -570,10 +594,10 @@ lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIS
                                                       my_y = sss$y,
                                                       my_alpha = 1,
                                                       my_lambda_vals = lambda_vals,
-                                                      my_weights = MY_WEIGHTS,
+                                                      my_weights = MY_WEIGHTS_sss,
                                                       my_metrics_functions = MY_USED_METRICS,
                                                       my_ncores = N_CORES,
-                                                      use_only_first_fold = FALSE)
+                                                      use_only_first_fold = TRUE)
 
 lasso_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                           my_metric_matrix = lasso_yes_interaction_metrics[["metrics"]],
@@ -588,7 +612,7 @@ PlotAndSave(function()(
                 my_se_matrix = lasso_yes_interaction_metrics[["se"]],
                 my_best_param_values =log(ExtractBestParams(lasso_yes_int_best_summary)),
                 my_metric_names = METRICS_NAMES,
-                my_main = "lasso yes interaction CV metrics",
+                my_main = "lasso yes interaction metrics",
                 my_xlab = " log lambda")),
             my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                                      "lasso_yes_int_metrics_plot.jpeg",
@@ -634,7 +658,9 @@ lasso_yes_interaction = glmnet(x = X_mm_yes_interaction_sss,
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "lasso_yes_interaction",
-                             USED.Metrics(predict(lasso_yes_interaction, newx = X_mm_yes_interaction_vvv),vvv$y))
+                             USED.Metrics(predict(lasso_yes_interaction, newx = X_mm_yes_interaction_vvv),
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
@@ -694,7 +720,7 @@ tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv = ID_CV_LIST,
                                        my_max_size = TREE_MAX_SIZE,
                                        my_metrics_functions = MY_USED_METRICS,
                                        my_ncores = N_CORES,
-                                       my_weights = MY_WEIGHTS,
+                                       my_weights = MY_WEIGHTS_sss,
                                        my_mindev = 1e-04,
                                        my_minsize = 5,
                                        use_only_first_fold = USE_ONLY_FIRST_FOLD)
@@ -760,7 +786,9 @@ text(final_tree_pruned, cex = 0.7)
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "tree_pruned best",
-                             USED.Metrics(predict(final_tree_pruned, newdata = vvv), vvv$y))
+                             USED.Metrics(predict(final_tree_pruned, newdata = vvv),
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
 
 
 df_metrics
@@ -803,7 +831,9 @@ gam_step = step.Gam(gam0, scope = my_gam_scope)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "gam_step",
-                              USED.Metrics(predict(gam_step, newdata = vvv), vvv$y))
+                              USED.Metrics(predict(gam_step, newdata = vvv),
+                                           vvv$y,
+                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
@@ -816,6 +846,7 @@ save(gam_step, file = file_name_gam_step)
 
 
 rm(gam_step)
+rm(gam0)
 gc()
 
 # save the df_metrics as .Rdata
@@ -860,7 +891,7 @@ temp_plot_function = function(){
        ylab = "GCV",
        main = "MARS step GCV")
   legend(c("topright"),
-         legend = c("crescita", "potatura"),
+         legend = c("growing", "pruning"),
          col = c("black","red"),
          pch = 16)
   
@@ -876,7 +907,9 @@ PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PAT
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "MARS",
-                              USED.Metrics(predict(mars_step, x = X_mm_no_interaction_vvv),vvv$y))
+                              USED.Metrics(predict(mars_step, x = X_mm_no_interaction_vvv),
+                                           vvv$y,
+                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
@@ -931,7 +964,7 @@ PPRRegulationTrainTest = function(my_data = sss,
                                   my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
                                   my_spline_df = PPR_DF_SM,
                                   my_metrics_names = METRICS_NAMES,
-                                  my_weights = MY_WEIGHTS){
+                                  my_weights = MY_WEIGHTS_sss){
   metrics_array = array(NA,
                         dim = c(my_max_ridge_functions,
                                 length(my_spline_df),
@@ -951,7 +984,7 @@ PPRRegulationTrainTest = function(my_data = sss,
       
       metrics_array[r, df, ] = USED.Metrics(predict(mod, my_data[-my_id_train,]),
                                                 my_data$y[-my_id_train],
-                                                weights = MY_WEIGHTS)
+                                                weights = my_weights)
     }
     print(paste0("n ridge functions: ", r, collapse = ""))
   }
@@ -992,7 +1025,7 @@ PPRRegulationTrainTestParallel = function(my_data = sss,
                                           my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
                                           my_spline_df = PPR_DF_SM,
                                           my_metrics_names = METRICS_NAMES,
-                                          my_weights = MY_WEIGHTS,
+                                          my_weights = MY_WEIGHTS_sss,
                                           my_metrics_functions = MY_USED_METRICS,
                                           my_ncores = N_CORES){
   
@@ -1063,14 +1096,14 @@ PPRRegulationTrainTestParallel = function(my_data = sss,
   }
 
 
-ppr_metrics = PPRRegulationTrainTestParallel(my_data = sss,
-                                             my_id_train = id_cb1,
-                                             my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
-                                             my_spline_df = PPR_DF_SM,
-                                             my_metrics_names = METRICS_NAMES,
-                                             my_weights = MY_WEIGHTS,
-                                             my_metrics_functions = MY_USED_METRICS,
-                                             my_ncores = N_CORES)
+# ppr_metrics = PPRRegulationTrainTestParallel(my_data = sss,
+#                                              my_id_train = id_cb1,
+#                                              my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+#                                              my_spline_df = PPR_DF_SM,
+#                                              my_metrics_names = METRICS_NAMES,
+#                                              my_weights = MY_WEIGHTS_sss,
+#                                              my_metrics_functions = MY_USED_METRICS,
+#                                              my_ncores = N_CORES)
 
 
 
@@ -1081,7 +1114,7 @@ ppr_metrics = PPRRegulationCVParallel(my_data = sss,
                                       my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
                                       my_spline_df = PPR_DF_SM,
                                       my_metrics_names = METRICS_NAMES,
-                                      my_weights = MY_WEIGHTS,
+                                      my_weights = MY_WEIGHTS_sss,
                                       my_metrics_functions = MY_USED_METRICS,
                                       my_ncores = N_CORES,
                                       use_only_first_fold = TRUE)
@@ -1103,7 +1136,9 @@ ppr_model = ppr(y ~ .,
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "PPR",
-                              USED.Metrics(predict(ppr_model, vvv), vvv$y))
+                              USED.Metrics(predict(ppr_model, vvv),
+                                           vvv$y,
+                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
@@ -1220,7 +1255,9 @@ random_forest_model = ranger(y ~., sss,
 df_metrics = Add_Test_Metric(df_metrics,
                               "Random Forest",
                               USED.Metrics(predict(random_forest_model, data = vvv,
-                                                type = "response")$predictions, vvv$y))
+                                                type = "response")$predictions,
+                                           vvv$y,
+                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
@@ -1290,7 +1327,9 @@ bagging_model = bagging(y ~., sss, nbag = 400, coob = FALSE)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "Bagging",
-                              USED.Metrics(predict(bagging_model, newdata = vvv), vvv$y))
+                              USED.Metrics(predict(bagging_model, newdata = vvv),
+                                           vvv$y,
+                                           weights = MY_WEIGHTS_vvv))
 
 
 df_metrics
@@ -1312,10 +1351,10 @@ gc()
 # Solo in parallelo altrimenti ci mette troppo tempo
 
 
-decay = 10^seq(-3, -1, length=10)
-nodi = 1:10
-
-hyp_grid = expand.grid(decay,nodi)
+# decay = 10^seq(-3, -1, length=10)
+# nodi = 1:10
+# 
+# hyp_grid = expand.grid(decay,nodi)
 
 # # Costruiamo una funzione che prenda come input una matrice parametri,
 # # stimi la rete per ogni valore, e restiuisca una matrice con valori dei parametri + errori su convalida
@@ -1343,45 +1382,87 @@ hyp_grid = expand.grid(decay,nodi)
 # Conviene creare una lista in cui ogni elemento sia la matrice di parametri provati
 # da quel processore
 
-pp = sample(rep(1:4, each = NROW(hyp_grid)/4))
-pars_list = lapply(1:4, function(l) hyp_grid[pp == l,])
-
-
-library(snowfall)
-sfInit(cpus = 4, parallel = T)
-sfLibrary(nnet) # carichiamo la libreria
-sfExport(list = c("sss", "id_cb1", "regola_nn", "MSE.Loss")) # esportiamo tutte le quantita' necessarie
-
-# Non restituisce messaggi, possiamo solo aspettare
-nn_error = sfLapply(pars_list, function(x) regola_nn(x, sss, id_cb1))
-sfStop()
-
-err_nn = do.call(rbind, nn_error)
-
-par(mfrow = c(1,2))
-plot(err_nn$Var1, err_nn$err, xlab = "Weight decay", ylab = "Errore di convalida", pch = 16)
-plot(err_nn$Var2, err_nn$err, xlab = "Numero di nodi", ylab = "Errore di convalida", pch = 16)
-
-err_nn[which.min(err_nn$err),]
-
-# 0.03593814    4 0.5818981 (ovviamente potrebbe variare a seconda di: punti iniziali, stima/convalida, etc
-
-set.seed(123)
-mod_nn = nnet(diagnosi ~ . , data=sss[,], size = 4, decay = 0.03593,
-              MaxNWts = 1500, maxit = 2000, trace = T)
-
-pr_nn = predict(mod_nn, vvv, type = "class")
+# pp = sample(rep(1:4, each = NROW(hyp_grid)/4))
+# pars_list = lapply(1:4, function(l) hyp_grid[pp == l,])
+# 
+# 
+# library(snowfall)
+# sfInit(cpus = 4, parallel = T)
+# sfLibrary(nnet) # carichiamo la libreria
+# sfExport(list = c("sss", "id_cb1", "regola_nn", "MSE.Loss")) # esportiamo tutte le quantita' necessarie
+# 
+# # Non restituisce messaggi, possiamo solo aspettare
+# nn_error = sfLapply(pars_list, function(x) regola_nn(x, sss, id_cb1))
+# sfStop()
+# 
+# err_nn = do.call(rbind, nn_error)
+# 
+# par(mfrow = c(1,2))
+# plot(err_nn$Var1, err_nn$err, xlab = "Weight decay", ylab = "Errore di convalida", pch = 16)
+# plot(err_nn$Var2, err_nn$err, xlab = "Numero di nodi", ylab = "Errore di convalida", pch = 16)
+# 
+# err_nn[which.min(err_nn$err),]
+# 
+# # 0.03593814    4 0.5818981 (ovviamente potrebbe variare a seconda di: punti iniziali, stima/convalida, etc
+# 
+# set.seed(123)
+# mod_nn = nnet(diagnosi ~ . , data=sss[,], size = 4, decay = 0.03593,
+#               MaxNWts = 1500, maxit = 2000, trace = T)
+# 
+# pr_nn = predict(mod_nn, vvv, type = "class")
 
 # /////////////////////////////////////////////////////////////////
 #------------------------ Sintesi Finale -------------------------
 # /////////////////////////////////////////////////////////////////
-
 
 cbind(df_metrics[,1],
       apply(df_metrics[,2:NCOL(df_metrics)], 2, function(col) round(as.numeric(col), 2)))
 # Comparazione modelli
 # selezione modelli migliori e commenti su questi:
 # es -> vanno meglio modelli con interazioni oppure modelli additivi
+
+# Linear Step ---------------
+
+load(MODELS_FOLDER_RELATIVE_PATH,
+      "lm_step_no_interaction",
+      ".Rdata", collapse = "", sep = "")
+
+load(MODELS_FOLDER_RELATIVE_PATH,
+      "lm_step_yes_interaction",
+      ".Rdata", collapse = "", sep = "")
+
+# Ridge - Lasso ----------------
+
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
+           "ridge_no_interaction",
+           ".Rdata", collapse = "", sep = ""))
+
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
+           "ridge_yes_interaction",
+           ".Rdata", collapse = "", sep = ""))
+
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
+           "lasso_no_interaction",
+           ".Rdata", collapse = "", sep = ""))
+
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
+           "lasso_yes_interaction",
+           ".Rdata", collapse = "", sep = ""))
+
+# Tree -----------------
+load(MODELS_FOLDER_RELATIVE_PATH,
+      "final_tree_pruned",
+      ".Rdata", collapse = "", sep = "")
+
+# Gam ------------------
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
+           "gam_step",
+           ".Rdata", collapse = "", sep = ""))
+
+# MARS -----------------
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
+           "mars_step",
+           ".Rdata", collapse = "", sep = ""))
 
 
 
@@ -1402,10 +1483,9 @@ cbind(df_metrics[,1],
 
 # mars_step_pred_names_matrix
 
-# per il grafico lo devo ristimare
 # plot(mars_step, predictor1 = 40, predictor2 = 30)
 
-# Random Forest: guarda grafico importanza variabili
+
 
 
 

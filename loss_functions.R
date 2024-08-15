@@ -318,7 +318,7 @@ PPRExtractBestParams = function(my_metrics_array,
     }
     
     # get the indexes of the matrix 
-    temp_index_col = temp_best_index %/% n_row_metrics + temp_best_index %% n_row_metrics
+    temp_index_col = temp_best_index %/% n_row_metrics + ((temp_best_index %% n_row_metrics) > 0)
     temp_index_row = which(indexes_matrix[,temp_index_col] == temp_best_index)
     
     # save the optimal values
