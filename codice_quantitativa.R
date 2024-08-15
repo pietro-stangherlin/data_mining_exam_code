@@ -1193,7 +1193,7 @@ m_max = NCOL(sss) - 1 # sottraggo 1 per la variabile risposta
 # procedura sub-ottimale, ma la impiego per ragioni computazionali
 # prima scelgo il numero di esplicative a ogni split,
 # una volta scelto controllo la convergenza dell'errore basata sul numero di alberi
-err = rep(NA, m_max - 1)
+err = rep(NA, m_max)
 
 # °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 
@@ -1205,10 +1205,11 @@ for(i in seq(2, m_max)){
                                            mtry = i,
                                            num.trees = 50,
                                            oob.error = TRUE)$prediction.error))
-  print(i)
+  print(paste("mtry: ", i, collapse = ""))
   gc()
 }
 
+print("Random forest error for each mtry")
 err 
 
 best_mtry = which.min(err)
@@ -1230,20 +1231,23 @@ for(j in 10:100){
                                                     mtry = best_mtry,
                                                     num.trees = j,
                                                     oob.error = TRUE)$prediction.error))
-  print(j)
+  print(paste("number of trees: ", j, collapse = ""))
   gc()
 }
 
 sfStop()
 
-plot((1:length(err_rf_trees)) * 4, err_rf_trees,
-     xlab = "numero di alberi bootstrap",
-     ylab = "errore out of bag",
-     pch = 16,
-     main = "Random Forest")
+PlotAndSave(my_plotting_function =  function()plot((1:length(err_rf_trees)) * 4, err_rf_trees,
+                           xlab = "Bootstrap trees number",
+                           ylab = "Out of bag MSE",
+                           pch = 16,
+                           main = "Random Forest"),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "random_forest_convergence_plot.jpeg",
+                                 collapse = ""))
 
-# ATTENZIONE: cambiare 
-# best_mtry = 2
+
+
 
 # modello finale e previsioni
 random_forest_model = ranger(y ~., sss,
@@ -1261,11 +1265,18 @@ df_metrics = Add_Test_Metric(df_metrics,
 
 df_metrics
 
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
+
+
 # Importanza delle variabili
 vimp = importance(random_forest_model)
 
-PlotAndSave(my_plotting_function =  function() dotchart(vimp[order(vimp)]),
-            my_path_plot = my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+PlotAndSave(my_plotting_function =  function() dotchart(vimp[order(vimp)],
+                                                        pch = 16,
+                                                        main = "Random Forest Variable Importance Permutation",
+                                                        xlab = "deviance increase"),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                                 "random_forest_importance_plot.jpeg",
                                                 collapse = ""))
 
@@ -1286,8 +1297,7 @@ gc()
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Bagging ------------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Il bagging tiene conto del compromesso 
-# varianza distorsione tramite errore out of bag (bootstrap)
+
 
 library(ipred)
 sfInit(cpus = N_CORES, parallel = T)
@@ -1333,6 +1343,10 @@ df_metrics = Add_Test_Metric(df_metrics,
 
 
 df_metrics
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
+
 
 # save metrics and model
 file_name_bagging = paste(MODELS_FOLDER_RELATIVE_PATH,
@@ -1415,21 +1429,40 @@ gc()
 #------------------------ Sintesi Finale -------------------------
 # /////////////////////////////////////////////////////////////////
 
-cbind(df_metrics[,1],
+rounded_df = cbind(df_metrics[,1],
       apply(df_metrics[,2:NCOL(df_metrics)], 2, function(col) round(as.numeric(col), 2)))
+
+rounded_df %>% orde
 # Comparazione modelli
 # selezione modelli migliori e commenti su questi:
 # es -> vanno meglio modelli con interazioni oppure modelli additivi
 
+# select the first k numbers with greater absolute value
+
+coef(lm_step_no_interaction) %>% sort(decreasing = T)
+
+coef(lm_step_no_interaction) %>% boxplot()
+
 # Linear Step ---------------
 
-load(MODELS_FOLDER_RELATIVE_PATH,
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
       "lm_step_no_interaction",
-      ".Rdata", collapse = "", sep = "")
+      ".Rdata", collapse = "", sep = ""))
 
-load(MODELS_FOLDER_RELATIVE_PATH,
+print(paste("coefficients ", "lm_step_no_interaction", collapse = ""))
+which(abs(coef(lm_step_no_interaction)) > 1)
+
+dotchart(coef(lm_step_no_interaction) %>% sort(decreasing = TRUE))
+
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
       "lm_step_yes_interaction",
-      ".Rdata", collapse = "", sep = "")
+      ".Rdata", collapse = "", sep = ""))
+
+print(paste("coefficients ", "lm_step_yes_interaction", collapse = ""))
+coef(lm_step_yes_interaction)
+
+dotchart(coef(lm_step_yes_interaction) %>% sort(decreasing = TRUE))
+
 
 # Ridge - Lasso ----------------
 
@@ -1449,41 +1482,35 @@ load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "lasso_yes_interaction",
            ".Rdata", collapse = "", sep = ""))
 
+dotchart(coef(lasso_yes_interaction)[which(coef(lasso_yes_interaction) != 0)] %>% as.numeric())
+
 # Tree -----------------
-load(MODELS_FOLDER_RELATIVE_PATH,
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
       "final_tree_pruned",
-      ".Rdata", collapse = "", sep = "")
+      ".Rdata", collapse = "", sep = ""))
+
+plot(final_tree_pruned)
+text(final_tree_pruned, cex = 0.7)
 
 # Gam ------------------
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "gam_step",
            ".Rdata", collapse = "", sep = ""))
 
+plot(gam_step, terms = c("s(x8, df = 4)"), se = T)
+
 # MARS -----------------
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "mars_step",
            ".Rdata", collapse = "", sep = ""))
 
+print("mars step model")
+mars_step$model
 
+# plots
+plot(mars_step, predictor1 = 5)
 
-# Ridge 
-# Lasso
-
-# guarda coefficienti
-# predict.glmnet(oggetto, type = "coefficients")
-
-
-# Modello additivo : lo devo ri-stimare nel caso
-# plot(gam_step, terms = c("s(Durata, df = 4)"), se = T)
-
-# summary(gam_step)
-
-# MARS:
-# mars_step$model
-
-# mars_step_pred_names_matrix
-
-# plot(mars_step, predictor1 = 40, predictor2 = 30)
+# plot(mars_step, predictor1 = 7, predictor2 = 30)
 
 
 
