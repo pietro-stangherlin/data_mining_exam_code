@@ -75,7 +75,7 @@ gc()
 
 # weights used for each metric function
 # default 1
-MY_WEIGHTS_sss = rep(1, NROW(sss))
+MY_WEIGHTS_sss = rep(1, NROW(sss)) 
 MY_WEIGHTS_vvv = rep(1, NROW(vvv))
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -862,9 +862,13 @@ save(df_metrics, file = "df_metrics.Rdata")
 # we first get the quantitative predictor indexes
 # and then we do a set difference
 
-num_index = which(colnames(X_mm_no_interaction_sss) %in% var_num_names)
-factor_index = setdiff(1:NCOL(X_mm_no_interaction_sss), num_index)
+# matrix case
+# num_index = which(colnames(X_mm_no_interaction_sss) %in% var_num_names)
+# factor_index = setdiff(1:NCOL(X_mm_no_interaction_sss), num_index)
 
+# data.frame case
+num_index = which(colnames(sss[,-y_index]) %in% var_num_names)
+factor_index = setdiff(1:NCOL(sss[,-y_index]), num_index)
 
 library(polspline)
 
@@ -872,11 +876,14 @@ library(polspline)
 # only interaction of two terms are admitted 
 # (computational and time constraint)
 
+# if problems: -> but usually give problems
+# weights = MY_WEIGHTS_sss
+
 mars_step = polymars(responses = sss$y,
-                 predictors = X_mm_no_interaction_sss,
+                 predictors = sss[,-y_index],
                  gcv = 1,
                  factors = factor_index,
-                 maxsize = 60)
+                 maxsize = 50)
 
 
 print("mars min size gcv")
@@ -916,11 +923,15 @@ df_metrics
 # save the df_metrics as .Rdata
 save(df_metrics, file = "df_metrics.Rdata")
 
+mars_names = colnames(sss[,-y_index])
+
 file_name_mars_step = paste(MODELS_FOLDER_RELATIVE_PATH,
                            "mars_step",
                            ".Rdata", collapse = "", sep = "")
 
-save(mars_step, file = file_name_mars_step)
+save(mars_step,
+     mars_names,
+     file = file_name_mars_step)
 
 
 
@@ -1449,19 +1460,34 @@ load(paste(MODELS_FOLDER_RELATIVE_PATH,
       "lm_step_no_interaction",
       ".Rdata", collapse = "", sep = ""))
 
-print(paste("coefficients ", "lm_step_no_interaction", collapse = ""))
-which(abs(coef(lm_step_no_interaction)) > 1)
+temp_coef = coef(lm_step_no_interaction)
+temp_main = "(abs) greatest linear model coefficients no interaction"
+summary(temp_coef)
 
-dotchart(coef(lm_step_no_interaction) %>% sort(decreasing = TRUE))
+sorted_temp_coef = temp_coef[which((temp_coef < -1) | (temp_coef > 1)) ] %>% sort()
+
+PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "coef_lm_no_int_plot.jpeg",
+                                 collapse = ""))
+
+
+
 
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
       "lm_step_yes_interaction",
       ".Rdata", collapse = "", sep = ""))
 
-print(paste("coefficients ", "lm_step_yes_interaction", collapse = ""))
-coef(lm_step_yes_interaction)
+temp_coef = coef(lm_step_yes_interaction)
+temp_main = "(abs) greatest linear model coefficients yes interaction"
+summary(temp_coef)
 
-dotchart(coef(lm_step_yes_interaction) %>% sort(decreasing = TRUE))
+sorted_temp_coef = temp_coef[which((temp_coef < -1) | (temp_coef > 1)) ] %>% sort()
+PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "coef_lm_yes_int_plot.jpeg",
+                                 collapse = ""))
+
 
 
 # Ridge - Lasso ----------------
@@ -1470,34 +1496,106 @@ load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "ridge_no_interaction",
            ".Rdata", collapse = "", sep = ""))
 
+temp_glmnet_object = predict(ridge_no_interaction, type = "coef") %>% as.matrix()
+temp_coef = temp_glmnet_object[,1]
+
+temp_main = "(abs) greatest ridge coefficients no interaction"
+summary(temp_coef)
+
+sorted_temp_coef = temp_coef[which((temp_coef < -1) | (temp_coef > 0.8)) ] %>% sort()
+
+PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "coef_ridge_no_int_plot.jpeg",
+                                 collapse = ""))
+
+
+
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "ridge_yes_interaction",
            ".Rdata", collapse = "", sep = ""))
+
+temp_glmnet_object = predict(ridge_yes_interaction, type = "coef") %>% as.matrix()
+temp_coef = temp_glmnet_object[,1]
+
+temp_main = "(abs) greatest ridge coefficients yes interaction"
+summary(temp_coef)
+
+sorted_temp_coef = temp_coef[which((temp_coef < -0.8) | (temp_coef > 0.5)) ] %>% sort()
+
+PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "coef_ridge_yes_int_plot.jpeg",
+                                 collapse = ""))
 
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "lasso_no_interaction",
            ".Rdata", collapse = "", sep = ""))
 
+temp_glmnet_object = predict(lasso_no_interaction, type = "coef") %>% as.matrix()
+temp_coef = temp_glmnet_object[,1]
+
+temp_main = "(abs) greatest lasso coefficients no interaction"
+summary(temp_coef)
+
+sorted_temp_coef = temp_coef[which((temp_coef < -2) | (temp_coef > 0.8)) ] %>% sort()
+
+PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "coef_lasso_no_int_plot.jpeg",
+                                 collapse = ""))
+
+
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "lasso_yes_interaction",
            ".Rdata", collapse = "", sep = ""))
 
-dotchart(coef(lasso_yes_interaction)[which(coef(lasso_yes_interaction) != 0)] %>% as.numeric())
+temp_glmnet_object = predict(lasso_yes_interaction, type = "coef") %>% as.matrix()
+temp_coef = temp_glmnet_object[,1]
+
+temp_main = "(abs) greatest lasso coefficients yes interaction"
+summary(temp_coef)
+
+sorted_temp_coef = temp_coef[which((temp_coef < -0.8) | (temp_coef > 0.5)) ] %>% sort()
+
+PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "coef_lasso_yes_int_plot.jpeg",
+                                 collapse = ""))
+
+
 
 # Tree -----------------
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
       "final_tree_pruned",
       ".Rdata", collapse = "", sep = ""))
 
-plot(final_tree_pruned)
-text(final_tree_pruned, cex = 0.7)
+
+
+tree_temp_plot_fun = function(){
+  plot(final_tree_pruned)
+  text(final_tree_pruned, cex = 0.7)
+}
+
+PlotAndSave(my_plotting_function = tree_temp_plot_fun ,
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "tree_pruned_plot.jpeg",
+                                 collapse = ""))
+
 
 # Gam ------------------
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "gam_step",
            ".Rdata", collapse = "", sep = ""))
 
-plot(gam_step, terms = c("s(x8, df = 4)"), se = T)
+summary(gam_step)
+
+PlotAndSave(my_plotting_function = function() plot(gam_step, terms = c("s(x8, df = 4)"), se = T),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "gam_1_plot.jpeg",
+                                 collapse = ""))
+
+
 
 # MARS -----------------
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
@@ -1507,8 +1605,20 @@ load(paste(MODELS_FOLDER_RELATIVE_PATH,
 print("mars step model")
 mars_step$model
 
+mars_names = colnames(sss[,-y_index])
+
+# get the index by variable name
+temp_index = which(mars_names == "x8")
+
+
 # plots
-plot(mars_step, predictor1 = 5)
+PlotAndSave(my_plotting_function = function() plot(mars_step, predictor1 = temp_index),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "mars_1_plot.jpeg",
+                                 collapse = ""))
+
+
+
 
 # plot(mars_step, predictor1 = 7, predictor2 = 30)
 
