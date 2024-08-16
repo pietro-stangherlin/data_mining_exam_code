@@ -80,11 +80,13 @@ threshold = 0.2
 
 df_err_qual = Add_Test_Metric(df_err_qual,
                               "sss threshold",
-                              USED.Loss(rbinom(nrow(vvv), 1, threshold), vvv$y))
-
-df_err_qual
+                              USED.Loss(rbinom(nrow(vvv), 1, threshold),
+                                        vvv$y,
+                                        weights = MY_WEIGHTS_vvv))
 
 df_err_qual = na.omit(df_err_qual)
+
+df_err_qual
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Modello lineare Forward --------------------

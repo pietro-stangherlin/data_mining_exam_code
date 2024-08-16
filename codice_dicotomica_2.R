@@ -1,6 +1,8 @@
 # data wrangling
 library(dplyr)
 
+source("lift_roc.R")
+
 # parallel computing
 library(snowfall)
 
@@ -19,15 +21,23 @@ N_CORES = parallel::detectCores()
 source("loss_functions.R")
 
 # °°°°°°°°°°°°°°°°°°°°°°° Warning: °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-# change functions for specific problems
-
-# in generale uso sia MAE che MSE
-USED.Metrics = function(y.pred, y.test, weights = 1){
-  return(c(MAE.Loss(y.pred, y.test, weights), MSE.Loss(y.pred, y.test, weights)))
+USED.Metrics = function(y.pred, y.test, weights){
+  return(tabella.sommario(y.pred, y.test, weights = weights))
 }
 
 
-df_metrics = data.frame(name = NA, MAE = NA, MSE = NA)
+# anche qua
+df_metrics = data.frame(name = NA,
+                         misclassification = NA,
+                         fp = NA,
+                         fn = NA,
+                         f_score = NA)
+
+
+
+# lista previsioni (punteggi) (se stima - verifica)
+# per LIFT e ROC
+pred_list = list() 
 
 METRICS_NAMES = colnames(df_metrics[,-1])
 
@@ -36,7 +46,7 @@ N_METRICS = length(METRICS_NAMES)
 # names used to extract the metric added to df_metrics
 # change based on the spefific problem
 METRIC_VALUES_NAME = "metric_values"
-METRIC_CHOSEN_NAME = "MSE"
+METRIC_CHOSEN_NAME = "f_score"
 
 # names used for accessing list CV matrix (actual metrics and metrics se)
 LIST_METRICS_ACCESS_NAME = "metrics"
@@ -44,7 +54,7 @@ LIST_SD_ACCESS_NAME = "se"
 
 # metrics names + USED.Loss
 # WARNING: the order should be same as in df_metrics
-MY_USED_METRICS = c("USED.Metrics", "MAE.Loss", "MSE.Loss")
+MY_USED_METRICS = c("USED.Metrics", "tabella.sommario")
 
 # /////////////////////////////////////////////////////////////////
 #------------------------ Train & Test ------------------------
@@ -119,44 +129,36 @@ source("cv_functions.R")
 # TRUE -> use only first fold to test and all other to fit
 USE_ONLY_FIRST_FOLD = FALSE
 # /////////////////////////////////////////////////////////////////
-#------------------------ Explorative Data Analysis ---------------
+#------------------------ Analisi esplorative ---------------------
 # /////////////////////////////////////////////////////////////////
 
+# Analisi esplorativa sulla stima 
+# eventuali inflazioni di zeri
 
-# (on train set)
+# valutiamo se è sbilanciata 
+# ed eventualmente se è ragionevole cambiare la solita soglia a 0.5
+table(sss$y)
 
-# check distribution of marginal response
+# soglia di classificazione: cambia eventualmente con
+# table(sss$y)[2] / NROW(sss)
 
-hist(sss$y,nclass = 100)
-summary(sss$y)
-
-# check logaritm, a transformation (traslation) is maybe needed before
-hist(log(sss$y), nclass = 100)
-
-# NOTE: if logarithm is considered as response the difference of log
-# is the log of the ratio
+MY_THRESHOLD = 0.2
 
 # /////////////////////////////////////////////////////////////////
-#------------------------ MODELS ---------------------------------
+#------------------------ Modelli ---------------------------------
 # /////////////////////////////////////////////////////////////////
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Mean and Median --------------------
+# Classificazione Casuale --------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# Not considering predictors
+# modello classificazione casuale
 
 df_metrics = Add_Test_Metric(df_metrics,
-                              "sss mean",
-                              USED.Metrics(mean(sss$y),
-                                           vvv$y,
-                                           weights = MY_WEIGHTS_vvv))
-
-df_metrics = Add_Test_Metric(df_metrics,
-                              "sss median",
-                              USED.Metrics(median(sss$y),
-                                           vvv$y,
-                                           weights = MY_WEIGHTS_vvv))
+                              "sss threshold",
+                             USED.Metrics(y.pred = rbinom(nrow(vvv), 1, MY_THRESHOLD),
+                                        y.test = vvv$y,
+                                        weights = MY_WEIGHTS_vvv))
 
 df_metrics = na.omit(df_metrics)
 
@@ -166,23 +168,26 @@ df_metrics
 # Step linear model --------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+# se y non è già numerica
+# sss$y = as.numeric(sss$y)
+# vvv$y = as.numeric(vvv$y)
+
 # AIC criterion is used for model selection
 
 lm0 = lm(y ~ 1, data = sss)
 
 # NO Interaction -----------
 lm_step_no_interaction = step(lm0, scope = formula_no_interaction_yes_intercept,
-                 direction = "forward")
+                              direction = "forward")
 
 formula(lm_step_no_interaction)
 
-# load(file_name_lm_step_no_interaction)
-
 df_metrics = Add_Test_Metric(df_metrics,
-                              "lm_step_no_interaction",
-                              USED.Metrics(predict(lm_step_no_interaction, newdata = vvv),
-                                           vvv$y,
-                                           weights = MY_WEIGHTS_vvv))
+                             "lm_step_no_interaction",
+                             USED.Metrics(predict(lm_step_no_interaction, newdata = vvv) >
+                                 MY_THRESHOLD %>% as.numeric,
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
 df_metrics
 
 
@@ -204,22 +209,20 @@ gc()
 lm_step_yes_interaction = step(lm0, scope = formula_yes_interaction_yes_intercept,
                                direction = "forward")
 
-formula(lm_step_yes_interaction)
-
 
 df_metrics = Add_Test_Metric(df_metrics,
-                              "lm_step_yes_interaction",
-                              USED.Metrics(predict(lm_step_yes_interaction, newdata = vvv),
-                                           vvv$y,
-                                           weights = MY_WEIGHTS_vvv))
-
+                             "lm_step_yes_interaction",
+                             USED.Metrics(predict(lm_step_yes_interaction, newdata = vvv) >
+                                            MY_THRESHOLD %>% as.numeric,
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
 df_metrics
 
 # save the model as .Rdata
 # then remove it from main memory
 file_name_lm_step_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
-                                         "lm_step_yes_interaction",
-                                         ".Rdata", collapse = "", sep = "")
+                                          "lm_step_yes_interaction",
+                                          ".Rdata", collapse = "", sep = "")
 
 save(lm_step_yes_interaction, file = file_name_lm_step_yes_interaction)
 
@@ -231,6 +234,69 @@ gc()
 # save the df_metrics as .Rdata
 save(df_metrics, file = "df_metrics.Rdata")
 
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Step GLM --------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# AIC criterion is used for model selection
+
+glm0 = glm(y ~ 1, data = sss, family = "binomial")
+
+# NO Interaction -----------
+glm_step_no_interaction = step(glm0, scope = formula_no_interaction_yes_intercept,
+                              direction = "forward")
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "glm_step_no_interaction",
+                             USED.Metrics(predict(glm_step_no_interaction, newdata = vvv) >
+                                            MY_THRESHOLD %>% as.numeric,
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
+df_metrics
+
+
+# save the model as .Rdata
+# then remove it from main memory
+
+file_name_glm_step_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                         "glm_step_no_interaction",
+                                         ".Rdata", collapse = "", sep = "")
+
+save(glm_step_no_interaction, file = file_name_glm_step_no_interaction)
+
+rm(glm_step_no_interaction)
+gc()
+
+# YES Interaction -----------
+
+# °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: slow°°°°°°°°°°°°°°°°°°°°°°°°°°°°
+glm_step_yes_interaction = step(glm0, scope = formula_yes_interaction_yes_intercept,
+                               direction = "forward")
+
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "glm_step_yes_interaction",
+                             USED.Metrics(predict(glm_step_yes_interaction, newdata = vvv) >
+                                            MY_THRESHOLD,
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
+df_metrics
+
+# save the model as .Rdata
+# then remove it from main memory
+file_name_glm_step_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                          "glm_step_yes_interaction",
+                                          ".Rdata", collapse = "", sep = "")
+
+save(glm_step_yes_interaction, file = file_name_glm_step_yes_interaction)
+
+rm(glm_step_yes_interaction)
+rm(glm0)
+gc()
+
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Ridge & Lasso ------------------------------
@@ -272,7 +338,9 @@ ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
                                               my_alpha = 0,
                                               my_lambda_vals = lambda_vals,
                                               my_weights = MY_WEIGHTS_sss,
-                                              use_only_first_fold = USE_ONLY_FIRST_FOLD)
+                                              use_only_first_fold = USE_ONLY_FIRST_FOLD,
+                                              is_classification = TRUE,
+                                              my_threshold = MY_THRESHOLD)
 
 # ridge_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
 #                                                       my_metric_names = METRICS_NAMES,
@@ -290,7 +358,8 @@ ridge_no_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_one_se_best = TRUE,
                                          my_higher_more_complex = FALSE,
                                          my_se_matrix = ridge_no_interaction_metrics[["se"]],
-                                         my_metric_names = METRICS_NAMES)
+                                         my_metric_names = METRICS_NAMES,
+                                         indexes_metric_max = 4) # f_score: higher better
 
 
 PlotAndSave(function()(
@@ -301,9 +370,9 @@ PlotAndSave(function()(
                 my_metric_names = METRICS_NAMES,
                 my_main = "Ridge no interaction CV metrics",
                 my_xlab = " log lambda")),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                                     "ridge_no_int_metrics_plot.jpeg",
-                                                     collapse = ""))
+  my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                       "ridge_no_int_metrics_plot.jpeg",
+                       collapse = ""))
 
 print("ridge_no_int_best_summary")
 ridge_no_int_best_summary
@@ -344,10 +413,10 @@ ridge_no_interaction = glmnet(x = X_mm_no_interaction_sss,
 # rm(ridge_cv_no_interaction)
 
 df_metrics = Add_Test_Metric(df_metrics,
-                              "ridge_no_interaction",
-                              USED.Metrics(predict(ridge_no_interaction, newx = X_mm_no_interaction_vvv),
-                                           vvv$y,
-                                           weights = MY_WEIGHTS_vvv))
+                             "ridge_no_interaction",
+                             USED.Metrics(predict(ridge_no_interaction, newx = X_mm_no_interaction_vvv) > MY_THRESHOLD,
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
@@ -355,8 +424,8 @@ df_metrics
 save(df_metrics, file = "df_metrics.Rdata")
 
 file_name_ridge_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
-                                          "ridge_no_interaction",
-                                          ".Rdata", collapse = "", sep = "")
+                                       "ridge_no_interaction",
+                                       ".Rdata", collapse = "", sep = "")
 
 save(ridge_no_interaction, file = file_name_ridge_no_interaction)
 
@@ -377,22 +446,23 @@ lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
 #                                               use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
 ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
-                                                      my_metric_names = METRICS_NAMES,
-                                                      my_x = X_mm_yes_interaction_sss,
-                                                      my_y = sss$y,
-                                                      my_alpha = 0,
-                                                      my_lambda_vals = lambda_vals,
-                                                      my_weights = MY_WEIGHTS_sss,
-                                                      my_metrics_functions = MY_USED_METRICS,
-                                                      my_ncores = N_CORES,
-                                                      use_only_first_fold = TRUE)
+                                                       my_metric_names = METRICS_NAMES,
+                                                       my_x = X_mm_yes_interaction_sss,
+                                                       my_y = sss$y,
+                                                       my_alpha = 0,
+                                                       my_lambda_vals = lambda_vals,
+                                                       my_weights = MY_WEIGHTS_sss,
+                                                       my_metrics_functions = MY_USED_METRICS,
+                                                       my_ncores = N_CORES,
+                                                       use_only_first_fold = TRUE,
+                                                       )
 
 ridge_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
-                                         my_metric_matrix = ridge_yes_interaction_metrics[["metrics"]],
-                                         my_one_se_best = FALSE,
-                                         my_higher_more_complex = FALSE,
-                                         my_se_matrix = ridge_yes_interaction_metrics[["se"]],
-                                         my_metric_names = METRICS_NAMES)
+                                          my_metric_matrix = ridge_yes_interaction_metrics[["metrics"]],
+                                          my_one_se_best = FALSE,
+                                          my_higher_more_complex = FALSE,
+                                          my_se_matrix = ridge_yes_interaction_metrics[["se"]],
+                                          my_metric_names = METRICS_NAMES)
 
 
 
@@ -404,17 +474,17 @@ PlotAndSave(function()(
                 my_metric_names = METRICS_NAMES,
                 my_main = "Ridge yes interaction metrics",
                 my_xlab = " log lambda")),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                                     "ridge_yes_int_metrics_plot.jpeg",
-                                                     collapse = ""))
+  my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                       "ridge_yes_int_metrics_plot.jpeg",
+                       collapse = ""))
 
 print("ridge_yes_int_best_summary")
 ridge_yes_int_best_summary
 
 ridge_yes_interaction = glmnet(x = X_mm_yes_interaction_sss,
-                              y = sss$y,
-                              alpha = 0,
-                              lambda = ridge_yes_int_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]])
+                               y = sss$y,
+                               alpha = 0,
+                               lambda = ridge_yes_int_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]])
 
 
 
@@ -459,8 +529,8 @@ df_metrics
 save(df_metrics, file = "df_metrics.Rdata")
 
 file_name_ridge_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
-                                       "ridge_yes_interaction",
-                                       ".Rdata", collapse = "", sep = "")
+                                        "ridge_yes_interaction",
+                                        ".Rdata", collapse = "", sep = "")
 
 save(ridge_yes_interaction, file = file_name_ridge_yes_interaction)
 
@@ -512,9 +582,9 @@ PlotAndSave(function()(
                 my_metric_names = METRICS_NAMES,
                 my_main = "lasso no interaction CV metrics",
                 my_xlab = " log lambda")),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                                     "lasso_no_int_metrics_plot.jpeg",
-                                                     collapse = ""))
+  my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                       "lasso_no_int_metrics_plot.jpeg",
+                       collapse = ""))
 
 print("lasso_no_int_best_summary")
 lasso_no_int_best_summary
@@ -589,15 +659,15 @@ lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
 #                                                use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
 lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
-                                                      my_metric_names = METRICS_NAMES,
-                                                      my_x = X_mm_yes_interaction_sss,
-                                                      my_y = sss$y,
-                                                      my_alpha = 1,
-                                                      my_lambda_vals = lambda_vals,
-                                                      my_weights = MY_WEIGHTS_sss,
-                                                      my_metrics_functions = MY_USED_METRICS,
-                                                      my_ncores = N_CORES,
-                                                      use_only_first_fold = TRUE)
+                                                       my_metric_names = METRICS_NAMES,
+                                                       my_x = X_mm_yes_interaction_sss,
+                                                       my_y = sss$y,
+                                                       my_alpha = 1,
+                                                       my_lambda_vals = lambda_vals,
+                                                       my_weights = MY_WEIGHTS_sss,
+                                                       my_metrics_functions = MY_USED_METRICS,
+                                                       my_ncores = N_CORES,
+                                                       use_only_first_fold = TRUE)
 
 lasso_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                           my_metric_matrix = lasso_yes_interaction_metrics[["metrics"]],
@@ -614,9 +684,9 @@ PlotAndSave(function()(
                 my_metric_names = METRICS_NAMES,
                 my_main = "lasso yes interaction metrics",
                 my_xlab = " log lambda")),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                                     "lasso_yes_int_metrics_plot.jpeg",
-                                                     collapse = ""))
+  my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                       "lasso_yes_int_metrics_plot.jpeg",
+                       collapse = ""))
 
 print("lasso_yes_int_best_summary")
 lasso_yes_int_best_summary
@@ -741,9 +811,9 @@ PlotAndSave(function()(
                 my_metric_names = METRICS_NAMES,
                 my_main = "Tree CV metrics",
                 my_xlab = "size")),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                                     "tree_cv_metrics_plot.jpeg",
-                                                     collapse = ""))
+  my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                       "tree_cv_metrics_plot.jpeg",
+                       collapse = ""))
 
 
 tree_best_size = tree_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]]
@@ -830,16 +900,16 @@ my_gam_scope = gam.scope(sss[,-y_index], arg = c("df=2", "df=3", "df=4", "df=5",
 gam_step = step.Gam(gam0, scope = my_gam_scope)
 
 df_metrics = Add_Test_Metric(df_metrics,
-                              "gam_step",
-                              USED.Metrics(predict(gam_step, newdata = vvv),
-                                           vvv$y,
-                                           weights = MY_WEIGHTS_vvv))
+                             "gam_step",
+                             USED.Metrics(predict(gam_step, newdata = vvv),
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
 file_name_gam_step = paste(MODELS_FOLDER_RELATIVE_PATH,
-                                    "gam_step",
-                                    ".Rdata", collapse = "", sep = "")
+                           "gam_step",
+                           ".Rdata", collapse = "", sep = "")
 
 save(gam_step, file = file_name_gam_step)
 
@@ -880,10 +950,10 @@ library(polspline)
 # weights = MY_WEIGHTS_sss
 
 mars_step = polymars(responses = sss$y,
-                 predictors = sss[,-y_index],
-                 gcv = 1,
-                 factors = factor_index,
-                 maxsize = 50)
+                     predictors = sss[,-y_index],
+                     gcv = 1,
+                     factors = factor_index,
+                     maxsize = 50)
 
 
 print("mars min size gcv")
@@ -913,10 +983,10 @@ PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PAT
 
 
 df_metrics = Add_Test_Metric(df_metrics,
-                              "MARS",
-                              USED.Metrics(predict(mars_step, x = X_mm_no_interaction_vvv),
-                                           vvv$y,
-                                           weights = MY_WEIGHTS_vvv))
+                             "MARS",
+                             USED.Metrics(predict(mars_step, x = X_mm_no_interaction_vvv),
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
@@ -926,8 +996,8 @@ save(df_metrics, file = "df_metrics.Rdata")
 mars_names = colnames(sss[,-y_index])
 
 file_name_mars_step = paste(MODELS_FOLDER_RELATIVE_PATH,
-                           "mars_step",
-                           ".Rdata", collapse = "", sep = "")
+                            "mars_step",
+                            ".Rdata", collapse = "", sep = "")
 
 save(mars_step,
      mars_names,
@@ -981,16 +1051,16 @@ print("ppr best params")
 ppr_best_params
 
 ppr_model = ppr(y ~ .,
-               data = sss,
-               nterms = ppr_best_params[[METRIC_CHOSEN_NAME]][["n_ridge_functions"]],
-               sm.method = "spline",
-               df = ppr_best_params[[METRIC_CHOSEN_NAME]][["spline_df"]]) 
+                data = sss,
+                nterms = ppr_best_params[[METRIC_CHOSEN_NAME]][["n_ridge_functions"]],
+                sm.method = "spline",
+                df = ppr_best_params[[METRIC_CHOSEN_NAME]][["spline_df"]]) 
 
 df_metrics = Add_Test_Metric(df_metrics,
-                              "PPR",
-                              USED.Metrics(predict(ppr_model, vvv),
-                                           vvv$y,
-                                           weights = MY_WEIGHTS_vvv))
+                             "PPR",
+                             USED.Metrics(predict(ppr_model, vvv),
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
@@ -1090,10 +1160,10 @@ for(j in 10:100){
 sfStop()
 
 PlotAndSave(my_plotting_function =  function()plot((1:length(err_rf_trees)) * 4, err_rf_trees,
-                           xlab = "Bootstrap trees number",
-                           ylab = "Out of bag MSE",
-                           pch = 16,
-                           main = "Random Forest"),
+                                                   xlab = "Bootstrap trees number",
+                                                   ylab = "Out of bag MSE",
+                                                   pch = 16,
+                                                   main = "Random Forest"),
             my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                  "random_forest_convergence_plot.jpeg",
                                  collapse = ""))
@@ -1109,11 +1179,11 @@ random_forest_model = ranger(y ~., sss,
                              importance = "permutation")
 
 df_metrics = Add_Test_Metric(df_metrics,
-                              "Random Forest",
-                              USED.Metrics(predict(random_forest_model, data = vvv,
-                                                type = "response")$predictions,
-                                           vvv$y,
-                                           weights = MY_WEIGHTS_vvv))
+                             "Random Forest",
+                             USED.Metrics(predict(random_forest_model, data = vvv,
+                                                  type = "response")$predictions,
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
@@ -1129,13 +1199,13 @@ PlotAndSave(my_plotting_function =  function() dotchart(vimp[order(vimp)],
                                                         main = "Random Forest Variable Importance Permutation",
                                                         xlab = "deviance increase"),
             my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                                "random_forest_importance_plot.jpeg",
-                                                collapse = ""))
+                                 "random_forest_importance_plot.jpeg",
+                                 collapse = ""))
 
 # save metrics and model
 file_name_random_forest = paste(MODELS_FOLDER_RELATIVE_PATH,
-                                       "random_forests",
-                                       ".Rdata", collapse = "", sep = "")
+                                "random_forests",
+                                ".Rdata", collapse = "", sep = "")
 
 save(random_forest_model, file = file_name_random_forest)
 
@@ -1169,8 +1239,8 @@ for(j in 10:100){
   sfExport(list = c("j"))
   err_bg_trees[j] = sum(sfSapply(rep(1:4),
                                  function(x) bagging(y ~., sss,
-                                                    nbag = j,
-                                                    coob = TRUE)$err))
+                                                     nbag = j,
+                                                     coob = TRUE)$err))
   print(j)
   gc()
 }
@@ -1188,10 +1258,10 @@ plot((1:length(err_bg_trees)) * 4, err_bg_trees,
 bagging_model = bagging(y ~., sss, nbag = 400, coob = FALSE)
 
 df_metrics = Add_Test_Metric(df_metrics,
-                              "Bagging",
-                              USED.Metrics(predict(bagging_model, newdata = vvv),
-                                           vvv$y,
-                                           weights = MY_WEIGHTS_vvv))
+                             "Bagging",
+                             USED.Metrics(predict(bagging_model, newdata = vvv),
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
 
 
 df_metrics
@@ -1202,8 +1272,8 @@ save(df_metrics, file = "df_metrics.Rdata")
 
 # save metrics and model
 file_name_bagging = paste(MODELS_FOLDER_RELATIVE_PATH,
-                                 "bagging",
-                                 ".Rdata", collapse = "", sep = "")
+                          "bagging",
+                          ".Rdata", collapse = "", sep = "")
 
 save(bagging_model, file = file_name_bagging)
 
@@ -1282,7 +1352,7 @@ gc()
 # /////////////////////////////////////////////////////////////////
 
 rounded_df = cbind(df_metrics[,1],
-      apply(df_metrics[,2:NCOL(df_metrics)], 2, function(col) round(as.numeric(col), 2)))
+                   apply(df_metrics[,2:NCOL(df_metrics)], 2, function(col) round(as.numeric(col), 2)))
 
 rounded_df %>% orde
 # Comparazione modelli
@@ -1298,8 +1368,8 @@ coef(lm_step_no_interaction) %>% boxplot()
 # Linear Step ---------------
 
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
-      "lm_step_no_interaction",
-      ".Rdata", collapse = "", sep = ""))
+           "lm_step_no_interaction",
+           ".Rdata", collapse = "", sep = ""))
 
 temp_coef = coef(lm_step_no_interaction)
 temp_main = "(abs) greatest linear model coefficients no interaction"
@@ -1316,8 +1386,8 @@ PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch 
 
 
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
-      "lm_step_yes_interaction",
-      ".Rdata", collapse = "", sep = ""))
+           "lm_step_yes_interaction",
+           ".Rdata", collapse = "", sep = ""))
 
 temp_coef = coef(lm_step_yes_interaction)
 temp_main = "(abs) greatest linear model coefficients yes interaction"
@@ -1408,8 +1478,8 @@ PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch 
 
 # Tree -----------------
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
-      "final_tree_pruned",
-      ".Rdata", collapse = "", sep = ""))
+           "final_tree_pruned",
+           ".Rdata", collapse = "", sep = ""))
 
 
 
@@ -1462,8 +1532,6 @@ PlotAndSave(my_plotting_function = function() plot(mars_step, predictor1 = temp_
 
 
 # plot(mars_step, predictor1 = 7, predictor2 = 30)
-
-
 
 
 

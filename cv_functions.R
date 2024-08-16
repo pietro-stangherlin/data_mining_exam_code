@@ -21,6 +21,10 @@ N_CORES = parallel::detectCores()
 #' @param my_lambda_vals (vector): vector of lambda used
 #' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
 #' and compute the metrics on that
+#' 
+#' @param is_classification (bool): if TRUE adapt the metrics to classification problem
+#' using the threshold
+#' @param my_threshold (num): classification threshold used
 #'
 #'
 #' @return (list): list of two matrix 
@@ -35,7 +39,9 @@ ManualCvGlmnet = function(my_id_list_cv,
                           my_alpha,
                           my_lambda_vals,
                           my_weights = 1,
-                          use_only_first_fold = FALSE){
+                          use_only_first_fold = FALSE,
+                          is_classification = FALSE,
+                          my_threshold = 0.5){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metric_names)
@@ -59,18 +65,26 @@ ManualCvGlmnet = function(my_id_list_cv,
     
     temp_predictions = predict(temp_glmnet, my_x[id_test,])
     
-    for (j in 1:length(my_lambda_vals)){
-      temp_metrics_array_cv[k,j,] = USED.Metrics(temp_predictions[,j], my_y[id_test],
-                                                 weights = my_weights[id_test])
+    if(is_classification == TRUE){
+      temp_predictions = temp_predictions > my_threshold %>% as.numeric
     }
     
+    
+    
+    for (j in 1:length(my_lambda_vals)){
+      
+      temp_metrics_array_cv[k,j,] = USED.Metrics(temp_predictions[,j], my_y[id_test],
+                                                 weights = my_weights[id_test])
+      }
+      
     rm(temp_glmnet)
     rm(temp_predictions)
     gc()
     
     print(paste("fold ", k, collapse = ""))
-  }
-  
+      
+    }
+    
   # averaged metrics matrix
   cv_metrics = matrix(NA, nrow = length(my_lambda_vals), ncol = my_n_metrics)
   
@@ -94,8 +108,11 @@ ManualCvGlmnet = function(my_id_list_cv,
   
   return(list("metrics" = cv_metrics,
               "se" = cv_metrics_se))
+    
+  }
   
-}
+
+  
 
 
 
@@ -109,7 +126,10 @@ ManualCvGlmnet = function(my_id_list_cv,
 #' @param my_lambda_vals (vector): vector of lambda used
 #' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
 #' and compute the metrics on that
-
+#' 
+#' @param is_classification (bool): if TRUE adapt the metrics to classification problem
+#' using the threshold
+#' @param my_threshold (num): classification threshold used
 #' 
 #' @param my_metrics_functions (vector of characters): vector of loss function names feed to snowfall (parallel)
 #' example  my_metrics_functions = c("USED.Metrics", "MAE.Loss", "MSE.Loss").
@@ -132,7 +152,9 @@ ManualCvGlmnetParallel = function(my_id_list_cv,
                                   my_weights = 1,
                                   my_metrics_functions = c("USED.Metrics", "MAE.Loss", "MSE.Loss"),
                                   my_ncores = N_CORES,
-                                  use_only_first_fold = FALSE){
+                                  use_only_first_fold = FALSE,
+                                  is_classification = FALSE,
+                                  my_threshold = 0.5){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metric_names)
@@ -156,6 +178,17 @@ ManualCvGlmnetParallel = function(my_id_list_cv,
     id_test = my_id_list_cv[[k]]
     
     sfExport(list = c("id_train", "id_test"))
+    
+    temp_predictions = sfLapply(my_lambda_vals,
+                                fun = function(lambda)
+                                  predict(glmnet(x = my_x[id_train,], 
+                                                 y = my_y[id_train], alpha = my_alpha,
+                                                 lambda = lambda),
+                                          my_x[id_test,]))
+    
+    temp_metric = USED.Metrics(y.pred = temp_predictions,
+                               y.test = my_y[id_test],
+                               weights = my_weights[id_test])
     
     # for better readability
     temp_metric = sfLapply(my_lambda_vals,
@@ -206,6 +239,160 @@ ManualCvGlmnetParallel = function(my_id_list_cv,
 # PPR ---------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+# 1.a) Regulation: train - test ---------
+
+#' @param my_data (data.frame)
+#' @param my_id_train (vector of ints)
+#' @param my_max_ridge_functions (vector of ints)
+#' @param my_spline_df (vector in mums): values of possibile smoothing splines degrees of freedom
+#' @param my_metrics_names (vector of chars)
+#' @param my_weights (vector of nums):
+#'  same length as the difference: NROW(my_data) - length(my_id_train)
+#' 
+#' @return (array):
+#' first dimension (with names): 1:my_max_ridge_functions
+#' second dimension (with names): my_spline_df
+#' third dimension (with names): my_metrics_names
+#' 
+#' each cell contains the metric value of the model fitted on my_data[my_id_train,]
+#' and tested on my_data[-my_id_train,] for each metric value used
+PPRRegulationTrainTest = function(my_data = sss,
+                                  my_id_train = id_cb1,
+                                  my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+                                  my_spline_df = PPR_DF_SM,
+                                  my_metrics_names = METRICS_NAMES,
+                                  my_weights = MY_WEIGHTS_sss){
+  metrics_array = array(NA,
+                        dim = c(my_max_ridge_functions,
+                                length(my_spline_df),
+                                length(my_metrics_names)),
+                        
+                        dimnames = list(1:my_max_ridge_functions,
+                                        my_spline_df,
+                                        my_metrics_names))
+  
+  for(r in 1:my_max_ridge_functions){
+    for(df in 1: length(my_spline_df)){
+      mod = ppr(y ~ .,
+                data = my_data[my_id_train,],
+                nterms = r,
+                sm.method = "spline",
+                df = my_spline_df[df])
+      
+      metrics_array[r, df, ] = USED.Metrics(predict(mod, my_data[-my_id_train,]),
+                                            my_data$y[-my_id_train],
+                                            weights = my_weights)
+    }
+    print(paste0("n ridge functions: ", r, collapse = ""))
+  }
+  
+  rm(mod)
+  gc()
+  
+  
+  return(metrics_array)
+}
+
+
+
+#' @param my_data (data.frame)
+#' @param my_id_train (vector of ints)
+#' @param my_max_ridge_functions (vector of ints)
+#' @param my_spline_df (vector in mums): values of possibile smoothing splines degrees of freedom
+#' @param my_metrics_names (vector of chars)
+#' @param my_weights (vector of nums):
+#'  same length as the difference: NROW(my_data) - length(my_id_train)
+#'  
+#'  
+#' @param my_metrics_functions (vector of characters): vector of loss function names feed to snowfall (parallel)
+#' example  my_metrics_functions = c("USED.Metrics", "MAE.Loss", "MSE.Loss").
+#' NOTE: if USED.Metrics contains some other functions they must be present as well, like the example
+#' which is also the default
+#' @param my_ncores
+#' 
+#' @return (array):
+#' first dimension (with names): 1:my_max_ridge_functions
+#' second dimension (with names): my_spline_df
+#' third dimension (with names): my_metrics_names
+#' 
+#' each cell contains the metric value of the model fitted on my_data[my_id_train,]
+#' and tested on my_data[-my_id_train,] for each metric value used
+PPRRegulationTrainTestParallel = function(my_data = sss,
+                                          my_id_train = id_cb1,
+                                          my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+                                          my_spline_df = PPR_DF_SM,
+                                          my_metrics_names = METRICS_NAMES,
+                                          my_weights = MY_WEIGHTS_sss,
+                                          my_metrics_functions = MY_USED_METRICS,
+                                          my_ncores = N_CORES){
+  
+  metrics_array = array(NA,
+                        dim = c(my_max_ridge_functions,
+                                length(my_spline_df),
+                                length(my_metrics_names)),
+                        
+                        dimnames = list(1:my_max_ridge_functions,
+                                        my_spline_df,
+                                        my_metrics_names))
+  
+  my_n_metrics = length(my_metrics_names)
+  
+  
+  # needed to do parallel
+  # each list element contains a vector of length 2
+  # first element is the number of ridge functions
+  # second element are the spline degrees of freedom
+  params_list = list()
+  
+  counter = 1
+  
+  for (r in 1:my_max_ridge_functions){
+    for(df in my_spline_df){
+      params_list[[counter]] = c(r, df)
+      
+      counter = counter + 1
+    }
+  }
+  
+  
+  # init parallel
+  sfInit(cpus = my_ncores, parallel = T)
+  
+  sfExport(list = c("my_data", my_metrics_functions,
+                    "my_id_train", "my_max_ridge_functions", "my_spline_df", "params_list",
+                    "my_weights"))
+  
+  temp_metric = sfLapply(params_list,
+                         fun = function(el) 
+                           USED.Metrics(predict(ppr(y ~ .,
+                                                    data = my_data[my_id_train,],
+                                                    nterms = el[1],
+                                                    sm.method = "spline",
+                                                    df = el[2]),
+                                                my_data[-my_id_train,]), my_data$y[-my_id_train],
+                                        weights = my_weights))
+  
+  # stop cluster
+  sfStop()
+  
+  
+  counter = 1
+  
+  for (r in 1:my_max_ridge_functions){
+    for(df in 1:length(my_spline_df)){
+      metrics_array[r, df, ] = temp_metric[[counter]]
+      
+      counter = counter + 1
+    }
+  }
+  
+  rm(temp_metric)
+  gc()
+  
+  return(metrics_array)
+}
+
+
 # K: numero di possibili funzioni dorsali
 PPR_MAX_RIDGE_FUNCTIONS = 4
 
@@ -232,7 +419,9 @@ PPRRegulationCV = function(my_data = sss,
                            my_spline_df = PPR_DF_SM,
                            my_metrics_names = METRICS_NAMES,
                            my_weights = MY_WEIGHTS,
-                           use_only_first_fold = FALSE){
+                           use_only_first_fold = FALSE,
+                           is_classification = FALSE,
+                           my_threshold = 0.5){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metrics_names)
@@ -324,7 +513,9 @@ PPRRegulationCVParallel = function(my_data = sss,
                                    my_weights = MY_WEIGHTS,
                                    my_metrics_functions = MY_USED_METRICS,
                                    my_ncores = N_CORES,
-                                   use_only_first_fold = FALSE){
+                                   use_only_first_fold = FALSE,
+                                   is_classification = FALSE,
+                                   my_threshold = 0.5){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metrics_names)
@@ -451,7 +642,9 @@ ManualCvTree = function(n_k_fold,
                         my_weights = 1,
                         my_mindev = 1e-05,
                         my_minsize = 2,
-                        use_only_first_fold = FALSE){
+                        use_only_first_fold = FALSE,
+                        is_classification = FALSE,
+                        my_threshold = 0.5){
   
   
   n_k_fold = length(my_id_list_cv)
@@ -572,7 +765,9 @@ ManualCvTreeParallel = function(my_id_list_cv,
                                 my_weights = 1,
                                 my_mindev = 1e-05,
                                 my_minsize = 2,
-                                use_only_first_fold = FALSE){
+                                use_only_first_fold = FALSE,
+                                is_classification = FALSE,
+                                my_threshold = 0.5){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metric_names)
@@ -730,7 +925,9 @@ ManualCvRF = function(my_id_list_cv,
                       my_n_bs_trees = 10:RF_N_BS_TREES,
                       fix_trees_bool = TRUE,
                       my_weights = 1,
-                      use_only_first_fold = FALSE){
+                      use_only_first_fold = FALSE,
+                      is_classification = FALSE,
+                      my_threshold = 0.5){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metric_names)
@@ -859,7 +1056,9 @@ ManualCvRFParallel = function(my_id_list_cv,
                               my_metrics_functions = MY_USED_METRICS,
                               my_weights = MY_WEIGHTS,
                               my_ncores = N_CORES,
-                              use_only_first_fold = FALSE){
+                              use_only_first_fold = FALSE,
+                              is_classification = FALSE,
+                              my_threshold = 0.5){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metric_names)

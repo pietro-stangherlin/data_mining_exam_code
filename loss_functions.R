@@ -42,7 +42,7 @@ tabella.sommario = function(previsti, osservati,
       else{
         n[2,2] = n[2,2] + 1}
     }
-    
+
     else{
       # 0 != 1
       if (previsti[i] == 0){
@@ -52,12 +52,14 @@ tabella.sommario = function(previsti, osservati,
       else{
         n[2,1] = n[2,1] + 1
       }
-      
+
     }
   }
   
+  # n = table(previsti, osservati)
   
-  err.tot <- sum((previsti != osservati) * weights) / sum(length(previsti) * weights)
+  
+  err.tot <- sum((previsti != osservati) * weights) / sum(rep(1, length(previsti)) * weights)
   zeros.observed = sum(n[1,1] + n[2,1])
   ones.observed = sum(n[1,2] + n[2,2])
   
@@ -74,7 +76,7 @@ tabella.sommario = function(previsti, osservati,
     print(c("err tot", "fp", "fn", "f.score"))
     print(c(err.tot, fp, fn, f.score))}
   
-  return(round(c(err.tot, fp, fn, f.score), 4))
+  return(c(err.tot, fp, fn, f.score))
 }
 
 
@@ -172,7 +174,7 @@ CvMetricBest = function(my_param_values,
                         my_metric_names,
                         my_one_se_best = TRUE,
                         my_higher_more_complex = TRUE,
-                        indexes_metric_max = NULL){
+                        indexes_metric_max = 0){
   
   # this code is sub-optimal, someday I'll change it
   
@@ -190,13 +192,14 @@ CvMetricBest = function(my_param_values,
   
   # Check metrics min and max best
   
-  if(is.null(indexes_metric_max)){
-    indexes_best_params = apply(my_metric_matrix, 2, which.min)
+  if(indexes_metric_max == 0){
+    
+    indexes_best_params = apply(as.matrix(my_metric_matrix), 2, which.min)
   }
   
-  else{
-    indexes_best_params = c(apply(my_metric_matrix[,-indexes_metric_max], 2, which.min),
-                            apply(my_metric_matrix[,indexes_metric_max], 2, which.max))
+  if(indexes_metric_max > 0){
+    indexes_best_params = c(apply(as.matrix(my_metric_matrix[,-indexes_metric_max]), 2, which.min),
+                            apply(as.matrix(my_metric_matrix[,indexes_metric_max]), 2, which.max))
   }
   
   if(my_one_se_best == TRUE){
