@@ -930,6 +930,7 @@ PlotAndSave(my_plotting_function = temp_plot_function,
 
 # check the index
 temp_pred = predict(final_tree_pruned, newdata = vvv)[,2]
+pred_list$tree_pruned
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "tree_pruned best",
@@ -940,7 +941,7 @@ df_metrics = Add_Test_Metric(df_metrics,
 
 df_metrics
 
-pred_list$tree_pruned
+
 
 rm(temp_pred)
 
@@ -980,13 +981,20 @@ my_gam_scope = gam.scope(sss[,-y_index], arg = c("df=2", "df=3", "df=4", "df=5",
 
 gam_step = step.Gam(gam0, scope = my_gam_scope)
 
+temp_pred = predict(gam_step,
+                    newdata = vvv,
+                    type = "response")
+
+pred_list$gam_step = temp_pred
+
 df_metrics = Add_Test_Metric(df_metrics,
                              "gam_step",
-                             USED.Metrics(predict(gam_step, newdata = vvv),
+                             USED.Metrics(temp_pred > MY_THRESHOLD,
                                           vvv$y,
                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics
+rm(temp_pred)
 
 file_name_gam_step = paste(MODELS_FOLDER_RELATIVE_PATH,
                            "gam_step",
@@ -1034,7 +1042,8 @@ mars_step = polymars(responses = sss$y,
                      predictors = sss[,-y_index],
                      gcv = 1,
                      factors = factor_index,
-                     maxsize = 50)
+                     maxsize = 50,
+                     classify = TRUE)
 
 
 print("mars min size gcv")
@@ -1061,15 +1070,20 @@ PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PAT
                                                      "mars_gcv_plot.jpeg",
                                                      collapse = ""))
 
+# pay attention to the column
+temp_pred = predict(mars_step, x = vvv[,-y_index])[,2]
 
+pred_list$mars_step = temp_pred
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "MARS",
-                             USED.Metrics(predict(mars_step, x = X_mm_no_interaction_vvv),
+                             USED.Metrics(temp_pred > MY_THRESHOLD,
                                           vvv$y,
                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics
+
+rm(temp_pred)
 
 # save the df_metrics as .Rdata
 save(df_metrics, pred_list, file = "df_metrics.Rdata")
@@ -1436,6 +1450,77 @@ rounded_df = cbind(df_metrics[,1],
                    apply(df_metrics[,2:NCOL(df_metrics)], 2, function(col) round(as.numeric(col), 2)))
 
 rounded_df %>% orde
+
+# LIFT e ROC --------------
+# eventualmente crea una nuova lista ridotta
+# con solo i modelli con l'errore minimo
+model_names_all = names(pred_list)
+
+paste(model_names_all, collapse = "','")
+
+# selection of "best" models so Lift and ROC curve are readable
+model_names = c('ridge_yes_interaction_lmin',
+                'lasso_yes_interaction_lmin',
+                'gam_step',
+                'mars_step',
+                'pred_tree',
+                'pred_bagging',
+                'pred_boost_2',
+                'pred_random_forest',
+                'pred_svm_radial')
+
+pred_list_ridotta = pred_list[which(model_names_all %in% model_names)]
+
+pred_list_ridotta$pred_glm_no_interaction = NULL
+
+
+curve = lapply(pred_list_ridotta, function(x) lift.roc(x, vvv$y, plot.it=F, type = "bin"))
+
+model_printed_names = sapply(model_names, FUN = function(x) gsub("pred_", "", x))
+
+
+library(RColorBrewer)
+colori = c("black", brewer.pal(12, "Set3"))
+# @@@@@@@@@@@@@@@@@@@@@
+# LIFT ----------------
+# @@@@@@@@@@@@@@@@@@@@@
+
+plot(curve[[1]][[1]], curve[[1]][[2]], type = "b", ylim = c(0,2.5), 
+     xlab = "Frazione di predetti positivi", ylab = "Lift",
+     pch = 1, main = "LIFT", lwd = 2)
+# e disegnamo le altre sovrapponendole
+for(j in 2:length(curve)) {
+  lines(curve[[j]][[1]], curve[[j]][[2]],type = "b", col = colori[j], lwd = 2, pch = j)
+}
+
+legend("bottomright",col = colori,
+       legend = model_printed_names, pch = 1:length(model_printed_names), 
+       ncol = 2, lwd = 2,cex = .5,
+       y.intersp = 1.5,
+       text.width = 0.3,
+       
+)
+
+# @@@@@@@@@@@@@@@@@@@@@
+# ROC ----------------
+# @@@@@@@@@@@@@@@@@@@@@
+plot(curve[[1]][[3]], curve[[1]][[4]], type = "b", ylim = c(0,1), 
+     xlab = "1-specificità", ylab = "sensibilità",
+     pch = 1, main = "ROC", lwd = 2)
+# e disegnamo le altre sovrapponendole
+for(j in 2:length(curve)) {
+  lines(curve[[j]][[3]], curve[[j]][[4]],type = "b", col = colori[j], lwd = 2, pch = j)
+}
+
+legend("bottomright",col = colori,
+       legend = model_printed_names, pch = 1:length(model_printed_names), 
+       ncol = 2, lwd = 2,cex = .5,
+       y.intersp = 1.5,
+       text.width = 0.3,
+       
+)
+
+
 # Comparazione modelli
 # selezione modelli migliori e commenti su questi:
 # es -> vanno meglio modelli con interazioni oppure modelli additivi

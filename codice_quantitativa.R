@@ -914,7 +914,7 @@ PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PAT
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "MARS",
-                              USED.Metrics(predict(mars_step, x = X_mm_no_interaction_vvv),
+                              USED.Metrics(predict(mars_step, x = vvv),
                                            vvv$y,
                                            weights = MY_WEIGHTS_vvv))
 
