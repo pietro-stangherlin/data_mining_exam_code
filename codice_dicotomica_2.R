@@ -68,6 +68,10 @@ sss = dati[id_stima,]
 vvv = dati[-id_stima,]
 
 
+# lista dei predittori (se stima - verifica)
+# per LIFT e ROC
+pred_list = list() 
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Parameter tuning: Train & Test on Train subset  --------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -180,15 +184,17 @@ lm0 = lm(y ~ 1, data = sss)
 lm_step_no_interaction = step(lm0, scope = formula_no_interaction_yes_intercept,
                               direction = "forward")
 
-formula(lm_step_no_interaction)
+temp_pred = predict(lm_step_no_interaction, newdata = vvv)
+pred_list$lm_no_interaction = temp_pred
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "lm_step_no_interaction",
-                             USED.Metrics(predict(lm_step_no_interaction, newdata = vvv) >
-                                 MY_THRESHOLD %>% as.numeric,
+                             USED.Metrics(temp_pred > MY_THRESHOLD %>% as.numeric,
                                           vvv$y,
                                           weights = MY_WEIGHTS_vvv))
 df_metrics
+
+rm(temp_pred)
 
 
 # save the model as .Rdata
@@ -210,13 +216,17 @@ lm_step_yes_interaction = step(lm0, scope = formula_yes_interaction_yes_intercep
                                direction = "forward")
 
 
+temp_pred = predict(lm_step_yes_interaction, newdata = vvv)
+pred_list$lm_yes_interaction = temp_pred
+
 df_metrics = Add_Test_Metric(df_metrics,
                              "lm_step_yes_interaction",
-                             USED.Metrics(predict(lm_step_yes_interaction, newdata = vvv) >
-                                            MY_THRESHOLD %>% as.numeric,
+                             USED.Metrics(temp_pred > MY_THRESHOLD %>% as.numeric,
                                           vvv$y,
                                           weights = MY_WEIGHTS_vvv))
 df_metrics
+
+rm(temp_pred)
 
 # save the model as .Rdata
 # then remove it from main memory
@@ -232,7 +242,7 @@ gc()
 
 
 # save the df_metrics as .Rdata
-save(df_metrics, file = "df_metrics.Rdata")
+save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Step GLM --------------------
@@ -246,14 +256,17 @@ glm0 = glm(y ~ 1, data = sss, family = "binomial")
 glm_step_no_interaction = step(glm0, scope = formula_no_interaction_yes_intercept,
                               direction = "forward")
 
+temp_pred = predict(glm_step_no_interaction, newdata = vvv, type = "response")
+pred_list$glm_no_interaction = temp_pred
+
 df_metrics = Add_Test_Metric(df_metrics,
                              "glm_step_no_interaction",
-                             USED.Metrics(predict(glm_step_no_interaction, newdata = vvv) >
-                                            MY_THRESHOLD %>% as.numeric,
+                             USED.Metrics(temp_pred > MY_THRESHOLD %>% as.numeric,
                                           vvv$y,
                                           weights = MY_WEIGHTS_vvv))
 df_metrics
 
+rm(temp_pred)
 
 # save the model as .Rdata
 # then remove it from main memory
@@ -274,13 +287,17 @@ glm_step_yes_interaction = step(glm0, scope = formula_yes_interaction_yes_interc
                                direction = "forward")
 
 
+temp_pred = predict(glm_step_yes_interaction, newdata = vvv, type = "response")
+pred_list$glm_yes_interaction = temp_pred
+
 df_metrics = Add_Test_Metric(df_metrics,
                              "glm_step_yes_interaction",
-                             USED.Metrics(predict(glm_step_yes_interaction, newdata = vvv) >
-                                            MY_THRESHOLD,
+                             USED.Metrics(temp_pred > MY_THRESHOLD %>% as.numeric,
                                           vvv$y,
                                           weights = MY_WEIGHTS_vvv))
 df_metrics
+
+rm(temp_pred)
 
 # save the model as .Rdata
 # then remove it from main memory
@@ -296,14 +313,14 @@ gc()
 
 
 # save the df_metrics as .Rdata
-save(df_metrics, file = "df_metrics.Rdata")
+save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Ridge & Lasso ------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
-# sparse is preferred is there are many categorical predictors (sparse matrix)
+# sparse is preferred if there are many categorical predictors (sparse matrix)
 library(Matrix)
 X_mm_no_interaction_sss =  sparse.model.matrix(formula_no_interaction_no_intercept, data = sss)
 X_mm_no_interaction_vvv =  sparse.model.matrix(formula_no_interaction_no_intercept, data = vvv)
@@ -412,16 +429,19 @@ ridge_no_interaction = glmnet(x = X_mm_no_interaction_sss,
 
 # rm(ridge_cv_no_interaction)
 
+temp_pred = predict(ridge_no_interaction, newx = X_mm_no_interaction_vvv)
+pred_list$ridge_no_interaction = temp_pred
+
 df_metrics = Add_Test_Metric(df_metrics,
                              "ridge_no_interaction",
-                             USED.Metrics(predict(ridge_no_interaction, newx = X_mm_no_interaction_vvv) > MY_THRESHOLD,
+                             USED.Metrics(temp_pred > MY_THRESHOLD,
                                           vvv$y,
                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
 # save the df_metrics as .Rdata
-save(df_metrics, file = "df_metrics.Rdata")
+save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 file_name_ridge_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                        "ridge_no_interaction",
@@ -436,14 +456,16 @@ gc()
 lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
                      alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
-# ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
-#                                               my_metric_names = METRICS_NAMES,
-#                                               my_x = X_mm_yes_interaction_sss,
-#                                               my_y = sss$y,
-#                                               my_alpha = 0,
-#                                               my_lambda_vals = lambda_vals,
-#                                               my_weights = MY_WEIGHTS_sss,
-#                                               use_only_first_fold = USE_ONLY_FIRST_FOLD)
+ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+                                              my_metric_names = METRICS_NAMES,
+                                              my_x = X_mm_yes_interaction_sss,
+                                              my_y = sss$y,
+                                              my_alpha = 0,
+                                              my_lambda_vals = lambda_vals,
+                                              my_weights = MY_WEIGHTS_sss,
+                                              use_only_first_fold = TRUE,
+                                              is_classification = TRUE,
+                                              my_threshold = MY_THRESHOLD)
 
 ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
                                                        my_metric_names = METRICS_NAMES,
@@ -455,14 +477,16 @@ ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIS
                                                        my_metrics_functions = MY_USED_METRICS,
                                                        my_ncores = N_CORES,
                                                        use_only_first_fold = TRUE,
-                                                       )
+                                                       is_classification = TRUE,
+                                                       my_threshold = MY_THRESHOLD)
 
 ridge_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                           my_metric_matrix = ridge_yes_interaction_metrics[["metrics"]],
-                                          my_one_se_best = FALSE,
+                                          my_one_se_best = TRUE,
                                           my_higher_more_complex = FALSE,
                                           my_se_matrix = ridge_yes_interaction_metrics[["se"]],
-                                          my_metric_names = METRICS_NAMES)
+                                          my_metric_names = METRICS_NAMES,
+                                          indexes_metric_max = 4)
 
 
 
@@ -516,17 +540,22 @@ ridge_yes_interaction = glmnet(x = X_mm_yes_interaction_sss,
 
 # rm(ridge_cv_yes_interaction)
 
+temp_pred = predict(ridge_yes_interaction, newx = X_mm_yes_interaction_vvv)
+pred_list$ridge_yes_interaction = temp_pred
+
 # previsione ed errore
 df_metrics = Add_Test_Metric(df_metrics,
                              "ridge_yes_interaction",
-                             USED.Metrics(predict(ridge_yes_interaction, newx = X_mm_yes_interaction_vvv),
+                             USED.Metrics(temp_pred > MY_THRESHOLD,
                                           vvv$y,
                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
+rm(temp_pred)
+
 # save the df_metrics as .Rdata
-save(df_metrics, file = "df_metrics.Rdata")
+save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 file_name_ridge_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                         "ridge_yes_interaction",
@@ -552,7 +581,9 @@ lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
                                               my_alpha = 1,
                                               my_lambda_vals = lambda_vals,
                                               my_weights = MY_WEIGHTS_sss,
-                                              use_only_first_fold = USE_ONLY_FIRST_FOLD)
+                                              use_only_first_fold = USE_ONLY_FIRST_FOLD,
+                                              is_classification = TRUE,
+                                              my_threshold = MY_THRESHOLD)
 
 # lasso_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
 #                                                       my_metric_names = METRICS_NAMES,
@@ -570,8 +601,8 @@ lasso_no_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_one_se_best = TRUE,
                                          my_higher_more_complex = FALSE,
                                          my_se_matrix = lasso_no_interaction_metrics[["se"]],
-                                         my_metric_names = METRICS_NAMES)
-
+                                         my_metric_names = METRICS_NAMES,
+                                         indexes_metric_max = 4) # f_score: higher better
 
 
 PlotAndSave(function()(
@@ -624,23 +655,27 @@ lasso_no_interaction = glmnet(x = X_mm_no_interaction_sss,
 
 # rm(lasso_cv_no_interaction)
 
+temp_pred = predict(lasso_no_interaction, newx = X_mm_no_interaction_vvv)
+pred_list$lasso_no_interaction = temp_pred
+
 df_metrics = Add_Test_Metric(df_metrics,
                              "lasso_no_interaction",
-                             USED.Metrics(predict(lasso_no_interaction, newx = X_mm_no_interaction_vvv),
+                             USED.Metrics(temp_pred > MY_THRESHOLD,
                                           vvv$y,
                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
+rm(temp_pred)
+
 # save the df_metrics as .Rdata
-save(df_metrics, file = "df_metrics.Rdata")
+save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 file_name_lasso_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                        "lasso_no_interaction",
                                        ".Rdata", collapse = "", sep = "")
 
 save(lasso_no_interaction, file = file_name_lasso_no_interaction)
-
 
 rm(lasso_no_interaction)
 gc()
@@ -649,32 +684,39 @@ gc()
 lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
                      alpha = 1, lambda.min.ratio = 1e-07)$lambda
 
-# lasso_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
-#                                                my_metric_names = METRICS_NAMES,
-#                                                my_x = X_mm_yes_interaction_sss,
-#                                                my_y = sss$y,
-#                                                my_alpha = 1,
-#                                                my_lambda_vals = lambda_vals,
-#                                                my_weights = MY_WEIGHTS_sss,
-#                                                use_only_first_fold = USE_ONLY_FIRST_FOLD)
+lasso_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+                                               my_metric_names = METRICS_NAMES,
+                                               my_x = X_mm_yes_interaction_sss,
+                                               my_y = sss$y,
+                                               my_alpha = 1,
+                                               my_lambda_vals = lambda_vals,
+                                               my_weights = MY_WEIGHTS_sss,
+                                               use_only_first_fold = TRUE,
+                                               is_classification = TRUE,
+                                               my_threshold = MY_THRESHOLD)
 
-lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
-                                                       my_metric_names = METRICS_NAMES,
-                                                       my_x = X_mm_yes_interaction_sss,
-                                                       my_y = sss$y,
-                                                       my_alpha = 1,
-                                                       my_lambda_vals = lambda_vals,
-                                                       my_weights = MY_WEIGHTS_sss,
-                                                       my_metrics_functions = MY_USED_METRICS,
-                                                       my_ncores = N_CORES,
-                                                       use_only_first_fold = TRUE)
+# lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+#                                                        my_metric_names = METRICS_NAMES,
+#                                                        my_x = X_mm_yes_interaction_sss,
+#                                                        my_y = sss$y,
+#                                                        my_alpha = 1,
+#                                                        my_lambda_vals = lambda_vals,
+#                                                        my_weights = MY_WEIGHTS_sss,
+#                                                        my_metrics_functions = MY_USED_METRICS,
+#                                                        my_ncores = N_CORES,
+#                                                        use_only_first_fold = TRUE,
+#                                                        is_classification = TRUE,
+#                                                        my_threshold = MY_THRESHOLD)
 
 lasso_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                           my_metric_matrix = lasso_yes_interaction_metrics[["metrics"]],
-                                          my_one_se_best = FALSE,
+                                          my_one_se_best = TRUE,
                                           my_higher_more_complex = FALSE,
                                           my_se_matrix = lasso_yes_interaction_metrics[["se"]],
-                                          my_metric_names = METRICS_NAMES)
+                                          my_metric_names = METRICS_NAMES,
+                                          indexes_metric_max = 4)
+
+
 
 PlotAndSave(function()(
   PlotCvMetrics(my_param_values = log(lambda_vals),
@@ -726,16 +768,22 @@ lasso_yes_interaction = glmnet(x = X_mm_yes_interaction_sss,
 
 # rm(lasso_cv_yes_interaction)
 
+temp_pred = predict(lasso_yes_interaction, newx = X_mm_yes_interaction_vvv)
+pred_list$lasso_yes_interaction = temp_pred
+
+# previsione ed errore
 df_metrics = Add_Test_Metric(df_metrics,
                              "lasso_yes_interaction",
-                             USED.Metrics(predict(lasso_yes_interaction, newx = X_mm_yes_interaction_vvv),
+                             USED.Metrics(temp_pred > MY_THRESHOLD,
                                           vvv$y,
                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics
 
+rm(temp_pred)
+
 # save the df_metrics as .Rdata
-save(df_metrics, file = "df_metrics.Rdata")
+save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 file_name_lasso_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                         "lasso_yes_interaction",
@@ -745,6 +793,8 @@ save(lasso_yes_interaction, file = file_name_lasso_yes_interaction)
 
 rm(lasso_yes_interaction)
 gc()
+
+
 
 
 
@@ -763,7 +813,7 @@ library(tree)
 # 0) Full tree which to be pruned ------
 
 # default: overfit
-tree_full = tree(y ~.,
+tree_full = tree(factor(y) ~.,
                  data = sss[id_cb1,],
                  control = tree.control(nobs = length(id_cb1),
                                         mindev = 1e-04,
@@ -780,11 +830,22 @@ plot(tree_full)
 # 1.a) Size: CV ----------
 # Selection of size parameter
 
-TREE_MAX_SIZE = 100
+TREE_MAX_SIZE = 50
 
+
+# tree_cv_metrics = ManualCvTree(my_id_list_cv = ID_CV_LIST,
+#                                        my_metric_names = METRICS_NAMES,
+#                                        my_data = sss,
+#                                        my_max_size = TREE_MAX_SIZE,
+#                                        my_weights = MY_WEIGHTS_sss,
+#                                        my_mindev = 1e-04,
+#                                        my_minsize = 2,
+#                                        is_classification = TRUE,
+#                                        my_threshold = MY_THRESHOLD,
+#                                use_only_first_fold = TRUE)
 
 # if parallel shows problems use the non parallel version
-tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv = ID_CV_LIST,
+tree_cv_metrics = ManualCvTreeParallel2(my_id_list_cv = ID_CV_LIST,
                                        my_metric_names = METRICS_NAMES,
                                        my_data = sss,
                                        my_max_size = TREE_MAX_SIZE,
@@ -793,14 +854,17 @@ tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv = ID_CV_LIST,
                                        my_weights = MY_WEIGHTS_sss,
                                        my_mindev = 1e-04,
                                        my_minsize = 5,
-                                       use_only_first_fold = USE_ONLY_FIRST_FOLD)
+                                       use_only_first_fold = USE_ONLY_FIRST_FOLD,
+                                       is_classification = TRUE,
+                                       my_threshold = MY_THRESHOLD)
 
 tree_best_summary = CvMetricBest(my_param_values = 2:TREE_MAX_SIZE,
                                  my_metric_matrix = tree_cv_metrics[["metrics"]],
                                  my_one_se_best = TRUE,
                                  my_higher_more_complex = TRUE,
                                  my_se_matrix = tree_cv_metrics[["se"]],
-                                 my_metric_names = METRICS_NAMES)
+                                 my_metric_names = METRICS_NAMES,
+                                 indexes_metric_max = 4)
 
 
 PlotAndSave(function()(
@@ -851,17 +915,34 @@ tree_best_size
 final_tree_pruned = prune.tree(tree_full,
                                best = tree_best_size)
 
-plot(final_tree_pruned)
-text(final_tree_pruned, cex = 0.7)
+
+
+temp_plot_function = function(){
+  plot(final_tree_pruned)
+  text(final_tree_pruned, cex = 0.7)
+}
+
+PlotAndSave(my_plotting_function = temp_plot_function,
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "tree_pruned_plot.jpeg",
+                                 collapse = ""))
+
+
+# check the index
+temp_pred = predict(final_tree_pruned, newdata = vvv)[,2]
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "tree_pruned best",
-                             USED.Metrics(predict(final_tree_pruned, newdata = vvv),
+                             USED.Metrics(temp_pred > MY_THRESHOLD,
                                           vvv$y,
                                           weights = MY_WEIGHTS_vvv))
 
 
 df_metrics
+
+pred_list$tree_pruned
+
+rm(temp_pred)
 
 file_name_final_tree_pruned = paste(MODELS_FOLDER_RELATIVE_PATH,
                                     "final_tree_pruned",
@@ -876,7 +957,7 @@ gc()
 
 
 # save the df_metrics as .Rdata
-save(df_metrics, file = "df_metrics.Rdata")
+save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -887,7 +968,7 @@ library(gam)
 # step selection via GCV
 
 # stepwise forward: AIC based on generalized df
-gam0 = gam(y ~ 1, data = sss)
+gam0 = gam(y ~ 1, data = sss, family = "binomial")
 
 # gam recognizes factor predictors
 my_gam_scope = gam.scope(sss[,-y_index], arg = c("df=2", "df=3", "df=4", "df=5", "df=6"))
@@ -920,7 +1001,7 @@ rm(gam0)
 gc()
 
 # save the df_metrics as .Rdata
-save(df_metrics, file = "df_metrics.Rdata")
+save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # MARS ---------------------------------------
@@ -991,7 +1072,7 @@ df_metrics = Add_Test_Metric(df_metrics,
 df_metrics
 
 # save the df_metrics as .Rdata
-save(df_metrics, file = "df_metrics.Rdata")
+save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 mars_names = colnames(sss[,-y_index])
 
@@ -1065,7 +1146,7 @@ df_metrics = Add_Test_Metric(df_metrics,
 df_metrics
 
 # save the df_metrics as .Rdata
-save(df_metrics, file = "df_metrics.Rdata")
+save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 file_name_ppr_model = paste(MODELS_FOLDER_RELATIVE_PATH,
                             "ppr_model",
@@ -1188,7 +1269,7 @@ df_metrics = Add_Test_Metric(df_metrics,
 df_metrics
 
 # save the df_metrics as .Rdata
-save(df_metrics, file = "df_metrics.Rdata")
+save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 
 # Importanza delle variabili
@@ -1267,7 +1348,7 @@ df_metrics = Add_Test_Metric(df_metrics,
 df_metrics
 
 # save the df_metrics as .Rdata
-save(df_metrics, file = "df_metrics.Rdata")
+save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 
 # save metrics and model

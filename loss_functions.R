@@ -202,6 +202,8 @@ CvMetricBest = function(my_param_values,
                             apply(as.matrix(my_metric_matrix[,indexes_metric_max]), 2, which.max))
   }
   
+  
+  
   if(my_one_se_best == TRUE){
     
     # non efficient procedure, but we assume the parameter space is small
@@ -210,8 +212,9 @@ CvMetricBest = function(my_param_values,
       # more readable code
       temp_best_metric = my_metric_matrix[indexes_best_params[i], i]
       # parameter indexes for which the metric is inside the 1se band of best param metric
-      temp_param_indexes = which(my_param_values %in% my_param_values[which(temp_best_metric > se_lower[,i] &
-                                                                              temp_best_metric < se_upper[,i])])
+      temp_param_indexes = which(my_param_values %in% my_param_values[which(temp_best_metric >= se_lower[,i] &
+                                                                              temp_best_metric <= se_upper[,i])])
+      
       if(my_higher_more_complex == TRUE){
         indexes_best_params[i]= temp_param_indexes[which.min(my_param_values[temp_param_indexes])]
       }

@@ -57,8 +57,6 @@ ManualCvGlmnet = function(my_id_list_cv,
     id_train = unlist(my_id_list_cv[-k])
     id_test = my_id_list_cv[[k]]
     
-    
-    
     temp_glmnet = glmnet(x = my_x[id_train,], 
                          y = my_y[id_train], alpha = my_alpha,
                          lambda = my_lambda_vals)
@@ -170,39 +168,44 @@ ManualCvGlmnetParallel = function(my_id_list_cv,
   
   sfLibrary(glmnet)
   sfExport(list = c("my_x", "my_y", "my_alpha",
-                    "my_lambda_vals", "my_weights", my_metrics_functions))
+                    "my_lambda_vals", "my_weights", my_metrics_functions,
+                    "my_threshold"))
   
   
   for (k in 1:n_k_fold){
     id_train = unlist(my_id_list_cv[-k])
     id_test = my_id_list_cv[[k]]
     
-    sfExport(list = c("id_train", "id_test"))
+    #' @param lambda (num): lambda value
+    #' @return (vector of nums): metrics values
+    ParallelFunction = function(lambda){
+      
+      temp_predictions = predict(glmnet(x = my_x[id_train,], 
+                                 y = my_y[id_train], alpha = my_alpha,
+                                 lambda = lambda),
+                          my_x[id_test,])
+      
+      if(is_classification == TRUE){
+        temp_predictions = as.numeric(temp_predictions > my_threshold)
+      }
+      
+       return(USED.Metrics(y.pred = temp_predictions,
+                   y.test = my_y[id_test],
+                   weights = my_weights[id_test]))
+      }
     
-    temp_predictions = sfLapply(my_lambda_vals,
-                                fun = function(lambda)
-                                  predict(glmnet(x = my_x[id_train,], 
-                                                 y = my_y[id_train], alpha = my_alpha,
-                                                 lambda = lambda),
-                                          my_x[id_test,]))
+    sfExport(list = c("id_train", "id_test", "ParallelFunction"))
     
-    temp_metric = USED.Metrics(y.pred = temp_predictions,
-                               y.test = my_y[id_test],
-                               weights = my_weights[id_test])
-    
-    # for better readability
-    temp_metric = sfLapply(my_lambda_vals,
-                           fun = function(lambda) 
-                             USED.Metrics(predict(glmnet(x = my_x[id_train,], 
-                                                         y = my_y[id_train], alpha = my_alpha,
-                                                         lambda = lambda),
-                                                  my_x[id_test,]), my_y[id_test],
-                                          weights = my_weights[id_test]))
+    temp_metrics = sfLapply(my_lambda_vals,
+                                fun = ParallelFunction)
     
     # unlist to the right dimensions matrix
-    temp_metrics_array_cv[k,,] = matrix(unlist(temp_metric), ncol = my_n_metrics, byrow = T)
-  
-    rm(temp_metric)
+    temp_metrics_array_cv[k,,] = matrix(unlist(temp_metrics),
+                                        nrow = length(lambda_vals),
+                                        ncol = my_n_metrics,
+                                        byrow = T)
+
+    rm(temp_metrics)
     gc()
     
     print(paste("fold ", k, collapse = ""))
@@ -406,6 +409,10 @@ PPR_MAX_RIDGE_FUNCTIONS = 4
 #' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
 #' and compute the metrics on that
 #' 
+#' @param is_classification (bool): if TRUE adapt the metrics to classification problem
+#' using the threshold
+#' @param my_threshold (num): classification threshold used
+#' 
 #' @return (array):
 #' first dimension (with names): 1:my_max_ridge_functions
 #' second dimension (with names): my_spline_df
@@ -447,15 +454,27 @@ PPRRegulationCV = function(my_data = sss,
     
     for(r in 1:my_max_ridge_functions){
       for(df in 1:length(my_spline_df)){
+        
         mod = ppr(y ~ .,
                   data = my_data[id_train,],
                   nterms = r,
                   sm.method = "spline",
                   df = my_spline_df[df])
         
-        temp_metrics_array_cv[r, df, ,k] = USED.Metrics(predict(mod, my_data[-id_train,]),
+        temp_predictions = predict(mod, my_data[-id_train,])
+        
+        if(is_classification == TRUE){
+          temp_predictions = temp_predictions > my_threshold %>% as.numeric
+        }
+        
+        rm(mod)
+        gc()
+        
+        temp_metrics_array_cv[r, df, ,k] = USED.Metrics(temp_predictions,
                                               my_data$y[id_test],
                                               weights = my_weights[id_test])
+        rm(temp_predictions)
+        gc()
       }
       print(paste0("n ridge functions: ", r, collapse = ""))
     }
@@ -476,9 +495,6 @@ PPRRegulationCV = function(my_data = sss,
   }
   
   metrics_array = metrics_array / n_k_fold
-
-  rm(mod)
-  gc()
   
   return(metrics_array)
 }
@@ -497,6 +513,9 @@ PPRRegulationCV = function(my_data = sss,
 #' NOTE: if USED.Metrics contains some other functions they must be present as well, like the example
 #' which is also the default
 #'
+#' @param is_classification (bool): if TRUE adapt the metrics to classification problem
+#' using the threshold
+#' @param my_threshold (num): classification threshold used
 #' 
 #' @return (array):
 #' first dimension (with names): 1:my_max_ridge_functions
@@ -565,16 +584,22 @@ PPRRegulationCVParallel = function(my_data = sss,
     
     sfExport(list = c("id_train", "id_test"))
     
-    temp_metric = sfLapply(params_list,
-                           fun = function(el) 
-                             USED.Metrics(predict(ppr(y ~ .,
-                                                      data = my_data[id_train,],
-                                                      nterms = el[1],
-                                                      sm.method = "spline",
-                                                      df = el[2]),
-                                                  my_data[id_test,]), my_data$y[id_test],
-                                          weights = my_weights[id_test]))
+    temp_predictions = sfLapply(params_list,
+                                fun = function(el) 
+                                  predict(ppr(y ~ .,
+                                              data = my_data[id_train,],
+                                              nterms = el[1],
+                                              sm.method = "spline",
+                                              df = el[2]),
+                                          my_data[id_test,]))
     
+    if(is_classification == TRUE){
+      temp_predictions = temp_predictions > my_threshold %>% as.numeric
+    }
+    
+    temp_metric = USED.Metrics(temp_predictions,
+                               my_data$y[id_test],
+                               weights = my_weights[id_test])
     
     counter = 1
     
@@ -631,11 +656,16 @@ library(tree)
 #' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
 #' and compute the metrics on that
 #' 
+#' @param is_classification (bool): if TRUE adapt the metrics to classification problem
+#' using the threshold
+#' @param my_threshold (num): classification threshold used
+#' 
+#' @param is_multiclass (bool): multiclass classification (to be checked)
+#' 
 #' @param my_max_size (int): max size of the pruned tree
 #'
 #' @return matrix of CV folds averaged errors for each parameter value and each loss function 
-ManualCvTree = function(n_k_fold,
-                        my_id_list_cv,my_n_metrics,
+ManualCvTree = function(my_id_list_cv,
                         my_metric_names,
                         my_data,
                         my_max_size = TREE_MAX_SIZE,
@@ -644,22 +674,30 @@ ManualCvTree = function(n_k_fold,
                         my_minsize = 2,
                         use_only_first_fold = FALSE,
                         is_classification = FALSE,
-                        my_threshold = 0.5){
+                        my_threshold = 0.5,
+                        is_multiclass = FALSE){
   
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metric_names)
   
+  
+  all_fold_indexes = 1:n_k_fold
+  
+  # this are the indexed of the folds used as test set
+  # default all are used once as test set 
+  fold_used_as_test_indexes = 1:length(my_id_list_cv)
+  
+  # if only the first fold is used a test set
   if(use_only_first_fold == TRUE){
-    n_k_fold = 1
+    fold_used_as_test_indexes = 1
   }
   
   # we use my_max_size - 1 because we start with size = 2
   temp_metrics_array_cv = array(NA, dim = c(n_k_fold, my_max_size - 1, my_n_metrics))
   
-  fold_indexes = 1:n_k_fold
   
-  for (k in fold_indexes) {
+  for (k in fold_used_as_test_indexes) {
     
     # k-th fold set is used as validation set
     id_test = my_id_list_cv[[k]]
@@ -668,10 +706,22 @@ ManualCvTree = function(n_k_fold,
     # specifically we choose the one corresponding to the one with the minimum index 
     # among those not in the validation set
     
-    id_pruning = min(fold_indexes[-k])
+    # if the test set is the first index choose the last set a pruning set
+    # else choose the test index set - 1 as pruning set
+    
+    if(k == 1){
+      index_id_pruning = n_k_fold
+      
+    }
+    
+    if(k > 1){
+      index_id_pruning = k - 1
+    }
+    
+    id_pruning = my_id_list_cv[[index_id_pruning]]
     
     # the remaining fold sets are used as training set
-    id_train = unlist(my_id_list_cv[-c(k, id_pruning)])
+    id_train = unlist(my_id_list_cv[-c(k, index_id_pruning)])
     
     
     # full grown tree
@@ -681,6 +731,14 @@ ManualCvTree = function(n_k_fold,
                                                  mindev = my_mindev,
                                                  minsize = my_minsize))
     
+    if(is_classification == TRUE){
+      temp_tree_full = tree(factor(y) ~.,
+                            data = my_data[id_train,],
+                            control = tree.control(nobs = length(id_train),
+                                                   mindev = my_mindev,
+                                                   minsize = my_minsize))
+    }
+    
     # it has to overfit
     plot(temp_tree_full)
     
@@ -689,26 +747,38 @@ ManualCvTree = function(n_k_fold,
     # change minsize = 2 to higher values and so do it with 
     # mindev
     
-    # pruned tree: problem -> each fold can have different pruning inducing
-    # split sizes whose CV error cannot be averaged
-    # so I need to do it manually: select a set of size values
-    # for each value prune the full tree on the id_train (sub-optimal and too optimistic)
-    # (but given the scarsity of data we need a compromise)
-    # and keep track of the reduced deviance on the id_test
-    
     for (s in 2:my_max_size){
       temp_tree_pruned = prune.tree(temp_tree_full, best = s, newdata = my_data[id_pruning,])
-      # prediction error
+      
+      if(is_multiclass == TRUE){
+        temp_predictions = predict(temp_tree_pruned,
+                                   newdata = my_data[id_test,],
+                                   type = "class")
+      }
+      
+      # default
+      if(is_multiclass == FALSE){
+        temp_predictions = predict(temp_tree_pruned, newdata = my_data[id_test,])
+      }
+      
+      
+      if((is_classification == TRUE) & (is_multiclass == FALSE)){
+        # tree gives probabilities for each class
+        positive_index = which(colnames(temp_predictions) == 1)
+        temp_predictions = temp_predictions[,positive_index] > my_threshold
+      }
+      
+      
       # s-1 because we start by size = 2
-      temp_metrics_array_cv[k,s-1,] = USED.Metrics(predict(temp_tree_pruned, my_data[id_test,]),
-                                                   my_data$y[id_test],
+      temp_metrics_array_cv[k,s-1,] = USED.Metrics(y.pred = temp_predictions,
+                                                   y.test = my_data$y[id_test],
                                                    weights = my_weights[id_test])
-      print(paste("tree size: ", s, collapse = ""))
     }
     
     
     rm(temp_tree_full)
     rm(temp_tree_pruned)
+    rm(temp_predictions)
     gc()
     
     print(paste("fold ", k))
@@ -727,7 +797,7 @@ ManualCvTree = function(n_k_fold,
       cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
       cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)}
     
-    else{
+    if(use_only_first_fold == TRUE){
       cv_metrics[,i] = temp_metrics_array_cv[1,,i]
       cv_metrics_se[,i] = 0
     }
@@ -747,6 +817,12 @@ ManualCvTree = function(n_k_fold,
 #' @param my_data (data.frame): data.frame used
 #' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
 #' and compute the metrics on that
+#' 
+#' @param is_classification (bool): if TRUE adapt the metrics to classification problem
+#' using the threshold
+#' @param my_threshold (num): classification threshold used
+#'
+#' @param is_multiclass (bool): multiclass classification (to be checked)
 #'
 #' @param my_max_size (int): max size of the pruned tree
 #' 
@@ -767,7 +843,8 @@ ManualCvTreeParallel = function(my_id_list_cv,
                                 my_minsize = 2,
                                 use_only_first_fold = FALSE,
                                 is_classification = FALSE,
-                                my_threshold = 0.5){
+                                my_threshold = 0.5,
+                                is_multiclass = FALSE){
   
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metric_names)
@@ -819,13 +896,6 @@ ManualCvTreeParallel = function(my_id_list_cv,
     # change minsize = 2 to higher values and so do it with 
     # mindev
     
-    # pruned tree: problem -> each fold can have different pruning inducing
-    # split sizes whose CV error cannot be averaged
-    # so I need to do it manually: select a set of size values
-    # for each value prune the full tree on the id_train (sub-optimal and too optimistic)
-    # (but given the scarsity of data we need a compromise)
-    # and keep track of the reduced deviance on the id_test
-    
     # for better readability
     temp_metric = sfLapply(2:my_max_size,
                            fun = function(s) 
@@ -833,6 +903,10 @@ ManualCvTreeParallel = function(my_id_list_cv,
                                                              newdata = my_data[id_pruning,]),
                                                   my_data[id_test,]), my_data$y[id_test],
                                           weights = my_weights[id_test]))
+    
+    if(is_classification == TRUE){
+      temp_predictions = temp_predictions > my_threshold %>% as.numeric
+    }
     
     # unlist to the right dimensions matrix
     temp_metrics_array_cv[k,,] = matrix(unlist(temp_metric), ncol = my_n_metrics, byrow = T)
@@ -875,6 +949,186 @@ ManualCvTreeParallel = function(my_id_list_cv,
   
 }
 
+#' @param n_k_fold (int): number of fold used, use the global variable
+#' @param my_id_list_cv (list):ids in each fold , use the global variable
+#' @param my_n_metrics (int): number of loss functions used, use global variable
+#' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
+#' @param my_data (data.frame): data.frame used
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
+#' 
+#' @param is_classification (bool): if TRUE adapt the metrics to classification problem
+#' using the threshold
+#' @param my_threshold (num): classification threshold used
+#' 
+#' @param is_multiclass (bool): multiclass classification (to be checked)
+#' 
+#' @param my_max_size (int): max size of the pruned tree
+#'
+#' @return matrix of CV folds averaged errors for each parameter value and each loss function 
+ManualCvTreeParallel2 = function(my_id_list_cv,
+                        my_metric_names,
+                        my_data,
+                        my_max_size = TREE_MAX_SIZE,
+                        my_weights = 1,
+                        my_metrics_functions = MY_USED_METRICS,
+                        my_ncores = N_CORES,
+                        my_mindev = 1e-05,
+                        my_minsize = 2,
+                        use_only_first_fold = FALSE,
+                        is_classification = FALSE,
+                        my_threshold = 0.5,
+                        is_multiclass = FALSE){
+  
+  
+  n_k_fold = length(my_id_list_cv)
+  my_n_metrics = length(my_metric_names)
+  
+  
+  all_fold_indexes = 1:n_k_fold
+  
+  # this are the indexed of the folds used as test set
+  # default all are used once as test set 
+  fold_used_as_test_indexes = 1:length(my_id_list_cv)
+  
+  # if only the first fold is used a test set
+  if(use_only_first_fold == TRUE){
+    fold_used_as_test_indexes = 1
+  }
+  
+  # init parallel
+  sfInit(cpus = my_ncores, parallel = T)
+  
+  sfLibrary(tree)
+  sfExport(list = c("my_data", my_metrics_functions,
+                    "my_weights", "my_max_size",
+                    "is_classification","my_threshold",
+                    "is_multiclass", "my_mindev", "my_minsize"))
+  
+  # we use my_max_size - 1 because we start with size = 2
+  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, my_max_size - 1, my_n_metrics))
+  
+  
+  for (k in fold_used_as_test_indexes) {
+    
+    # k-th fold set is used as validation set
+    id_test = my_id_list_cv[[k]]
+    
+    # one set among those remaining is chosen as the pruning set
+    # specifically we choose the one corresponding to the one with the minimum index 
+    # among those not in the validation set
+    
+    # if the test set is the first index choose the last set a pruning set
+    # else choose the test index set - 1 as pruning set
+    
+    if(k == 1){
+      index_id_pruning = n_k_fold
+      
+    }
+    
+    if(k > 1){
+      index_id_pruning = k - 1
+    }
+    
+    id_pruning = my_id_list_cv[[index_id_pruning]]
+    
+    # the remaining fold sets are used as training set
+    id_train = unlist(my_id_list_cv[-c(k, index_id_pruning)])
+    
+    
+    # full grown tree
+    temp_tree_full = tree(y ~.,
+                          data = my_data[id_train,],
+                          control = tree.control(nobs = length(id_train),
+                                                 mindev = my_mindev,
+                                                 minsize = my_minsize))
+    
+    if(is_classification == TRUE){
+      temp_tree_full = tree(factor(y) ~.,
+                            data = my_data[id_train,],
+                            control = tree.control(nobs = length(id_train),
+                                                   mindev = my_mindev,
+                                                   minsize = my_minsize))
+    }
+    
+    # it has to overfit
+    plot(temp_tree_full)
+    
+    #' @param size (num): size values
+    #' @return (vector of nums): metrics values
+    ParallelFunction = function(size){
+      
+      temp_tree_pruned = prune.tree(temp_tree_full,
+                                    best = size,
+                                    newdata = my_data[id_pruning,])
+      
+      
+      if(is_multiclass == TRUE){
+        temp_predictions = predict(temp_tree_pruned,
+                                   newdata = my_data[id_test,],
+                                   type = "class")
+      }
+      
+      # default
+      if(is_multiclass == FALSE){
+        temp_predictions = predict(temp_tree_pruned, newdata = my_data[id_test,])
+      }
+      
+      
+      if((is_classification == TRUE) & (is_multiclass == FALSE)){
+        # tree gives probabilities for each class
+        positive_index = which(colnames(temp_predictions) == 1)
+        temp_predictions = temp_predictions[,positive_index] > my_threshold
+      }
+      
+      return(USED.Metrics(y.pred = temp_predictions,
+                          y.test = my_data$y[id_test],
+                          weights = my_weights[id_test]))
+    }
+    
+    sfExport(list = c("temp_tree_full",
+                      "id_train", "id_test", "id_pruning",
+                      "ParallelFunction"))
+    
+    temp_metrics = sfLapply(2:my_max_size,
+                            fun = ParallelFunction)
+    
+    # unlist to the right dimensions matrix
+    temp_metrics_array_cv[k,,] = matrix(unlist(temp_metrics),
+                                        nrow = my_max_size - 1,
+                                        ncol = my_n_metrics,
+                                        byrow = T)
+    
+    rm(temp_metrics)
+    gc()
+    
+    
+    print(paste("fold ", k))
+  }
+  
+  # averaged metrics matrix
+  cv_metrics = matrix(NA, nrow = my_max_size - 1, ncol = my_n_metrics)
+  
+  # metrics standard deviations matrix
+  cv_metrics_se = matrix(NA, nrow = my_max_size - 1, ncol = my_n_metrics)
+  colnames(cv_metrics) = my_metric_names
+  colnames(cv_metrics_se) = my_metric_names
+  
+  for (i in 1:my_n_metrics){
+    if(use_only_first_fold == FALSE){
+      cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+      cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)}
+    
+    if(use_only_first_fold == TRUE){
+      cv_metrics[,i] = temp_metrics_array_cv[1,,i]
+      cv_metrics_se[,i] = 0
+    }
+  }
+  
+  return(list("metrics" = cv_metrics,
+              "se" = cv_metrics_se))
+  
+}
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Random Forest ----------------------------------
@@ -906,6 +1160,10 @@ library(randomForest)
 #' else FALSE
 #' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
 #' and compute the metrics on that
+#' 
+#' @param is_classification (bool): if TRUE adapt the metrics to classification problem
+#' using the threshold
+#' @param my_threshold (num): classification threshold used
 #' 
 #' @description this function can be used (separately, not simultaneuosly) for two parameters check
 #' 1) if fix_tress_bool == TRUE -> my_n_bs_trees is fixed at its maximum if not already an integer
@@ -1035,7 +1293,11 @@ ManualCvRF = function(my_id_list_cv,
 #' example  my_metrics_functions = c("USED.Metrics", "MAE.Loss", "MSE.Loss").
 #' NOTE: if USED.Metrics contains some other functions they must be present as well, like the example
 #' which is also the default
-
+#' 
+#' @param is_classification (bool): if TRUE adapt the metrics to classification problem
+#' using the threshold
+#' @param my_threshold (num): classification threshold used
+#' 
 #' 
 #' @description this function can be used (separately, not simultaneuosly) for two parameters check
 #' 1) if fix_tress_bool == TRUE -> my_n_bs_trees is fixed at its maximum if not already an integer

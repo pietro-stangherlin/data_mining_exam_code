@@ -476,46 +476,6 @@ pred_list$pred_tree = as.vector(pred_tree_pruned)
 rm(tree_full)
 gc()
 
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Modello Additivo ---------------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-library(gam)
-
-# °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-# stepwise forward
-gam0 = gam(y ~ 1, data = sss, family = "binomial")
-# riconosce le qualitative se sono fattori
-my_gam_scope = gam.scope(sss[,-y_index], arg = c("df=2", "df=3", "df=4", "df=5", "df=6"))
-
-# prova anche parallelo
-# require(doMC)
-# registerDoMC(cores=4)
-# step.Gam(Gam.object,scope ,parallel=TRUE)
-
-gam_step = step.Gam(gam0, scope = my_gam_scope)
-
-# salvo il modello finale
-# y ~ y ~ x2 + x7 + x8 + anno
-gam_step = gam(y ~ x2 + x7 + x8 + anno,
-                 data = sss)
-
-object.size(gam_step)
-
-pred_gam = predict(gam_step, newdata = vvv, type = "response")
-
-df_err_qual = Add_Test_Metric(df_err_qual,
-                              "additivo_step",
-                              USED.Loss(pred_gam > threshold %>% as.numeric(),
-                                        vvv$y))
-
-df_err_qual
-
-pred_list$pred_gam_step = as.vector(pred_gam)
-
-rm(gam_step)
-
-
-gc()
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # GAM ---------------------------------------
