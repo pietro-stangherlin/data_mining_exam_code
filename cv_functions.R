@@ -810,9 +810,10 @@ ManualCvTree = function(my_id_list_cv,
 
 # parallelize inner cycle
 
-#' @param n_k_fold (int): number of fold used, use the global variable
+
+
+
 #' @param my_id_list_cv (list):ids in each fold , use the global variable
-#' @param my_n_metrics (int): number of loss functions used, use global variable
 #' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
 #' @param my_data (data.frame): data.frame used
 #' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
@@ -821,11 +822,11 @@ ManualCvTree = function(my_id_list_cv,
 #' @param is_classification (bool): if TRUE adapt the metrics to classification problem
 #' using the threshold
 #' @param my_threshold (num): classification threshold used
-#'
-#' @param is_multiclass (bool): multiclass classification (to be checked)
-#'
-#' @param my_max_size (int): max size of the pruned tree
 #' 
+#' @param is_multiclass (bool): multiclass classification (to be checked)
+#' 
+#' @param my_max_size (int): max size of the pruned tree
+
 #' @param my_metrics_functions (vector of characters): vector of loss function names feed to snowfall (parallel)
 #' example  my_metrics_functions = c("USED.Metrics", "MAE.Loss", "MSE.Loss").
 #' NOTE: if USED.Metrics contains some other functions they must be present as well, like the example
@@ -833,140 +834,6 @@ ManualCvTree = function(my_id_list_cv,
 #'
 #' @return matrix of CV folds averaged errors for each parameter value and each loss function 
 ManualCvTreeParallel = function(my_id_list_cv,
-                                my_metric_names,
-                                my_data,
-                                my_max_size = TREE_MAX_SIZE,
-                                my_metrics_functions = MY_USED_METRICS,
-                                my_ncores = N_CORES,
-                                my_weights = 1,
-                                my_mindev = 1e-05,
-                                my_minsize = 2,
-                                use_only_first_fold = FALSE,
-                                is_classification = FALSE,
-                                my_threshold = 0.5,
-                                is_multiclass = FALSE){
-  
-  n_k_fold = length(my_id_list_cv)
-  my_n_metrics = length(my_metric_names)
-  
-  if(use_only_first_fold == TRUE){
-    n_k_fold = 1
-  }
-  
-  
-  # init parallel
-  sfInit(cpus = my_ncores, parallel = T)
-  
-  sfLibrary(tree)
-  sfExport(list = c("my_data", my_metrics_functions))
-  
-  
-  # we use my_max_size - 1 because we start with size = 2
-  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, my_max_size - 1, my_n_metrics))
-  
-  fold_indexes = 1:n_k_fold
-  
-  for (k in fold_indexes){
-    
-    # k-th fold set is used as validation set
-    id_test = my_id_list_cv[[k]]
-    
-    # one set among those remaining is chosen as the pruning set
-    # specifically we choose the one corresponding to the one with the minimum index 
-    # among those not in the validation set
-    
-    id_pruning = min(fold_indexes[-k])
-    
-    # the remaining fold sets are used as training set
-    id_train = unlist(my_id_list_cv[-c(k, id_pruning)])
-    
-    # full grown tree
-    temp_tree_full = tree(y ~.,
-                          data = my_data[id_train,],
-                          control = tree.control(nobs = length(id_train),
-                                                 mindev = my_mindev,
-                                                 minsize = my_minsize))
-    
-    # it has to overfit
-    plot(temp_tree_full)
-    
-    sfExport(list = c("temp_tree_full", "id_train", "id_test", "id_pruning",
-                      "my_max_size", "my_weights"))
-    # if maximum tree depth error
-    # change minsize = 2 to higher values and so do it with 
-    # mindev
-    
-    # for better readability
-    temp_metric = sfLapply(2:my_max_size,
-                           fun = function(s) 
-                             USED.Metrics(predict(prune.tree(temp_tree_full, best = s,
-                                                             newdata = my_data[id_pruning,]),
-                                                  my_data[id_test,]), my_data$y[id_test],
-                                          weights = my_weights[id_test]))
-    
-    if(is_classification == TRUE){
-      temp_predictions = temp_predictions > my_threshold %>% as.numeric
-    }
-    
-    # unlist to the right dimensions matrix
-    temp_metrics_array_cv[k,,] = matrix(unlist(temp_metric), ncol = my_n_metrics, byrow = T)
-    
-    
-    rm(temp_tree_full)
-    rm(temp_metric)
-    gc()
-    
-    print(paste("fold ", k))
-  }
-  
-  # stop parallel cluster
-  sfStop()
-  
-  # averaged metrics matrix
-  cv_metrics = matrix(NA, nrow = my_max_size - 1, ncol = my_n_metrics)
-  
-  # metrics standard deviations matrix
-  cv_metrics_se = matrix(NA, nrow = my_max_size - 1, ncol = my_n_metrics)
-  colnames(cv_metrics) = my_metric_names
-  colnames(cv_metrics_se) = my_metric_names
-  
-  for (i in 1:my_n_metrics){
-    if(use_only_first_fold == FALSE){
-      cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
-      cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)}
-    
-    else{
-      cv_metrics[,i] = temp_metrics_array_cv[1,,i]
-      cv_metrics_se[,i] = 0
-    }
-  }
-  
-  return(list("metrics" = cv_metrics,
-              "se" = cv_metrics_se))
-  
-  return(cv_metrics)
-  
-  
-}
-
-#' @param n_k_fold (int): number of fold used, use the global variable
-#' @param my_id_list_cv (list):ids in each fold , use the global variable
-#' @param my_n_metrics (int): number of loss functions used, use global variable
-#' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
-#' @param my_data (data.frame): data.frame used
-#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
-#' and compute the metrics on that
-#' 
-#' @param is_classification (bool): if TRUE adapt the metrics to classification problem
-#' using the threshold
-#' @param my_threshold (num): classification threshold used
-#' 
-#' @param is_multiclass (bool): multiclass classification (to be checked)
-#' 
-#' @param my_max_size (int): max size of the pruned tree
-#'
-#' @return matrix of CV folds averaged errors for each parameter value and each loss function 
-ManualCvTreeParallel2 = function(my_id_list_cv,
                         my_metric_names,
                         my_data,
                         my_max_size = TREE_MAX_SIZE,

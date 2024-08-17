@@ -845,7 +845,7 @@ TREE_MAX_SIZE = 50
 #                                use_only_first_fold = TRUE)
 
 # if parallel shows problems use the non parallel version
-tree_cv_metrics = ManualCvTreeParallel2(my_id_list_cv = ID_CV_LIST,
+tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv = ID_CV_LIST,
                                        my_metric_names = METRICS_NAMES,
                                        my_data = sss,
                                        my_max_size = TREE_MAX_SIZE,
