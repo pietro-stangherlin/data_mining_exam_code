@@ -30,6 +30,12 @@ probabilmente può essere troppo lungo da implementare (per la multiclasse), ma 
 
 ## Regressione e classificazione
 
+### Generale: subsampling
+Aggiungere un'opzione nelle funzioni di convalida incrociata per il subsampling:
+Assumere che vi possano essere due diverse partizioni di fold: una bilanciata per la stima 
+e una sbilanciata per la verifica.
+Con l'opzione di default in cui coincidono.
+
 ### Gestisci dati aggregati (classificazione)
 Es. tabelle di frequenza.
 
@@ -39,16 +45,16 @@ Es. tabelle di frequenza.
 
 ### Multiclasse per poche osservazioni +  subsampling
 
-### Salvataggio output su file
+### DONE - Salvataggio output su file
 Ad esempio per recuperare formule di modelli se R crasha.
 Problema: con sink() è possibile ma ciò implica che l'output sia visibile SOLO sul file,
 io voglio che sia visibile sia da console che salvato su file.
 
-### Tutti i modelli: salvataggio locale modelli
+### DONE-  Tutti i modelli: salvataggio locale modelli
 Trova un modo di salvare i modelli su disco in modo da poter liberare la memoria centrale 
 e riprendere i modelli per le conclusioni.
 
-### In alternativa: salva alcuni output + grafici anche su file
+### DONE-  In alternativa: salva alcuni output + grafici anche su file
 
 
 ### Regressione sulle componenti principali

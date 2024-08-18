@@ -433,11 +433,9 @@ PPRRegulationCV = function(my_data = sss,
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metrics_names)
   
-  if(use_only_first_fold == TRUE){
-    n_k_fold = 1
-  }
   
-  temp_metrics_array_cv = array(NA,
+  # first create 
+  temp_metrics_array_cv = array(0,
                         dim = c(my_max_ridge_functions,
                                 length(my_spline_df),
                                 length(my_metrics_names),
@@ -447,6 +445,11 @@ PPRRegulationCV = function(my_data = sss,
                                         my_spline_df,
                                         my_metrics_names,
                                         rep(NA, n_k_fold)))
+  
+  # do after array creation, inefficient but should work
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
   
   for (k in 1:n_k_fold){
     id_train = unlist(my_id_list_cv[-k])
@@ -464,7 +467,7 @@ PPRRegulationCV = function(my_data = sss,
         temp_predictions = predict(mod, my_data[-id_train,])
         
         if(is_classification == TRUE){
-          temp_predictions = temp_predictions > my_threshold %>% as.numeric
+          temp_predictions = temp_predictions > my_threshold
         }
         
         rm(mod)
@@ -476,7 +479,6 @@ PPRRegulationCV = function(my_data = sss,
         rm(temp_predictions)
         gc()
       }
-      print(paste0("n ridge functions: ", r, collapse = ""))
     }
     print(paste("fold = ", k, collapse = ""))
   }
@@ -539,10 +541,6 @@ PPRRegulationCVParallel = function(my_data = sss,
   n_k_fold = length(my_id_list_cv)
   my_n_metrics = length(my_metrics_names)
   
-  if(use_only_first_fold == TRUE){
-    n_k_fold = 1
-  }
-  
   # needed to do parallel
   # each list element contains a vector of length 2
   # first element is the number of ridge functions
@@ -564,9 +562,9 @@ PPRRegulationCVParallel = function(my_data = sss,
   
   sfExport(list = c("my_data", my_metrics_functions,
                     "my_max_ridge_functions", "my_spline_df", "params_list",
-                    "my_weights"))
+                    "my_weights", "is_classification", "my_threshold"))
   
-  temp_metrics_array_cv = array(NA,
+  temp_metrics_array_cv = array(0,
                                 dim = c(my_max_ridge_functions,
                                         length(my_spline_df),
                                         length(my_metrics_names),
@@ -575,6 +573,11 @@ PPRRegulationCVParallel = function(my_data = sss,
                                                 my_spline_df,
                                                 my_metrics_names,
                                                 1:n_k_fold))
+  
+  # do after array creation: inefficient but should work
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
 
   
   for (k in 1:n_k_fold){
@@ -584,30 +587,39 @@ PPRRegulationCVParallel = function(my_data = sss,
     
     sfExport(list = c("id_train", "id_test"))
     
-    temp_predictions = sfLapply(params_list,
-                                fun = function(el) 
-                                  predict(ppr(y ~ .,
-                                              data = my_data[id_train,],
-                                              nterms = el[1],
-                                              sm.method = "spline",
-                                              df = el[2]),
-                                          my_data[id_test,]))
-    
-    if(is_classification == TRUE){
-      temp_predictions = temp_predictions > my_threshold %>% as.numeric
+    #' @params (vector of nums): 
+    #' first element: number of ridge functions
+    #' second element number of spline degrees of freedom
+    ParallelFunction = function(params){
+      temp_predictions = predict(ppr(y ~ .,
+                       data = my_data[id_train,],
+                       nterms = params[1],
+                       sm.method = "spline",
+                       df = params[2]),
+                       my_data[id_test,])
+      
+      if(is_classification == TRUE){
+        temp_predictions = temp_predictions > my_threshold
+      }
+      
+      return(temp_predictions)
     }
     
-    temp_metric = USED.Metrics(temp_predictions,
-                               my_data$y[id_test],
-                               weights = my_weights[id_test])
+    sfExport(list = c("ParallelFunction"))
     
+    temp_predictions = sfLapply(params_list,
+                                fun = ParallelFunction)
+
     counter = 1
     
     for (r in 1:my_max_ridge_functions){
       for(df in 1:length(my_spline_df)){
-        temp_metrics_array_cv[r, df, ,k] = temp_metric[[counter]]
+        temp_metrics_array_cv[r, df, ,k] = USED.Metrics(temp_predictions[[counter]],
+                                                        my_data$y[id_test],
+                                                        weights = my_weights[id_test])
         
         counter = counter + 1
+        
       }
     }
     
@@ -632,7 +644,6 @@ PPRRegulationCVParallel = function(my_data = sss,
   
   metrics_array = metrics_array / n_k_fold
   
-  rm(temp_metric)
   gc()
   
   return(metrics_array)
@@ -644,7 +655,7 @@ PPRRegulationCVParallel = function(my_data = sss,
 # Tree ----------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# TO DO: fix the y classification case -------------------
+# TO DO: check the multiclass case  -------------------
 
 library(tree)
 

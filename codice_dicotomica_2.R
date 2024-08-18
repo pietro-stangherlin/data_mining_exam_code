@@ -44,7 +44,7 @@ METRICS_NAMES = colnames(df_metrics[,-1])
 N_METRICS = length(METRICS_NAMES)
 
 # names used to extract the metric added to df_metrics
-# change based on the spefific problem
+# change based on the specific problem
 METRIC_VALUES_NAME = "metric_values"
 METRIC_CHOSEN_NAME = "f_score"
 
@@ -810,7 +810,7 @@ library(tree)
 
 # Model selection
 
-# 0) Full tree which to be pruned ------
+# 0) Full tree to be pruned ------
 
 # default: overfit
 tree_full = tree(factor(y) ~.,
@@ -1113,14 +1113,16 @@ PPR_MAX_RIDGE_FUNCTIONS = 4
 # possible spline degrees of freedom
 PPR_DF_SM = 2:6
 
-# ppr_metrics = PPRRegulationTrainTestParallel(my_data = sss,
-#                                              my_id_train = id_cb1,
-#                                              my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
-#                                              my_spline_df = PPR_DF_SM,
-#                                              my_metrics_names = METRICS_NAMES,
-#                                              my_weights = MY_WEIGHTS_sss,
-#                                              my_metrics_functions = MY_USED_METRICS,
-#                                              my_ncores = N_CORES)
+ppr_metrics = PPRRegulationCV(my_data = sss,
+                              my_id_list_cv = ID_CV_LIST,
+                              my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+                              my_spline_df = PPR_DF_SM,
+                              my_metrics_names = METRICS_NAMES,
+                              my_weights = MY_WEIGHTS_sss,
+                              use_only_first_fold = TRUE,
+                              is_classification = TRUE,
+                              my_threshold = MY_THRESHOLD)
+
 
 
 
@@ -1134,7 +1136,9 @@ ppr_metrics = PPRRegulationCVParallel(my_data = sss,
                                       my_weights = MY_WEIGHTS_sss,
                                       my_metrics_functions = MY_USED_METRICS,
                                       my_ncores = N_CORES,
-                                      use_only_first_fold = TRUE)
+                                      use_only_first_fold = TRUE,
+                                      is_classification = TRUE,
+                                      my_threshold = MY_THRESHOLD)
 
 
 
@@ -1151,13 +1155,20 @@ ppr_model = ppr(y ~ .,
                 sm.method = "spline",
                 df = ppr_best_params[[METRIC_CHOSEN_NAME]][["spline_df"]]) 
 
+
+temp_pred = predict(ppr_model, vvv)
+
+pred_list$ppr_model = temp_pred
+
 df_metrics = Add_Test_Metric(df_metrics,
                              "PPR",
-                             USED.Metrics(predict(ppr_model, vvv),
+                             USED.Metrics(temp_pred > MY_THRESHOLD,
                                           vvv$y,
                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics
+
+rm(temp_pred)
 
 # save the df_metrics as .Rdata
 save(df_metrics, pred_list, file = "df_metrics.Rdata")
@@ -1170,8 +1181,6 @@ save(ppr_model, file = file_name_ppr_model)
 
 rm(ppr_model)
 gc()
-
-
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Random Forest ------------------------------
@@ -1218,9 +1227,10 @@ for(i in seq(2, m_max)){
   sfExport(list = c("i"))
   
   err[i] = sum(sfSapply(rep(1:8),
-                        function(x) ranger(y ~., data = sss,
+                        function(x) ranger(factor(y) ~., data = sss,
                                            mtry = i,
                                            num.trees = 50,
+                                           probability = TRUE,
                                            oob.error = TRUE)$prediction.error))
   print(paste("mtry: ", i, collapse = ""))
   gc()
@@ -1244,11 +1254,12 @@ err_rf_trees = rep(NA, 90)
 for(j in 10:100){
   sfExport(list = c("j"))
   err_rf_trees[j] = sum(sfSapply(rep(1:4),
-                                 function(x) ranger(y ~., sss,
+                                 function(x) ranger(factor(y) ~., sss,
                                                     mtry = best_mtry,
                                                     num.trees = j,
+                                                    probability = TRUE,
                                                     oob.error = TRUE)$prediction.error))
-  print(paste("number of trees: ", j, collapse = ""))
+  print(paste("number of trees: ", j*4, collapse = ""))
   gc()
 }
 
@@ -1256,7 +1267,7 @@ sfStop()
 
 PlotAndSave(my_plotting_function =  function()plot((1:length(err_rf_trees)) * 4, err_rf_trees,
                                                    xlab = "Bootstrap trees number",
-                                                   ylab = "Out of bag MSE",
+                                                   ylab = "Out of bag Error",
                                                    pch = 16,
                                                    main = "Random Forest"),
             my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
@@ -1267,20 +1278,27 @@ PlotAndSave(my_plotting_function =  function()plot((1:length(err_rf_trees)) * 4,
 
 
 # modello finale e previsioni
-random_forest_model = ranger(y ~., sss,
+random_forest_model = ranger(factor(y) ~., sss,
                              mtry = best_mtry,
                              num.trees = 400,
                              oob.error = TRUE,
+                             probability = TRUE,
                              importance = "permutation")
+
+# Warning check index
+temp_pred = predict(random_forest_model, data = vvv,
+                    type = "response")$predictions[,1]
+
+pred_list$random_forest = temp_pred
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "Random Forest",
-                             USED.Metrics(predict(random_forest_model, data = vvv,
-                                                  type = "response")$predictions,
+                             USED.Metrics(temp_pred > MY_THRESHOLD,
                                           vvv$y,
                                           weights = MY_WEIGHTS_vvv))
 
 df_metrics
+rm(temp_pred)
 
 # save the df_metrics as .Rdata
 save(df_metrics, pred_list, file = "df_metrics.Rdata")
@@ -1292,7 +1310,7 @@ vimp = importance(random_forest_model)
 PlotAndSave(my_plotting_function =  function() dotchart(vimp[order(vimp)],
                                                         pch = 16,
                                                         main = "Random Forest Variable Importance Permutation",
-                                                        xlab = "deviance increase"),
+                                                        xlab = "error increase"),
             my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                  "random_forest_importance_plot.jpeg",
                                  collapse = ""))
@@ -1333,10 +1351,10 @@ err_bg_trees = rep(NA, 90)
 for(j in 10:100){
   sfExport(list = c("j"))
   err_bg_trees[j] = sum(sfSapply(rep(1:4),
-                                 function(x) bagging(y ~., sss,
+                                 function(x) bagging(factor(y) ~., sss,
                                                      nbag = j,
                                                      coob = TRUE)$err))
-  print(j)
+  print(j*4)
   gc()
 }
 
@@ -1375,6 +1393,148 @@ save(bagging_model, file = file_name_bagging)
 
 rm(bagging_model)
 gc()
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Boosting ------------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+library(ada)
+
+
+# Procedura Sub-ottimale per scegliere il numero di split di ciascun albero
+# Fisso il numero di iterazioni e scelgo il modello con l'errore minore sulla convalida
+# Poi sul modello scelto controllo la convergenza rispetto al numero di iterazioni
+# NOTA: fissiamo la complessità massima degli alberi bassa dato che
+# l'algoritmo di boosting non funziona correttamente per alberi troppo complessi
+# (pochi o nessun errore commesso)
+
+# per questo problema usiamo l'errore di classificazione
+
+
+# massima profondità = 10
+err_boost = rep(NA, 20)
+
+iter_boost = 400
+
+# Stump 
+m_boost_stump = ada(x = sss[id_cb1, -y_index],
+                    y = sss$y[id_cb1],
+                    test.x = sss[-id_cb1, -y_index],
+                    test.y = sss$y[-id_cb1],
+                    iter = iter_boost,
+                    control = rpart.control(maxdepth=1,
+                                            cp=-1,
+                                            minsplit=0,xval=0))
+
+plot(m_boost_stump, test = T)
+
+par(mfrow = c(1,1))
+
+# update
+m_boost_stump = update(m_boost_stump,
+                       x = sss[id_cb1, -y_index],
+                       y = sss$y[id_cb1],
+                       test.x = sss[-id_cb1, -y_index],
+                       test.y = sss$y[-id_cb1],
+                       n.iter = 700)
+
+PlotAndSave(my_plotting_function = function() plot(m_boost_stump,
+                                                   test = T),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "boosting_convergence.jpeg",
+                                 collapse = ""))
+
+
+pred_boost_stump = predict(m_boost_stump, vvv, type = "prob")[,2]
+pred_list$pred_boost_stump = as.vector(pred_boost_stump)
+
+df_err_qual = Add_Test_Metric(df_err_qual,
+                              "Boosting Stump",
+                              USED.Loss(pred_boost_stump > threshold %>% as.numeric(),
+                                        vvv$y))
+
+rm(m_boost_stump)
+gc()
+
+# 3 split
+# guardiamo quando si stabilizza l'errore
+
+m_boost_2 = ada(x = sss[id_cb1, -y_index],
+                y = sss$y[id_cb1],
+                test.x = sss[-id_cb1, -y_index],
+                test.y = sss$y[-id_cb1],
+                iter = iter_boost,
+                control = rpart.control(maxdepth = 6))
+
+plot(m_boost_2, test = T)
+
+par(mfrow = c(1,1))
+
+# update
+m_boost_2 = update(m_boost_2,
+                   x = sss[id_cb1, -y_index],
+                   y = sss$y[id_cb1],
+                   test.x = sss[-id_cb1, -y_index],
+                   test.y = sss$y[-id_cb1],
+                   n.iter = 700)
+
+plot(m_boost_2, test = T)
+
+pred_boost_2 = predict(m_boost_2, vvv, type = "prob")[,2]
+
+df_err_qual = Add_Test_Metric(df_err_qual,
+                              "Boosting 3 Split",
+                              USED.Loss(pred_boost_2 > threshold %>% as.numeric(),
+                                        vvv$y))
+
+pred_list$pred_boost_2 = as.vector(pred_boost_2)
+
+df_err_qual
+
+rm(m_boost_2)
+
+gc()
+
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Support Vector Machine ---------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+library(e1071)
+
+
+# Stima Convalida
+# Kernel Radiale
+
+ranges = seq(2,20,by=0.5)
+err_svm <- matrix(NA,length(ranges),2)
+for (i in 1:length(ranges)){
+  s1<- svm(factor(y)~., data= sss[id_cb1,], cost=ranges[i], kernel = "radial")
+  pr1 <- predict(s1, newdata= sss[-id_cb1,], probability = FALSE) #, decision.values=TRUE)
+  uso <- tabella.sommario(pr1, osserv= sss$y[-id_cb1])
+  # eventualmente cambia il tipo di errore
+  err_svm[i,]<-c(ranges[i], uso[1])
+}
+plot(err_svm, type="b", pch = 16,
+     xlab = "costo", ylab = "errore",
+     main = "SVM radiale")
+
+ranges[which.min(err_svm[,2])]
+# ATTENZIONE: modificare 
+# 15 
+
+m_svm =  svm( factor(y)~., data= sss, cost= ranges[which.min(err_svm[,2])])
+pred_svm_radial = attr(predict(m_svm, newdata = vvv, decision.values=TRUE), "decision.values")[,1]
+
+df_err_qual = Add_Test_Metric(df_err_qual,
+                              "SVM radial",
+                              USED.Loss(pred_svm_radial > 0,
+                                        vvv$y))
+
+df_err_qual
+
+pred_list$pred_svm_radial = pred_svm_radial
+
+
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Rete neurale -------------------------------
