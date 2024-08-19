@@ -92,15 +92,13 @@ ManualCvGlmnet = function(my_id_list_cv,
   colnames(cv_metrics_se) = my_metric_names
   
   for (i in 1:my_n_metrics){
-    for (i in 1:my_n_metrics){
-      if(use_only_first_fold == FALSE){
-        cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
-        cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)}
+    if(use_only_first_fold == FALSE){
+      cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+      cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)}
       
-      else{
-        cv_metrics[,i] = temp_metrics_array_cv[1,,i]
-        cv_metrics_se[,i] = 0
-      }
+    else{
+      cv_metrics[,i] = temp_metrics_array_cv[1,,i]
+      cv_metrics_se[,i] = 0
     }
   }
   
@@ -1099,26 +1097,48 @@ ManualCvRF = function(my_id_list_cv,
     id_train = unlist(my_id_list_cv[-k])
     id_test = my_id_list_cv[[k]]
     
-    # it's ugly I know and a bad pratice but I'll do two separate loop based on if condition
+    # it's ugly I know and a bad practice but I'll do two separate loop based on if condition
     
+    PredictFunction = function(my_pred_mtry, my_pred_n_trees){
+      if(is_classification == TRUE){
+        model = randomForest(factor(y) ~.,
+                             data = my_data[id_train,],
+                             mtry = my_pred_mtry,
+                             ntree = my_pred_n_trees)
+        
+        temp_predictions = predict(model,
+                                   type = "prob",
+                                   newdata = my_data[id_test,])[,2] > my_threshold
+      }
+      
+      if(is_classification == FALSE){
+        model = randomForest(y ~.,
+                             data = my_data[id_train,],
+                             mtry = my_pred_mtry,
+                             ntree = my_pred_n_trees)
+        
+        temp_predictions = predict(model,
+                                   newdata = my_data[id_test,])
+      }
+      
+      return(temp_predictions)
+    }
     
     if(fix_trees_bool == TRUE){
       for (m in 1:tuning_parameter_length){
-        temp_rf = randomForest(y ~., data = my_data[id_train,],
-                               mtry = my_n_variables[m], ntree = my_n_bs_trees)
         # prediction error
-        temp_metrics_array_cv[k,m,] = USED.Metrics(predict(temp_rf, my_data[id_test,]),
-                                                   my_data$y[id_test], weights = my_weights)
+        temp_metrics_array_cv[k,m,] = USED.Metrics(PredictFunction(my_pred_mtry = m,
+                                                                   my_pred_n_trees = my_n_trees),
+                                                   my_data$y[id_test],
+                                                   weights = my_weights)
         print(paste(c("n var = ", m), collapse = ""))
       }
     }
     
     else{
       for (t in 1:tuning_parameter_length){
-        temp_rf = randomForest(y ~., data = my_data[id_train,],
-                               mtry = my_n_variables, ntree = my_n_bs_trees[t])
-        # prediction error
-        temp_metrics_array_cv[k,t,] = USED.Metrics(predict(temp_rf, my_data[id_test,]),
+        temp_metrics_array_cv[k,t,] = USED.Metrics(PredictFunction(my_pred_mtry = my_n_variables,
+                                                                   my_pred_n_trees = t),
                                                    my_data$y[id_test],
                                                    weights = my_weights[id_test])
         print(paste(c("n trees = ", my_n_bs_trees[t]), collapse = ""))
@@ -1141,8 +1161,14 @@ ManualCvRF = function(my_id_list_cv,
   colnames(cv_metrics_se) = my_metric_names
   
   for (i in 1:my_n_metrics){
-    cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
-    cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
+    if(use_only_first_fold == FALSE){
+      cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+      cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)}
+    
+    else{
+      cv_metrics[,i] = temp_metrics_array_cv[1,,i]
+      cv_metrics_se[,i] = 0
+    }
   }
   
   return(list("metrics" = cv_metrics,
@@ -1190,7 +1216,7 @@ ManualCvRF = function(my_id_list_cv,
 ManualCvRFParallel = function(my_id_list_cv,
                               my_metric_names,
                               my_data,
-                              my_n_variables = 1:RF_MAX_VARIABLES,
+                              my_n_variables = 2:RF_MAX_VARIABLES,
                               my_n_bs_trees = 10:RF_N_BS_TREES,
                               fix_trees_bool = TRUE,
                               my_metrics_functions = MY_USED_METRICS,
@@ -1233,31 +1259,65 @@ ManualCvRFParallel = function(my_id_list_cv,
   }
   
   
-  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, tuning_parameter_length, my_n_metrics))
+  temp_metrics_array_cv = array(NA, dim = c(n_k_fold,
+                                            tuning_parameter_length,
+                                            my_n_metrics))
   
   # allocate relevant variables in cluster
   sfExport(list = c("my_data", my_metrics_functions,
-                    "my_n_bs_trees", "tuning_parameter_length", "my_n_variables", "my_weights"))
+                    "my_n_bs_trees", "tuning_parameter_length",
+                    "my_n_variables", "my_weights",
+                    "my_threshold", "is_classification"))
   
   for (k in 1:n_k_fold){
     id_train = unlist(my_id_list_cv[-k])
     id_test = my_id_list_cv[[k]]
     
-    sfExport(list = c("id_train", "id_test"))
-    
     # it's ugly I know and a bad pratice but I'll do two separate loop based on if condition
     
+    PredictFunction = function(my_pred_mtry, my_pred_n_trees){
+      if(is_classification == TRUE){
+        model = randomForest(factor(y) ~.,
+                             data = my_data[id_train,],
+                             mtry = my_pred_mtry,
+                             ntree = my_pred_n_trees)
+        
+        temp_predictions = predict(model,
+                                   type = "prob",
+                                   newdata = my_data[id_test,])[,2] > my_threshold
+      }
+      
+      if(is_classification == FALSE){
+        model = randomForest(y ~.,
+                             data = my_data[id_train,],
+                             mtry = my_pred_mtry,
+                             ntree = my_pred_n_trees)
+        
+        temp_predictions = predict(model,
+                                   newdata = my_data[id_test,])
+      }
+      
+      return(temp_predictions)
+    }
+    
+    sfExport(list = c("id_train", "id_test", "PredictFunction"))
+    
     if(fix_trees_bool == TRUE){
+      
       # for better readability
       temp_metric = sfLapply(1:tuning_parameter_length,
                              fun = function(m) 
-                               USED.Metrics(predict(randomForest(y ~., data = my_data[id_train,],
-                                                                 mtry = my_n_variables[m], ntree = my_n_bs_trees),
-                                                    my_data[id_test,]), my_data$y[id_test],
+                               USED.Metrics(PredictFunction(my_pred_mtry = m,
+                                                            my_pred_n_trees = my_n_bs_trees),
+                                            my_data$y[id_test],
                                             weights = my_weights[id_test]))
       
+      print(temp_metric)
+      
       # unlist to the right dimensions matrix
-      temp_metrics_array_cv[k,my_n_variables,] = matrix(unlist(temp_metric), ncol = my_n_metrics, byrow = T)
+      temp_metrics_array_cv[k,tuning_parameter_length,] = matrix(unlist(temp_metric),
+                                                        ncol = my_n_metrics,
+                                                        byrow = T)
       
       rm(temp_metric)
       gc()
@@ -1269,13 +1329,15 @@ ManualCvRFParallel = function(my_id_list_cv,
       # for better readability
       temp_metric = sfLapply(1:tuning_parameter_length,
                              fun = function(t) 
-                               USED.Metrics(predict(randomForest(y ~., data = my_data[id_train,],
-                                                                 mtry = my_n_variables, ntree = my_n_bs_trees[t]),
-                                                    my_data[id_test,]), my_data$y[id_test],
+                               USED.Metrics(PredictFunction(my_pred_mtry = my_n_variables,
+                                                            my_pred_n_trees = t),
+                                            my_data$y[id_test],
                                             weights = my_weights))
       
       # unlist to the right dimensions matrix
-      temp_metrics_array_cv[k,1:tuning_parameter_length,] = matrix(unlist(temp_metric), ncol = my_n_metrics, byrow = T)
+      temp_metrics_array_cv[k,tuning_parameter_length,] = matrix(unlist(temp_metric),
+                                                                   ncol = my_n_metrics,
+                                                                   byrow = T)
       
       rm(temp_metric)
       gc()
@@ -1295,8 +1357,14 @@ ManualCvRFParallel = function(my_id_list_cv,
   colnames(cv_metrics_se) = my_metric_names
   
   for (i in 1:my_n_metrics){
-    cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
-    cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)
+    if(use_only_first_fold == FALSE){
+      cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+      cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)}
+    
+    else{
+      cv_metrics[,i] = temp_metrics_array_cv[1,,i]
+      cv_metrics_se[,i] = 0
+    }
   }
   
   return(list("metrics" = cv_metrics,

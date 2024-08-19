@@ -1113,15 +1113,15 @@ PPR_MAX_RIDGE_FUNCTIONS = 4
 # possible spline degrees of freedom
 PPR_DF_SM = 2:6
 
-ppr_metrics = PPRRegulationCV(my_data = sss,
-                              my_id_list_cv = ID_CV_LIST,
-                              my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
-                              my_spline_df = PPR_DF_SM,
-                              my_metrics_names = METRICS_NAMES,
-                              my_weights = MY_WEIGHTS_sss,
-                              use_only_first_fold = TRUE,
-                              is_classification = TRUE,
-                              my_threshold = MY_THRESHOLD)
+# ppr_metrics = PPRRegulationCV(my_data = sss,
+#                               my_id_list_cv = ID_CV_LIST,
+#                               my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+#                               my_spline_df = PPR_DF_SM,
+#                               my_metrics_names = METRICS_NAMES,
+#                               my_weights = MY_WEIGHTS_sss,
+#                               use_only_first_fold = TRUE,
+#                               is_classification = TRUE,
+#                               my_threshold = MY_THRESHOLD)
 
 
 
@@ -1204,26 +1204,23 @@ sfExport(list = c("sss"))
 
 # esportiamo tutti gli oggetti necessari
 
-
 # scelta del numero di esplicative a ogni split
 # adattiamo 50 alberi per core e di ciascun albero ritorniamo l'errore out of bag
 # successivamente sommiamo gli errori out of bag per ogni mtry
 
 # massimo numero di esplicative presenti
-m_max = NCOL(sss) - 1 # sottraggo 1 per la variabile risposta
-
-# se m_max è grande eventualmente ridurlo per considerazioni computazionali
-
+RF_MAX_VARIABLES = NCOL(sss) - 1 # sottraggo 1 per la variabile risposta
+# ridurlo per considerazioni computazionali
 
 # regolazione
 # procedura sub-ottimale, ma la impiego per ragioni computazionali
 # prima scelgo il numero di esplicative a ogni split,
 # una volta scelto controllo la convergenza dell'errore basata sul numero di alberi
-err = rep(NA, m_max)
+err = rep(NA, RF_MAX_VARIABLES)
 
 # °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 
-for(i in seq(2, m_max)){
+for(i in seq(2, RF_MAX_VARIABLES)){
   sfExport(list = c("i"))
   
   err[i] = sum(sfSapply(rep(1:8),
@@ -1287,7 +1284,7 @@ random_forest_model = ranger(factor(y) ~., sss,
 
 # Warning check index
 temp_pred = predict(random_forest_model, data = vvv,
-                    type = "response")$predictions[,1]
+                    type = "response")$predictions[,2]
 
 pred_list$random_forest = temp_pred
 
@@ -1328,7 +1325,6 @@ rm(random_forest_model)
 gc()
 
 
-
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Bagging ------------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1339,8 +1335,6 @@ sfInit(cpus = N_CORES, parallel = T)
 sfExport(list = c("sss"))
 
 sfLibrary(ipred)
-
-
 
 err_bg_trees = rep(NA, 90)
 
@@ -1360,24 +1354,36 @@ for(j in 10:100){
 
 sfStop()
 
-plot((1:length(err_bg_trees)) * 4, err_bg_trees,
-     xlab = "numero di alberi bootstrap",
-     ylab = "errore out of bag",
-     pch = 16,
-     main = "Bagging")
+PlotAndSave(my_plotting_function = function() plot((1:length(err_bg_trees)) * 4, err_bg_trees,
+                                                   xlab = "numero di alberi bootstrap",
+                                                   ylab = "errore out of bag",
+                                                   pch = 16,
+                                                   main = "Bagging"),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "bagging_convergence_plot.jpeg",
+                                 collapse = "")
+)
+
 
 # se il numero di replicazioni bootstrap arriva a convergenza allora
 
 bagging_model = bagging(y ~., sss, nbag = 400, coob = FALSE)
 
+temp_pred = predict(bagging_model, data = vvv,
+                    type = "response")$predictions[,2]
+
+pred_list$bagging = temp_pred
+
 df_metrics = Add_Test_Metric(df_metrics,
                              "Bagging",
-                             USED.Metrics(predict(bagging_model, newdata = vvv),
+                             USED.Metrics(temp_pred > MY_THRESHOLD,
                                           vvv$y,
                                           weights = MY_WEIGHTS_vvv))
 
 
 df_metrics
+
+rm(temp_pred)
 
 # save the df_metrics as .Rdata
 save(df_metrics, pred_list, file = "df_metrics.Rdata")
@@ -1408,7 +1414,6 @@ library(ada)
 # (pochi o nessun errore commesso)
 
 # per questo problema usiamo l'errore di classificazione
-
 
 # massima profondità = 10
 err_boost = rep(NA, 20)
@@ -1449,10 +1454,12 @@ pred_list$pred_boost_stump = as.vector(pred_boost_stump)
 
 df_err_qual = Add_Test_Metric(df_err_qual,
                               "Boosting Stump",
-                              USED.Loss(pred_boost_stump > threshold %>% as.numeric(),
-                                        vvv$y))
+                              USED.Metrics(pred_boost_stump > MY_THRESHOLD,
+                                        vvv$y,
+                                        weights = MY_WEIGHTS_vvv))
 
 rm(m_boost_stump)
+rm(pred_boost_stump)
 gc()
 
 # 3 split
@@ -1477,24 +1484,29 @@ m_boost_2 = update(m_boost_2,
                    test.y = sss$y[-id_cb1],
                    n.iter = 700)
 
-plot(m_boost_2, test = T)
+
+
+PlotAndSave(my_plotting_function = function() plot(m_boost_2, test = T),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "boosting_3_split_convergence.jpeg",
+                                 collapse = ""))
+
 
 pred_boost_2 = predict(m_boost_2, vvv, type = "prob")[,2]
+pred_list$boosting_3_splits = pred_boost_2
 
 df_err_qual = Add_Test_Metric(df_err_qual,
                               "Boosting 3 Split",
-                              USED.Loss(pred_boost_2 > threshold %>% as.numeric(),
-                                        vvv$y))
-
-pred_list$pred_boost_2 = as.vector(pred_boost_2)
+                              USED.Metrics(pred_boost_2 > MY_THRESHOLD,
+                                        vvv$y,
+                                        weights = MY_WEIGHTS_vvv))
 
 df_err_qual
 
 rm(m_boost_2)
+rm(pred_boost_2)
 
 gc()
-
-
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Support Vector Machine ---------------------
@@ -1509,8 +1521,8 @@ ranges = seq(2,20,by=0.5)
 err_svm <- matrix(NA,length(ranges),2)
 for (i in 1:length(ranges)){
   s1<- svm(factor(y)~., data= sss[id_cb1,], cost=ranges[i], kernel = "radial")
-  pr1 <- predict(s1, newdata= sss[-id_cb1,], probability = FALSE) #, decision.values=TRUE)
-  uso <- tabella.sommario(pr1, osserv= sss$y[-id_cb1])
+  pr1 <- predict(s1, newdata= sss[-id_cb1,], probability = TRUE) > MY_THRESHOLD #, decision.values=TRUE)
+  uso <- USED.Metrics(pr1, sss$y[-id_cb1], weights = MY_WEIGHTS_sss[-id_cb1])
   # eventualmente cambia il tipo di errore
   err_svm[i,]<-c(ranges[i], uso[1])
 }
@@ -1523,7 +1535,7 @@ ranges[which.min(err_svm[,2])]
 # 15 
 
 m_svm =  svm( factor(y)~., data= sss, cost= ranges[which.min(err_svm[,2])])
-pred_svm_radial = attr(predict(m_svm, newdata = vvv, decision.values=TRUE), "decision.values")[,1]
+pred_svm_radial = predict(m_svm, newdata = vvv, probability = TRUE)
 
 df_err_qual = Add_Test_Metric(df_err_qual,
                               "SVM radial",
