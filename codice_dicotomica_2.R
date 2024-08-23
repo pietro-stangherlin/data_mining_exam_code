@@ -52,6 +52,8 @@ METRIC_CHOSEN_NAME = "f_score"
 LIST_METRICS_ACCESS_NAME = "metrics"
 LIST_SD_ACCESS_NAME = "se"
 
+USE_ONLY_FIRST_FOLD = FALSE
+
 # metrics names + USED.Loss
 # WARNING: the order should be same as in df_metrics
 MY_USED_METRICS = c("USED.Metrics", "tabella.sommario")
@@ -348,7 +350,7 @@ cv_criterion = "lambda.1se"
 lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
                      alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
-ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
                                               my_metric_names = METRICS_NAMES,
                                               my_x = X_mm_no_interaction_sss,
                                               my_y = sss$y,
@@ -359,7 +361,7 @@ ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
                                               is_classification = TRUE,
                                               my_threshold = MY_THRESHOLD)
 
-# ridge_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+# ridge_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
 #                                                       my_metric_names = METRICS_NAMES,
 #                                                       my_x = X_mm_no_interaction_sss,
 #                                                       my_y = sss$y,
@@ -456,7 +458,7 @@ gc()
 lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
                      alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
-ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
                                               my_metric_names = METRICS_NAMES,
                                               my_x = X_mm_yes_interaction_sss,
                                               my_y = sss$y,
@@ -467,7 +469,7 @@ ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
                                               is_classification = TRUE,
                                               my_threshold = MY_THRESHOLD)
 
-ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
                                                        my_metric_names = METRICS_NAMES,
                                                        my_x = X_mm_yes_interaction_sss,
                                                        my_y = sss$y,
@@ -574,7 +576,7 @@ gc()
 lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
                      alpha = 1, lambda.min.ratio = 1e-07)$lambda
 
-lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
                                               my_metric_names = METRICS_NAMES,
                                               my_x = X_mm_no_interaction_sss,
                                               my_y = sss$y,
@@ -585,7 +587,7 @@ lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
                                               is_classification = TRUE,
                                               my_threshold = MY_THRESHOLD)
 
-# lasso_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+# lasso_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
 #                                                       my_metric_names = METRICS_NAMES,
 #                                                       my_x = X_mm_no_interaction_sss,
 #                                                       my_y = sss$y,
@@ -684,7 +686,7 @@ gc()
 lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
                      alpha = 1, lambda.min.ratio = 1e-07)$lambda
 
-lasso_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+lasso_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
                                                my_metric_names = METRICS_NAMES,
                                                my_x = X_mm_yes_interaction_sss,
                                                my_y = sss$y,
@@ -695,7 +697,7 @@ lasso_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
                                                is_classification = TRUE,
                                                my_threshold = MY_THRESHOLD)
 
-# lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+# lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
 #                                                        my_metric_names = METRICS_NAMES,
 #                                                        my_x = X_mm_yes_interaction_sss,
 #                                                        my_y = sss$y,
@@ -833,7 +835,7 @@ plot(tree_full)
 TREE_MAX_SIZE = 50
 
 
-# tree_cv_metrics = ManualCvTree(my_id_list_cv = ID_CV_LIST,
+# tree_cv_metrics = ManualCvTree(my_id_list_cv_train = ID_CV_LIST,
 #                                        my_metric_names = METRICS_NAMES,
 #                                        my_data = sss,
 #                                        my_max_size = TREE_MAX_SIZE,
@@ -845,7 +847,7 @@ TREE_MAX_SIZE = 50
 #                                use_only_first_fold = TRUE)
 
 # if parallel shows problems use the non parallel version
-tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv = ID_CV_LIST,
+tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv_train = ID_CV_LIST,
                                        my_metric_names = METRICS_NAMES,
                                        my_data = sss,
                                        my_max_size = TREE_MAX_SIZE,
@@ -930,7 +932,7 @@ PlotAndSave(my_plotting_function = temp_plot_function,
 
 # check the index
 temp_pred = predict(final_tree_pruned, newdata = vvv)[,2]
-pred_list$tree_pruned
+pred_list$tree_pruned = temp_pred
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "tree_pruned best",
@@ -1038,8 +1040,8 @@ library(polspline)
 # if problems: -> but usually give problems
 # weights = MY_WEIGHTS_sss
 
-mars_step = polymars(responses = sss$y,
-                     predictors = sss[,-y_index],
+mars_step = polymars(responses = sss$y[id_cb1],
+                     predictors = sss[id_cb1,-y_index],
                      gcv = 1,
                      factors = factor_index,
                      maxsize = 50,
@@ -1114,7 +1116,7 @@ PPR_MAX_RIDGE_FUNCTIONS = 4
 PPR_DF_SM = 2:6
 
 # ppr_metrics = PPRRegulationCV(my_data = sss,
-#                               my_id_list_cv = ID_CV_LIST,
+#                               my_id_list_cv_train = ID_CV_LIST,
 #                               my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
 #                               my_spline_df = PPR_DF_SM,
 #                               my_metrics_names = METRICS_NAMES,
@@ -1129,7 +1131,7 @@ PPR_DF_SM = 2:6
 # 1.b) Regulation: CV -------
 
 ppr_metrics = PPRRegulationCVParallel(my_data = sss,
-                                      my_id_list_cv = ID_CV_LIST,
+                                      my_id_list_cv_train = ID_CV_LIST,
                                       my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
                                       my_spline_df = PPR_DF_SM,
                                       my_metrics_names = METRICS_NAMES,
@@ -1418,7 +1420,7 @@ library(ada)
 # massima profondità = 10
 err_boost = rep(NA, 20)
 
-iter_boost = 400
+iter_boost = 200
 
 # Stump 
 m_boost_stump = ada(x = sss[id_cb1, -y_index],
@@ -1440,7 +1442,7 @@ m_boost_stump = update(m_boost_stump,
                        y = sss$y[id_cb1],
                        test.x = sss[-id_cb1, -y_index],
                        test.y = sss$y[-id_cb1],
-                       n.iter = 700)
+                       n.iter = 400)
 
 PlotAndSave(my_plotting_function = function() plot(m_boost_stump,
                                                    test = T),
@@ -1517,14 +1519,24 @@ library(e1071)
 # Stima Convalida
 # Kernel Radiale
 
+t = ManualCvSVM(my_id_list_cv_train = ID_CV_LIST,
+                my_metric_names = METRICS_NAMES,
+                my_data = sss,
+                my_params_vector = seq(2,3,by=0.5),
+                my_kernel_name = "polynomial",
+                my_weights = MY_WEIGHTS_sss,
+                use_only_first_fold = TRUE,
+                my_id_list_cv_test = NULL)
+
 ranges = seq(2,20,by=0.5)
 err_svm <- matrix(NA,length(ranges),2)
 for (i in 1:length(ranges)){
   s1<- svm(factor(y)~., data= sss[id_cb1,], cost=ranges[i], kernel = "radial")
-  pr1 <- predict(s1, newdata= sss[-id_cb1,], probability = TRUE) > MY_THRESHOLD #, decision.values=TRUE)
+  pr1 <- predict(s1, newdata= sss[-id_cb1,]) #, decision.values=TRUE)
   uso <- USED.Metrics(pr1, sss$y[-id_cb1], weights = MY_WEIGHTS_sss[-id_cb1])
   # eventualmente cambia il tipo di errore
   err_svm[i,]<-c(ranges[i], uso[1])
+  print(i)
 }
 plot(err_svm, type="b", pch = 16,
      xlab = "costo", ylab = "errore",
@@ -1535,11 +1547,11 @@ ranges[which.min(err_svm[,2])]
 # 15 
 
 m_svm =  svm( factor(y)~., data= sss, cost= ranges[which.min(err_svm[,2])])
-pred_svm_radial = predict(m_svm, newdata = vvv, probability = TRUE)
+pred_svm_radial = predict(m_svm, newdata = vvv)
 
 df_err_qual = Add_Test_Metric(df_err_qual,
                               "SVM radial",
-                              USED.Loss(pred_svm_radial > 0,
+                              USED.Loss(pred_svm_radial,
                                         vvv$y))
 
 df_err_qual

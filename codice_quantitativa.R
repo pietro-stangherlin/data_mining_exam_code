@@ -265,7 +265,7 @@ cv_criterion = "lambda.1se"
 lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
                      alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
-ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
                                               my_metric_names = METRICS_NAMES,
                                               my_x = X_mm_no_interaction_sss,
                                               my_y = sss$y,
@@ -274,7 +274,7 @@ ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
                                               my_weights = MY_WEIGHTS_sss,
                                               use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
-# ridge_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+# ridge_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
 #                                                       my_metric_names = METRICS_NAMES,
 #                                                       my_x = X_mm_no_interaction_sss,
 #                                                       my_y = sss$y,
@@ -367,7 +367,7 @@ gc()
 lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
                      alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
-# ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+# ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
 #                                               my_metric_names = METRICS_NAMES,
 #                                               my_x = X_mm_yes_interaction_sss,
 #                                               my_y = sss$y,
@@ -376,7 +376,7 @@ lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
 #                                               my_weights = MY_WEIGHTS_sss,
 #                                               use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
-ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
                                                       my_metric_names = METRICS_NAMES,
                                                       my_x = X_mm_yes_interaction_sss,
                                                       my_y = sss$y,
@@ -475,7 +475,7 @@ gc()
 lambda_vals = glmnet(x = X_mm_no_interaction_sss, y = sss$y,
                      alpha = 1, lambda.min.ratio = 1e-07)$lambda
 
-lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
                                               my_metric_names = METRICS_NAMES,
                                               my_x = X_mm_no_interaction_sss,
                                               my_y = sss$y,
@@ -484,7 +484,7 @@ lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
                                               my_weights = MY_WEIGHTS_sss,
                                               use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
-# lasso_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+# lasso_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
 #                                                       my_metric_names = METRICS_NAMES,
 #                                                       my_x = X_mm_no_interaction_sss,
 #                                                       my_y = sss$y,
@@ -579,7 +579,7 @@ gc()
 lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
                      alpha = 1, lambda.min.ratio = 1e-07)$lambda
 
-# lasso_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+# lasso_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
 #                                                my_metric_names = METRICS_NAMES,
 #                                                my_x = X_mm_yes_interaction_sss,
 #                                                my_y = sss$y,
@@ -588,7 +588,7 @@ lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
 #                                                my_weights = MY_WEIGHTS_sss,
 #                                                use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
-lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
                                                       my_metric_names = METRICS_NAMES,
                                                       my_x = X_mm_yes_interaction_sss,
                                                       my_y = sss$y,
@@ -714,7 +714,7 @@ TREE_MAX_SIZE = 100
 
 
 # if parallel shows problems use the non parallel version
-tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv = ID_CV_LIST,
+tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv_train = ID_CV_LIST,
                                        my_metric_names = METRICS_NAMES,
                                        my_data = sss,
                                        my_max_size = TREE_MAX_SIZE,
@@ -962,7 +962,7 @@ PPR_DF_SM = 2:6
 # 1.b) Regulation: CV -------
 
 ppr_metrics = PPRRegulationCVParallel(my_data = sss,
-                                      my_id_list_cv = ID_CV_LIST,
+                                      my_id_list_cv_train = ID_CV_LIST,
                                       my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
                                       my_spline_df = PPR_DF_SM,
                                       my_metrics_names = METRICS_NAMES,
@@ -1083,7 +1083,7 @@ for(j in 10:100){
                                                     mtry = best_mtry,
                                                     num.trees = j,
                                                     oob.error = TRUE)$prediction.error))
-  print(paste("number of trees: ", j, collapse = ""))
+  print(paste("number of trees: ", j*4, collapse = ""))
   gc()
 }
 
