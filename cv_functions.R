@@ -729,7 +729,7 @@ ManualCvTree = function(my_id_list_cv_train,
   
   # this are the indexed of the folds used as test set
   # default all are used once as test set 
-  fold_used_as_test_indexes = 1:length(my_id_list_cv)
+  fold_used_as_test_indexes = 1:length(my_id_list_cv_train)
   
   # if only the first fold is used a test set
   if(use_only_first_fold == TRUE){
@@ -778,7 +778,7 @@ ManualCvTree = function(my_id_list_cv_train,
                                                  mindev = my_mindev,
                                                  minsize = my_minsize))
     
-    if(is_classification == TRUE){
+    if((is_classification == TRUE) | (is_multiclass == TRUE)){
       temp_tree_full = tree(factor(y) ~.,
                             data = my_data[id_train,],
                             control = tree.control(nobs = length(id_train),
@@ -805,13 +805,19 @@ ManualCvTree = function(my_id_list_cv_train,
       
       if((is_classification == TRUE) & (is_multiclass == FALSE)){
         # tree gives probabilities for each class
+        temp_predictions = predict(temp_tree_pruned,
+                                   newdata = my_data[id_test,],
+                                   type = "vector")
+        
         positive_index = which(colnames(temp_predictions) == 1)
         temp_predictions = temp_predictions[,positive_index] > my_threshold
       }
       
       # default
       if((is_classification == FALSE) & (is_multiclass == FALSE)){
-        temp_predictions = predict(temp_tree_pruned, newdata = my_data[id_test,])
+        temp_predictions = predict(temp_tree_pruned,
+                                   newdata = my_data[id_test,],
+                                   type = "vector")
       }
   
       
@@ -903,7 +909,7 @@ ManualCvTreeParallel = function(my_id_list_cv_train,
   
   # this are the indexed of the folds used as test set
   # default all are used once as test set 
-  fold_used_as_test_indexes = 1:length(my_id_list_cv)
+  fold_used_as_test_indexes = 1:length(my_id_list_cv_train)
   
   # if only the first fold is used a test set
   if(use_only_first_fold == TRUE){
@@ -989,13 +995,22 @@ ManualCvTreeParallel = function(my_id_list_cv_train,
       
       if((is_classification == TRUE) & (is_multiclass == FALSE)){
         # tree gives probabilities for each class
+        temp_predictions = predict(temp_tree_pruned,
+                                   newdata = my_data[id_test,],
+                                   type = "vector")
+        
+        #debug
+        print(temp_predictions)
+        
         positive_index = which(colnames(temp_predictions) == 1)
         temp_predictions = temp_predictions[,positive_index] > my_threshold
       }
       
       # default
       if((is_classification == FALSE) & (is_multiclass == FALSE)){
-        temp_predictions = predict(temp_tree_pruned, newdata = my_data[id_test,])
+        temp_predictions = predict(temp_tree_pruned,
+                                   newdata = my_data[id_test,],
+                                   type = "vector")
       }
       
       

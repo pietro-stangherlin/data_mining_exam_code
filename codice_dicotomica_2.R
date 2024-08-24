@@ -460,16 +460,16 @@ gc()
 lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
                      alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
-ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
-                                              my_metric_names = METRICS_NAMES,
-                                              my_x = X_mm_yes_interaction_sss,
-                                              my_y = sss$y,
-                                              my_alpha = 0,
-                                              my_lambda_vals = lambda_vals,
-                                              my_weights = MY_WEIGHTS_sss,
-                                              use_only_first_fold = TRUE,
-                                              is_classification = TRUE,
-                                              my_threshold = MY_THRESHOLD)
+# ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
+#                                               my_metric_names = METRICS_NAMES,
+#                                               my_x = X_mm_yes_interaction_sss,
+#                                               my_y = sss$y,
+#                                               my_alpha = 0,
+#                                               my_lambda_vals = lambda_vals,
+#                                               my_weights = MY_WEIGHTS_sss,
+#                                               use_only_first_fold = TRUE,
+#                                               is_classification = TRUE,
+#                                               my_threshold = MY_THRESHOLD)
 
 ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
                                                        my_metric_names = METRICS_NAMES,
@@ -821,7 +821,7 @@ tree_full = tree(factor(y) ~.,
                  data = sss[id_cb1,],
                  control = tree.control(nobs = length(id_cb1),
                                         mindev = 1e-04,
-                                        minsize = 5))
+                                        minsize = 10))
 
 
 
@@ -837,16 +837,16 @@ plot(tree_full)
 TREE_MAX_SIZE = 50
 
 
-# tree_cv_metrics = ManualCvTree(my_id_list_cv_train = ID_CV_LIST,
-#                                        my_metric_names = METRICS_NAMES,
-#                                        my_data = sss,
-#                                        my_max_size = TREE_MAX_SIZE,
-#                                        my_weights = MY_WEIGHTS_sss,
-#                                        my_mindev = 1e-04,
-#                                        my_minsize = 2,
-#                                        is_classification = TRUE,
-#                                        my_threshold = MY_THRESHOLD,
-#                                use_only_first_fold = TRUE)
+tree_cv_metrics = ManualCvTree(my_id_list_cv_train = ID_CV_LIST,
+                                       my_metric_names = METRICS_NAMES,
+                                       my_data = sss,
+                                       my_max_size = TREE_MAX_SIZE,
+                                       my_weights = MY_WEIGHTS_sss,
+                                       my_mindev = 1e-03,
+                                       my_minsize = 10,
+                                       is_classification = TRUE,
+                                       my_threshold = MY_THRESHOLD,
+                               use_only_first_fold = TRUE)
 
 # if parallel shows problems use the non parallel version
 tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv_train = ID_CV_LIST,
@@ -856,8 +856,8 @@ tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv_train = ID_CV_LIST,
                                        my_metrics_functions = MY_USED_METRICS,
                                        my_ncores = N_CORES,
                                        my_weights = MY_WEIGHTS_sss,
-                                       my_mindev = 1e-04,
-                                       my_minsize = 5,
+                                       my_mindev = 1e-03,
+                                       my_minsize = 10,
                                        use_only_first_fold = USE_ONLY_FIRST_FOLD,
                                        is_classification = TRUE,
                                        my_threshold = MY_THRESHOLD)
@@ -1723,7 +1723,7 @@ save(df_metrics, pred_list, file = "df_metrics.Rdata")
 rounded_df = cbind(df_metrics[,1],
                    apply(df_metrics[,2:NCOL(df_metrics)], 2, function(col) round(as.numeric(col), 2)))
 
-rounded_df %>% orde
+rounded_df
 
 # LIFT e ROC --------------
 # eventualmente crea una nuova lista ridotta
@@ -1736,8 +1736,8 @@ paste(model_names_all, collapse = "','")
 model_names = c('ridge_yes_interaction_lmin',
                 'lasso_yes_interaction_lmin',
                 'gam_step',
-                'mars_step',
-                'pred_tree',
+                'MARS',
+                'tree_pruned best',
                 'pred_bagging',
                 'pred_boost_2',
                 'pred_random_forest',
