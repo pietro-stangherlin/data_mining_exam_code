@@ -98,7 +98,7 @@ MissErr = function(previsti, osservati, weights = 1){
     return(NULL)
   }
   
-  return( 1- sum((previsti == osservati)*weights) / length(previsti))
+  return( sum((previsti != osservati)*weights) /  sum(rep(1, length(previsti)) * weights))
 }
 
 previsti_test = c("a", "b", "a", "c")

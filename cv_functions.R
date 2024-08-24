@@ -1286,7 +1286,7 @@ ManualCvTreeParallel = function(my_id_list_cv_train,
 # Random Forest ----------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# TO DO: fix the y classification case -------------------
+# TO DO: check the multiclass case  -------------------
 
 
 # max variables at each split (can be changed)
