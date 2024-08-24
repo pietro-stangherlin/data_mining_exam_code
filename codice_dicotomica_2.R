@@ -10,6 +10,8 @@ library(snowfall)
 N_CORES = parallel::detectCores()
 
 
+load("result_preprocessing.Rdata")
+
 #////////////////////////////////////////////////////////////////////////////
 # Metrics and data.frame --------------------------------------------------
 #////////////////////////////////////////////////////////////////////////////
@@ -148,7 +150,7 @@ table(sss$y)
 # soglia di classificazione: cambia eventualmente con
 # table(sss$y)[2] / NROW(sss)
 
-MY_THRESHOLD = 0.2
+MY_THRESHOLD = table(sss$y)[2] / NROW(sss)
 
 # /////////////////////////////////////////////////////////////////
 #------------------------ Modelli ---------------------------------
@@ -1187,32 +1189,105 @@ gc()
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Random Forest ------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+library(ranger)
+
 # Nota: se manca il tempo eseguo prima la RandomForest del Bagging
 # visto che quest'ultimo è un sotto caso particolare 
 # della RandomForest (selezione di tutte le variabili per ogni split)
 
 
-# Implementazione in parallelo
-library(ranger)
-
-library(snowfall)
-
-
-
-sfInit(cpus = N_CORES, parallel = T)
-sfLibrary(ranger)
-sfExport(list = c("sss"))
-
-
-# esportiamo tutti gli oggetti necessari
-
-# scelta del numero di esplicative a ogni split
-# adattiamo 50 alberi per core e di ciascun albero ritorniamo l'errore out of bag
-# successivamente sommiamo gli errori out of bag per ogni mtry
-
 # massimo numero di esplicative presenti
 RF_MAX_VARIABLES = NCOL(sss) - 1 # sottraggo 1 per la variabile risposta
 # ridurlo per considerazioni computazionali
+
+RF_ITER = 300
+
+RF_TREE_NUMBER_SEQ = seq(10, 400, 10)
+
+# rf_cv_metrics = ManualCvRF(my_id_list_cv_train = ID_CV_LIST,
+#                                    my_metric_names = METRICS_NAMES,
+#                                    my_data = sss,
+#                                    my_n_variables = 2:RF_MAX_VARIABLES,
+#                                    my_n_bs_trees = 300,
+#                                    fix_trees_bool = TRUE,
+#                                    my_weights = MY_WEIGHTS_sss,
+#                                    use_only_first_fold = USE_ONLY_FIRST_FOLD,
+#                                    is_classification = TRUE,
+#                                    my_threshold = MY_THRESHOLD,
+#                                    is_multiclass = FALSE)
+
+# rf_cv_metrics = ManualCvRFParallel(my_id_list_cv_train = ID_CV_LIST,
+#                            my_metric_names = METRICS_NAMES,
+#                            my_data = sss,
+#                            my_n_variables = 2:RF_MAX_VARIABLES,
+#                            my_n_bs_trees = 300,
+#                            my_ncores = N_CORES,
+#                            my_metrics_functions = MY_USED_METRICS,
+#                            fix_trees_bool = TRUE,
+#                            my_weights = MY_WEIGHTS_sss,
+#                            use_only_first_fold = USE_ONLY_FIRST_FOLD,
+#                            is_classification = TRUE,
+#                            my_threshold = MY_THRESHOLD,
+#                            is_multiclass = FALSE)
+# 
+# rf_cv_metrics = rf_cv_metrics_parallel
+# 
+# rf_cv_metrics_best = CvMetricBest(my_param_values = 2:RF_MAX_VARIABLES,
+#                                     my_metric_matrix = rf_cv_metrics[["metrics"]],
+#                                     my_one_se_best = TRUE,
+#                                     my_higher_more_complex = TRUE,
+#                                     my_se_matrix = rf_cv_metrics[["se"]],
+#                                     my_metric_names = METRICS_NAMES,
+#                                     indexes_metric_max = 4) #f_score
+# 
+# 
+# PlotAndSave(function()(
+#   PlotCvMetrics(my_param_values = 2:RF_MAX_VARIABLES,
+#                 my_metric_matrix = rf_cv_metrics[["metrics"]],
+#                 my_se_matrix = rf_cv_metrics[["se"]],
+#                 my_best_param_values = ExtractBestParams(rf_cv_metrics_best),
+#                 my_metric_names = METRICS_NAMES,
+#                 my_main = "RF CV metrics",
+#                 my_xlab = "mtry")),
+#   my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+#                        "rf_mtry_cv_metrics_plot.jpeg",
+#                        collapse = ""))
+# 
+# 
+# best_mtry = rf_cv_metrics_best[[METRIC_CHOSEN_NAME]][["best_param_value"]]
+# 
+# print("tree best size")
+# tree_best_size
+
+# check convergence
+
+# rf_n_tree_metrics = ManualCvRFParallel(my_id_list_cv_train = ID_CV_LIST,
+#                                        my_metric_names = METRICS_NAMES,
+#                                        my_data = sss,
+#                                        my_n_variables = best_mtry,
+#                                        my_n_bs_trees = RF_TREE_NUMBER_SEQ,
+#                                        my_ncores = N_CORES,
+#                                        my_metrics_functions = MY_USED_METRICS,
+#                                        fix_trees_bool = FALSE,
+#                                        my_weights = MY_WEIGHTS_sss,
+#                                        use_only_first_fold = USE_ONLY_FIRST_FOLD,
+#                                        is_classification = TRUE,
+#                                        my_threshold = MY_THRESHOLD,
+#                                        is_multiclass = FALSE)
+# 
+# PlotAndSave(function()(
+#   PlotCvMetrics(my_param_values = RF_TREE_NUMBER_SEQ,
+#                 my_metric_matrix = rf_n_tree_metrics[["metrics"]],
+#                 my_se_matrix =rf_n_tree_metrics[["se"]],
+#                 my_best_param_values = 0,
+#                 my_metric_names = METRICS_NAMES,
+#                 my_main = "RF CV metrics n tree",
+#                 my_xlab = "ntree")),
+#   my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+#                        "rf_n_tree_cv_metrics_plot.jpeg",
+#                        collapse = ""))
+
+
 
 # regolazione
 # procedura sub-ottimale, ma la impiego per ragioni computazionali
@@ -1223,14 +1298,14 @@ err = rep(NA, RF_MAX_VARIABLES)
 # °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 
 for(i in seq(2, RF_MAX_VARIABLES)){
-  sfExport(list = c("i"))
   
-  err[i] = sum(sfSapply(rep(1:8),
-                        function(x) ranger(factor(y) ~., data = sss,
-                                           mtry = i,
-                                           num.trees = 50,
-                                           probability = TRUE,
-                                           oob.error = TRUE)$prediction.error))
+  err[i] = ranger(factor(y) ~., data = sss,
+                  mtry = i,
+                  num.trees = RF_ITER,
+                  probability = TRUE,
+                  oob.error = TRUE)$prediction.error
+
+  
   print(paste("mtry: ", i, collapse = ""))
   gc()
 }
@@ -1243,28 +1318,24 @@ best_mtry = which.min(err)
 print("best mtry random forest")
 best_mtry
 
-sfExport(list = c("best_mtry"))
 
 # uso il valore trovato e controllo la convergenza rispetto al numero di alberi
 
-err_rf_trees = rep(NA, 90)
+err_rf_trees = rep(NA, length(RF_TREE_NUMBER_SEQ))
 
 # °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-for(j in 10:100){
-  sfExport(list = c("j"))
-  err_rf_trees[j] = sum(sfSapply(rep(1:4),
-                                 function(x) ranger(factor(y) ~., sss,
-                                                    mtry = best_mtry,
-                                                    num.trees = j,
-                                                    probability = TRUE,
-                                                    oob.error = TRUE)$prediction.error))
-  print(paste("number of trees: ", j*4, collapse = ""))
-  gc()
+for(j in 1:length(RF_TREE_NUMBER_SEQ)){
+  err_rf_trees[j] = ranger(factor(y) ~., data = sss,
+                           mtry = best_mtry,
+                           num.trees = RF_TREE_NUMBER_SEQ[j],
+                           probability = TRUE,
+                           oob.error = TRUE)$prediction.error
+  
+  print(paste("number of trees: ", RF_TREE_NUMBER_SEQ[j], collapse = ""))
 }
 
-sfStop()
 
-PlotAndSave(my_plotting_function =  function()plot((1:length(err_rf_trees)) * 4, err_rf_trees,
+PlotAndSave(my_plotting_function =  function()plot(RF_TREE_NUMBER_SEQ, err_rf_trees,
                                                    xlab = "Bootstrap trees number",
                                                    ylab = "Out of bag Error",
                                                    pch = 16,
@@ -1333,30 +1404,24 @@ gc()
 
 
 library(ipred)
-sfInit(cpus = N_CORES, parallel = T)
-sfExport(list = c("sss"))
 
-sfLibrary(ipred)
+BAGGING_TREE_NUMBER_SEQ = seq(10, 400, 10)
 
-err_bg_trees = rep(NA, 90)
+err_bg_trees = rep(NA, length(BAGGING_TREE_NUMBER_SEQ))
 
 # °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 
 # controllo la convergenza dell'errore rispetto al numero di alberi
 # parto da 40 alberi bootstrap
-for(j in 10:100){
-  sfExport(list = c("j"))
-  err_bg_trees[j] = sum(sfSapply(rep(1:4),
-                                 function(x) bagging(factor(y) ~., sss,
-                                                     nbag = j,
-                                                     coob = TRUE)$err))
-  print(j*4)
-  gc()
+for(j in 1:length(RF_TREE_NUMBER_SEQ)){
+  err_bg_trees[j] = bagging(factor(y) ~., sss,
+                            nbag = BAGGING_TREE_NUMBER_SEQ[j],
+                            coob = TRUE)$err
+  print(BAGGING_TREE_NUMBER_SEQ[j])
 }
 
-sfStop()
 
-PlotAndSave(my_plotting_function = function() plot((1:length(err_bg_trees)) * 4, err_bg_trees,
+PlotAndSave(my_plotting_function = function() plot(BAGGING_TREE_NUMBER_SEQ, err_bg_trees,
                                                    xlab = "numero di alberi bootstrap",
                                                    ylab = "errore out of bag",
                                                    pch = 16,
@@ -1369,10 +1434,10 @@ PlotAndSave(my_plotting_function = function() plot((1:length(err_bg_trees)) * 4,
 
 # se il numero di replicazioni bootstrap arriva a convergenza allora
 
-bagging_model = bagging(y ~., sss, nbag = 400, coob = FALSE)
+bagging_model = bagging(factor(y) ~., sss, nbag = max(BAGGING_TREE_NUMBER_SEQ), coob = FALSE)
 
-temp_pred = predict(bagging_model, data = vvv,
-                    type = "response")$predictions[,2]
+temp_pred = predict(bagging_model, newdata = vvv,
+                    type = "response")
 
 pred_list$bagging = temp_pred
 
@@ -1415,15 +1480,72 @@ library(ada)
 # l'algoritmo di boosting non funziona correttamente per alberi troppo complessi
 # (pochi o nessun errore commesso)
 
-# per questo problema usiamo l'errore di classificazione
+ITER_BOOST_START = 200
+ADA_TREE_DEPTHS = 1:6
 
-# massima profondità = 10
-err_boost = rep(NA, 20)
+ada_boost_metrics = ManualCvADAFixedIterations(my_id_list_cv_train = ID_CV_LIST,
+                                               my_metric_names = METRICS_NAMES,
+                                               my_data = sss,
+                                               my_tree_depths = ADA_TREE_DEPTHS,
+                                               my_n_iterations = ITER_BOOST_START,
+                                               my_weights = MY_WEIGHTS_sss,
+                                               use_only_first_fold = TRUE,
+                                               my_id_list_cv_test = NULL,
+                                               my_threshold = MY_THRESHOLD)
 
-iter_boost = 200
+ada_boost_best_metrics =  CvMetricBest(my_param_values = ADA_TREE_DEPTHS,
+                                       my_metric_matrix = ada_boost_metrics[["metrics"]],
+                                       my_one_se_best = TRUE,
+                                       my_higher_more_complex = TRUE,
+                                       my_se_matrix = ada_boost_metrics[["se"]],
+                                       my_metric_names = METRICS_NAMES,
+                                       indexes_metric_max = 4) # f_score: higher better
+
+PlotAndSave(function()(
+  PlotCvMetrics(my_param_values = ADA_TREE_DEPTHS,
+                my_metric_matrix = ada_boost_metrics[["metrics"]],
+                my_se_matrix = ada_boost_metrics[["se"]],
+                my_best_param_values =ExtractBestParams(ada_boost_best_metrics),
+                my_metric_names = METRICS_NAMES,
+                my_main = "ADA tree depth CV metrics",
+                my_xlab = " tree depth")),
+  my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                       "ada_depth_cv.jpeg",
+                       collapse = ""))
+
+# best depth
+print("ada boost best tree depth")
+ada_boost_best_metrics[[METRIC_CHOSEN_NAME]][["best_param_value"]]
+
+ADA_ITER_VALUES = seq(20, 500, by = 10)
+
+# Iteration Convergence
+ada_boost_iter_metrics = ManualCvADAFixedDepth(my_id_list_cv_train = ID_CV_LIST,
+                                               my_metric_names = METRICS_NAMES,
+                                               my_data = sss,
+                                               my_tree_depth = ada_boost_best_metrics[[METRIC_CHOSEN_NAME]][["best_param_value"]],
+                                               my_n_iterations = ADA_ITER_VALUES,
+                                               my_weights = MY_WEIGHTS_sss,
+                                               use_only_first_fold = TRUE,
+                                               my_id_list_cv_test = NULL,
+                                               my_threshold = MY_THRESHOLD)
+
+PlotAndSave(function()(
+  PlotCvMetrics(my_param_values = ADA_ITER_VALUES,
+                my_metric_matrix = ada_boost_iter_metrics[["metrics"]],
+                my_se_matrix = ada_boost_iter_metrics[["se"]],
+                my_best_param_values = 0,
+                my_metric_names = METRICS_NAMES,
+                my_main = "ADA iter CV metrics",
+                my_xlab = " iter")),
+  my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                       "ada_iter_cv.jpeg",
+                       collapse = ""))
+
+
 
 # Stump 
-m_boost_stump = ada(x = sss[id_cb1, -y_index],
+m_boost = ada(x = sss[id_cb1, -y_index],
                     y = sss$y[id_cb1],
                     test.x = sss[-id_cb1, -y_index],
                     test.y = sss$y[-id_cb1],
@@ -1432,83 +1554,38 @@ m_boost_stump = ada(x = sss[id_cb1, -y_index],
                                             cp=-1,
                                             minsplit=0,xval=0))
 
-plot(m_boost_stump, test = T)
+plot(m_boost, test = T)
 
 par(mfrow = c(1,1))
 
 # update
-m_boost_stump = update(m_boost_stump,
+m_boost = update(m_boost,
                        x = sss[id_cb1, -y_index],
                        y = sss$y[id_cb1],
                        test.x = sss[-id_cb1, -y_index],
                        test.y = sss$y[-id_cb1],
                        n.iter = 400)
 
-PlotAndSave(my_plotting_function = function() plot(m_boost_stump,
+PlotAndSave(my_plotting_function = function() plot(m_boost,
                                                    test = T),
             my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                  "boosting_convergence.jpeg",
                                  collapse = ""))
 
 
-pred_boost_stump = predict(m_boost_stump, vvv, type = "prob")[,2]
-pred_list$pred_boost_stump = as.vector(pred_boost_stump)
+pred_boost = predict(m_boost, vvv[,-y_index], type = "prob")[,2]
+pred_list$pred_boost = as.vector(pred_boost)
 
 df_err_qual = Add_Test_Metric(df_err_qual,
-                              "Boosting Stump",
-                              USED.Metrics(pred_boost_stump > MY_THRESHOLD,
+                              "Boosting",
+                              USED.Metrics(pred_boost > MY_THRESHOLD,
                                         vvv$y,
                                         weights = MY_WEIGHTS_vvv))
 
-rm(m_boost_stump)
-rm(pred_boost_stump)
+rm(m_boost)
+rm(pred_boost)
 gc()
 
-# 3 split
-# guardiamo quando si stabilizza l'errore
-
-m_boost_2 = ada(x = sss[id_cb1, -y_index],
-                y = sss$y[id_cb1],
-                test.x = sss[-id_cb1, -y_index],
-                test.y = sss$y[-id_cb1],
-                iter = iter_boost,
-                control = rpart.control(maxdepth = 6))
-
-plot(m_boost_2, test = T)
-
-par(mfrow = c(1,1))
-
-# update
-m_boost_2 = update(m_boost_2,
-                   x = sss[id_cb1, -y_index],
-                   y = sss$y[id_cb1],
-                   test.x = sss[-id_cb1, -y_index],
-                   test.y = sss$y[-id_cb1],
-                   n.iter = 700)
-
-
-
-PlotAndSave(my_plotting_function = function() plot(m_boost_2, test = T),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "boosting_3_split_convergence.jpeg",
-                                 collapse = ""))
-
-
-pred_boost_2 = predict(m_boost_2, vvv, type = "prob")[,2]
-pred_list$boosting_3_splits = pred_boost_2
-
-df_err_qual = Add_Test_Metric(df_err_qual,
-                              "Boosting 3 Split",
-                              USED.Metrics(pred_boost_2 > MY_THRESHOLD,
-                                        vvv$y,
-                                        weights = MY_WEIGHTS_vvv))
-
-df_err_qual
-
-rm(m_boost_2)
-rm(pred_boost_2)
-
-gc()
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Support Vector Machine ---------------------
@@ -1519,46 +1596,59 @@ library(e1071)
 # Stima Convalida
 # Kernel Radiale
 
-t = ManualCvSVM(my_id_list_cv_train = ID_CV_LIST,
+SVM_COST_VALUES = seq(2,30,by=0.5)
+
+svm_cv_metrics = ManualCvSVMParallel(my_id_list_cv_train = ID_CV_LIST,
                 my_metric_names = METRICS_NAMES,
                 my_data = sss,
-                my_params_vector = seq(2,3,by=0.5),
-                my_kernel_name = "polynomial",
+                my_params_vector = SVM_COST_VALUES,
+                my_kernel_name = "radial",
+                my_ncores = N_CORES,
+                my_metrics_functions = MY_USED_METRICS,
                 my_weights = MY_WEIGHTS_sss,
                 use_only_first_fold = TRUE,
                 my_id_list_cv_test = NULL)
 
-ranges = seq(2,20,by=0.5)
-err_svm <- matrix(NA,length(ranges),2)
-for (i in 1:length(ranges)){
-  s1<- svm(factor(y)~., data= sss[id_cb1,], cost=ranges[i], kernel = "radial")
-  pr1 <- predict(s1, newdata= sss[-id_cb1,]) #, decision.values=TRUE)
-  uso <- USED.Metrics(pr1, sss$y[-id_cb1], weights = MY_WEIGHTS_sss[-id_cb1])
-  # eventualmente cambia il tipo di errore
-  err_svm[i,]<-c(ranges[i], uso[1])
-  print(i)
-}
-plot(err_svm, type="b", pch = 16,
-     xlab = "costo", ylab = "errore",
-     main = "SVM radiale")
+svm_best_metrics = CvMetricBest(my_param_values = SVM_COST_VALUES,
+                                my_metric_matrix = svm_cv_metrics[["metrics"]],
+                                my_one_se_best = TRUE,
+                                my_higher_more_complex = FALSE,
+                                my_se_matrix = svm_cv_metrics[["se"]],
+                                my_metric_names = METRICS_NAMES,
+                                indexes_metric_max = 4) # f_score: higher better
 
-ranges[which.min(err_svm[,2])]
-# ATTENZIONE: modificare 
-# 15 
 
-m_svm =  svm( factor(y)~., data= sss, cost= ranges[which.min(err_svm[,2])])
-pred_svm_radial = predict(m_svm, newdata = vvv)
+PlotAndSave(function()(
+  PlotCvMetrics(my_param_values = SVM_COST_VALUES,
+                my_metric_matrix = svm_cv_metrics[["metrics"]],
+                my_se_matrix = svm_cv_metrics[["se"]],
+                my_best_param_values =ExtractBestParams(svm_best_metrics),
+                my_metric_names = METRICS_NAMES,
+                my_main = "SVM CV metrics",
+                my_xlab = " cost")),
+  my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                       "svm_cost_cv.jpeg",
+                       collapse = ""))
 
-df_err_qual = Add_Test_Metric(df_err_qual,
+print("svm_best_metrics")
+svm_best_metrics
+
+m_svm =  svm(factor(y)~., data= sss, cost= svm_best_metrics[[METRIC_CHOSEN_NAME]][["best_param_value"]])
+temp_pred = predict(m_svm, newdata = vvv)
+
+df_metrics = Add_Test_Metric(df_metrics,
                               "SVM radial",
-                              USED.Loss(pred_svm_radial,
-                                        vvv$y))
+                              USED.Metrics(temp_pred, vvv$y,
+                                           weights = MY_WEIGHTS_sss))
 
-df_err_qual
+df_metrics
 
-pred_list$pred_svm_radial = pred_svm_radial
+pred_list$pred_svm_radial = temp_pred
 
+rm(temp_pred)
 
+# save the df_metrics as .Rdata
+save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Rete neurale -------------------------------

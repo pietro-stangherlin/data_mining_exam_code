@@ -5,7 +5,6 @@ library(dplyr)
 # Per Lapsus
 # CTRL + C per commentare più righe di codice
 
-
 # ///////////////////////////////////
 # Save output on file ---------------
 # //////////////////////////////////
@@ -915,6 +914,8 @@ save(dati,
      formula_no_interaction_yes_intercept,
      formula_yes_interaction_no_intercept,
      formula_yes_interaction_yes_intercept,
+     FIGURES_FOLDER_RELATIVE_PATH,
+     MODELS_FOLDER_RELATIVE_PATH,
      file = "result_preprocessing.Rdata")
 
 # if necessary delete all

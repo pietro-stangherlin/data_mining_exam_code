@@ -803,18 +803,17 @@ ManualCvTree = function(my_id_list_cv_train,
                                    type = "class")
       }
       
-      # default
-      if(is_multiclass == FALSE){
-        temp_predictions = predict(temp_tree_pruned, newdata = my_data[id_test,])
-      }
-      
-      
       if((is_classification == TRUE) & (is_multiclass == FALSE)){
         # tree gives probabilities for each class
         positive_index = which(colnames(temp_predictions) == 1)
         temp_predictions = temp_predictions[,positive_index] > my_threshold
       }
       
+      # default
+      if((is_classification == FALSE) & (is_multiclass == FALSE)){
+        temp_predictions = predict(temp_tree_pruned, newdata = my_data[id_test,])
+      }
+  
       
       # s-1 because we start by size = 2
       temp_metrics_array_cv[k,s-1,] = USED.Metrics(y.pred = temp_predictions,
@@ -988,17 +987,19 @@ ManualCvTreeParallel = function(my_id_list_cv_train,
                                    type = "class")
       }
       
-      # default
-      if(is_multiclass == FALSE){
-        temp_predictions = predict(temp_tree_pruned, newdata = my_data[id_test,])
-      }
-      
-      
       if((is_classification == TRUE) & (is_multiclass == FALSE)){
         # tree gives probabilities for each class
         positive_index = which(colnames(temp_predictions) == 1)
         temp_predictions = temp_predictions[,positive_index] > my_threshold
       }
+      
+      # default
+      if((is_classification == FALSE) & (is_multiclass == FALSE)){
+        temp_predictions = predict(temp_tree_pruned, newdata = my_data[id_test,])
+      }
+      
+      
+      
       
       return(USED.Metrics(y.pred = temp_predictions,
                           y.test = my_data$y[id_test],
@@ -1062,7 +1063,7 @@ RF_MAX_VARIABLES = 30
 # number of bootstrap trees (can be changed)
 RF_N_BS_TREES = 200
 
-library(randomForest)
+library(ranger)
 
 # function to choose the optimal number of variables at each split
 # or alternatively (based on fix_tress_bool parameter) check convergence of validation error
@@ -1095,7 +1096,7 @@ library(randomForest)
 #'  
 #'
 #' @return matrix of CV folds averaged errors for each parameter value and each loss function 
-ManualCvRF = function(my_id_list_cv,
+ManualCvRF = function(my_id_list_cv_train,
                       my_metric_names,
                       my_data,
                       my_n_variables = 1:RF_MAX_VARIABLES,
@@ -1104,13 +1105,19 @@ ManualCvRF = function(my_id_list_cv,
                       my_weights = 1,
                       use_only_first_fold = FALSE,
                       is_classification = FALSE,
-                      my_threshold = 0.5){
+                      my_threshold = 0.5,
+                      is_multiclass = FALSE,
+                      my_id_list_cv_test = NULL){
   
-  n_k_fold = length(my_id_list_cv)
+  n_k_fold = length(my_id_list_cv_train)
   my_n_metrics = length(my_metric_names)
   
   if(use_only_first_fold == TRUE){
     n_k_fold = 1
+  }
+  
+  if(is.null(my_id_list_cv_test)){
+    my_id_list_cv_test = my_id_list_cv_train
   }
   
   # fixed number of bootstrap trees, number of variables changes
@@ -1137,60 +1144,75 @@ ManualCvRF = function(my_id_list_cv,
   
   
   for (k in 1:n_k_fold){
-    id_train = unlist(my_id_list_cv[-k])
-    id_test = my_id_list_cv[[k]]
+    id_train = unlist(my_id_list_cv_train[-k])
+    id_test = my_id_list_cv_test[[k]]
     
     # it's ugly I know and a bad practice but I'll do two separate loop based on if condition
     
     PredictFunction = function(my_pred_mtry, my_pred_n_trees){
-      if(is_classification == TRUE){
-        model = randomForest(factor(y) ~.,
+      
+      # predict class (greatest prob.)
+      if(is_multiclass == TRUE){
+        model = ranger(factor(y) ~.,
                              data = my_data[id_train,],
                              mtry = my_pred_mtry,
-                             ntree = my_pred_n_trees)
+                             num.trees = my_pred_n_trees)
         
         temp_predictions = predict(model,
-                                   type = "prob",
-                                   newdata = my_data[id_test,])[,2] > my_threshold
+                                   type = "response",
+                                   data = my_data[id_test,])$predictions
       }
       
-      if(is_classification == FALSE){
-        model = randomForest(y ~.,
+      
+      # predict probability
+      if((is_classification == TRUE) & (is_multiclass == FALSE)){
+        
+        model = ranger(factor(y) ~.,
                              data = my_data[id_train,],
                              mtry = my_pred_mtry,
-                             ntree = my_pred_n_trees)
+                       probability = TRUE,
+                             num.trees = my_pred_n_trees)
         
         temp_predictions = predict(model,
-                                   newdata = my_data[id_test,])
+                                   type = "response",
+                                   data = my_data[id_test,])$predictions[,2] > my_threshold
+      }
+      
+      # regression
+      if((is_classification == FALSE) & (is_multiclass == FALSE)){
+        model = ranger(y ~.,
+                             data = my_data[id_train,],
+                             mtry = my_pred_mtry,
+                             num.trees = my_pred_n_trees)
+        
+        temp_predictions = predict(model,
+                                   data = my_data[id_test,])$predictions
       }
       
       return(temp_predictions)
     }
     
     if(fix_trees_bool == TRUE){
-      for (m in 1:tuning_parameter_length){
+      for (m in 1:length(my_n_variables)){
         # prediction error
-        temp_metrics_array_cv[k,m,] = USED.Metrics(PredictFunction(my_pred_mtry = m,
-                                                                   my_pred_n_trees = my_n_trees),
+        temp_metrics_array_cv[k,m,] = USED.Metrics(PredictFunction(my_pred_mtry = my_n_variables[m],
+                                                                   my_pred_n_trees = my_n_bs_trees),
                                                    my_data$y[id_test],
                                                    weights = my_weights)
-        print(paste(c("n var = ", m), collapse = ""))
+        print(paste(c("n var = ", my_n_variables[m]), collapse = ""))
       }
     }
     
     else{
-      for (t in 1:tuning_parameter_length){
+      for (t in 1:length(my_n_bs_trees)){
         temp_metrics_array_cv[k,t,] = USED.Metrics(PredictFunction(my_pred_mtry = my_n_variables,
-                                                                   my_pred_n_trees = t),
+                                                                   my_pred_n_trees = my_n_bs_trees[t]),
                                                    my_data$y[id_test],
                                                    weights = my_weights[id_test])
         print(paste(c("n trees = ", my_n_bs_trees[t]), collapse = ""))
       }
     }
     
-    
-    rm(temp_rf)
-    gc()
     
     print(paste("fold ", k))
   }
@@ -1256,30 +1278,36 @@ ManualCvRF = function(my_id_list_cv,
 #' according to the the vector my_n_bs_trees (supposed to be a sequence)
 #'
 #' @return matrix of CV folds averaged errors for each parameter value and each loss function 
-ManualCvRFParallel = function(my_id_list_cv,
+ManualCvRFParallel = function(my_id_list_cv_train,
                               my_metric_names,
                               my_data,
-                              my_n_variables = 2:RF_MAX_VARIABLES,
-                              my_n_bs_trees = 10:RF_N_BS_TREES,
+                              my_n_variables = 2:20,
+                              my_n_bs_trees = 300,
                               fix_trees_bool = TRUE,
                               my_metrics_functions = MY_USED_METRICS,
                               my_weights = MY_WEIGHTS,
                               my_ncores = N_CORES,
                               use_only_first_fold = FALSE,
                               is_classification = FALSE,
-                              my_threshold = 0.5){
+                              my_threshold = 0.5,
+                              is_multiclass = FALSE,
+                              my_id_list_cv_test = NULL){
   
-  n_k_fold = length(my_id_list_cv)
+  n_k_fold = length(my_id_list_cv_train)
   my_n_metrics = length(my_metric_names)
   
   if(use_only_first_fold == TRUE){
     n_k_fold = 1
   }
   
+  if(is.null(my_id_list_cv_test)){
+    my_id_list_cv_test = my_id_list_cv_train
+  }
+  
   # init parallel
   sfInit(cpus = my_ncores, parallel = T)
   
-  sfLibrary(randomForest)
+  sfLibrary(ranger)
   
   # fixed number of bootstrap trees, number of variables changes
   if(fix_trees_bool == TRUE){
@@ -1313,31 +1341,49 @@ ManualCvRFParallel = function(my_id_list_cv,
                     "my_threshold", "is_classification"))
   
   for (k in 1:n_k_fold){
-    id_train = unlist(my_id_list_cv[-k])
-    id_test = my_id_list_cv[[k]]
+    id_train = unlist(my_id_list_cv_train[-k])
+    id_test = my_id_list_cv_test[[k]]
     
     # it's ugly I know and a bad pratice but I'll do two separate loop based on if condition
     
     PredictFunction = function(my_pred_mtry, my_pred_n_trees){
-      if(is_classification == TRUE){
-        model = randomForest(factor(y) ~.,
-                             data = my_data[id_train,],
-                             mtry = my_pred_mtry,
-                             ntree = my_pred_n_trees)
+      
+      # predict class (greatest prob.)
+      if(is_multiclass == TRUE){
+        model = ranger(factor(y) ~.,
+                       data = my_data[id_train,],
+                       mtry = my_pred_mtry,
+                       num.trees = my_pred_n_trees)
         
         temp_predictions = predict(model,
-                                   type = "prob",
-                                   newdata = my_data[id_test,])[,2] > my_threshold
+                                   type = "response",
+                                   data = my_data[id_test,])$predictions
       }
       
-      if(is_classification == FALSE){
-        model = randomForest(y ~.,
-                             data = my_data[id_train,],
-                             mtry = my_pred_mtry,
-                             ntree = my_pred_n_trees)
+      
+      # predict probability
+      if((is_classification == TRUE) & (is_multiclass == FALSE)){
+        
+        model = ranger(factor(y) ~.,
+                       data = my_data[id_train,],
+                       mtry = my_pred_mtry,
+                       probability = TRUE,
+                       num.trees = my_pred_n_trees)
         
         temp_predictions = predict(model,
-                                   newdata = my_data[id_test,])
+                                   type = "response",
+                                   data = my_data[id_test,])$predictions[,2] > my_threshold
+      }
+      
+      # regression
+      if((is_classification == FALSE) & (is_multiclass == FALSE)){
+        model = ranger(y ~.,
+                       data = my_data[id_train,],
+                       mtry = my_pred_mtry,
+                       num.trees = my_pred_n_trees)
+        
+        temp_predictions = predict(model,
+                                   data = my_data[id_test,])$predictions
       }
       
       return(temp_predictions)
@@ -1347,18 +1393,18 @@ ManualCvRFParallel = function(my_id_list_cv,
     
     if(fix_trees_bool == TRUE){
       
+    
       # for better readability
-      temp_metric = sfLapply(1:tuning_parameter_length,
+      temp_metric = sfLapply(1:length(my_n_variables),
                              fun = function(m) 
-                               USED.Metrics(PredictFunction(my_pred_mtry = m,
+                               USED.Metrics(PredictFunction(my_pred_mtry = my_n_variables[m],
                                                             my_pred_n_trees = my_n_bs_trees),
                                             my_data$y[id_test],
                                             weights = my_weights[id_test]))
       
-      print(temp_metric)
       
       # unlist to the right dimensions matrix
-      temp_metrics_array_cv[k,tuning_parameter_length,] = matrix(unlist(temp_metric),
+      temp_metrics_array_cv[k,,] = matrix(unlist(temp_metric),
                                                         ncol = my_n_metrics,
                                                         byrow = T)
       
@@ -1370,21 +1416,22 @@ ManualCvRFParallel = function(my_id_list_cv,
     else{
       
       # for better readability
-      temp_metric = sfLapply(1:tuning_parameter_length,
+      temp_metric = sfLapply(1:length(my_n_bs_trees),
                              fun = function(t) 
                                USED.Metrics(PredictFunction(my_pred_mtry = my_n_variables,
-                                                            my_pred_n_trees = t),
+                                                            my_pred_n_trees = my_n_bs_trees[t]),
                                             my_data$y[id_test],
                                             weights = my_weights))
       
       # unlist to the right dimensions matrix
-      temp_metrics_array_cv[k,tuning_parameter_length,] = matrix(unlist(temp_metric),
+      temp_metrics_array_cv[k,,] = matrix(unlist(temp_metric),
                                                                    ncol = my_n_metrics,
                                                                    byrow = T)
       
       rm(temp_metric)
       gc()
     }
+    sfStop()
     
     gc()
     
@@ -1416,6 +1463,214 @@ ManualCvRFParallel = function(my_id_list_cv,
 }
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Boosting -----------------------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+library(ada)
+
+#' AdaBoost by Cross validation
+#' @param my_id_list_cv_train (list):ids in each fold , use the global variable
+#' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
+#' @param my_data (data.frame): data frame used
+#' @param my_tree_depths (vector of int): 1: stump, do not go over 6
+#' @param my_n_iterations (int): boosting iterations
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
+#' @param my_id_list_cv_test (list): indexes of fold used to test
+#' # if NULL my_id_list_cv_test = my_id_list_cv, and classical CV is performed
+#' # if is not null it has to be the same number of elements as my_id_list_cv
+#' # Can be used for example for unbalanced datasets:
+#' my_id_list_cv -> balanced folds use to estimation
+#' my_id_list_cv_test -> unbalanced folds used for testing
+#'
+#'
+#' @return (list): list of two matrix 
+#' the first contains the CV folds averaged metrics for each parameter value and each metric 
+#' the second the CV computed standard errors of those metrics
+#' first matrix is accessed by "metrics"
+#' second matrix is accessed by "se"
+ManualCvADAFixedIterations = function(my_id_list_cv_train,
+                                      my_metric_names,
+                                      my_data,
+                                      my_tree_depths,
+                                      my_n_iterations = 200,
+                                      my_weights = 1,
+                                      use_only_first_fold = FALSE,
+                                      my_id_list_cv_test = NULL,
+                                      my_threshold = 0.5){
+  
+  n_k_fold = length(my_id_list_cv_train)
+  my_n_metrics = length(my_metric_names)
+  
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
+  
+  if(is.null(my_id_list_cv_test)){
+    my_id_list_cv_test = my_id_list_cv_train
+  }
+  
+  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, length(my_tree_depths), my_n_metrics))
+  
+  y_index = which(colnames(my_data) == "y")
+  
+  
+  for (k in 1:n_k_fold){
+    id_train = unlist(my_id_list_cv_train[-k])
+    id_test = my_id_list_cv_test[[k]]
+    
+    
+    for (j in 1:length(my_tree_depths)){
+      
+      model = ada(x = my_data[id_train, -y_index],
+                  y = my_data$y[id_train],
+                  iter = my_n_iterations,
+                  control = rpart.control(maxdepth = my_tree_depths[j]))
+      
+      temp_predictions = predict(model,
+                                 my_data[id_test,-y_index],
+                                 type = "prob")[,2]
+      
+      temp_metrics_array_cv[k,j,] = USED.Metrics(temp_predictions > my_threshold,
+                                                 my_data$y[id_test],
+                                                 weights = my_weights[id_test])
+      print(paste("tree depth: ", j, collapse = ""))
+    }
+    
+    rm(temp_predictions)
+    rm(model)
+    gc()
+    
+    print(paste("fold ", k, collapse = ""))
+    
+  }
+  
+  # averaged metrics matrix
+  cv_metrics = matrix(NA, nrow = length(my_tree_depths), ncol = my_n_metrics)
+  
+  # metrics standard deviations matrix
+  cv_metrics_se = matrix(NA, nrow = length(my_tree_depths), ncol = my_n_metrics)
+  colnames(cv_metrics) = my_metric_names
+  colnames(cv_metrics_se) = my_metric_names
+  
+  for (i in 1:my_n_metrics){
+    if(use_only_first_fold == FALSE){
+      cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+      cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)}
+    
+    else{
+      cv_metrics[,i] = temp_metrics_array_cv[1,,i]
+      cv_metrics_se[,i] = 0
+    }
+  }
+  
+  return(list("metrics" = cv_metrics,
+              "se" = cv_metrics_se))
+  
+}
+
+#' AdaBoost by Cross validation
+#' @param my_id_list_cv_train (list):ids in each fold , use the global variable
+#' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
+#' @param my_data (data.frame): data frame used
+#' @param my_tree__max_depth (int): 1: stump, do not go over 6
+#' @param my_n_iterations (int): boosting iterations
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
+#' @param my_id_list_cv_test (list): indexes of fold used to test
+#' # if NULL my_id_list_cv_test = my_id_list_cv, and classical CV is performed
+#' # if is not null it has to be the same number of elements as my_id_list_cv
+#' # Can be used for example for unbalanced datasets:
+#' my_id_list_cv -> balanced folds use to estimation
+#' my_id_list_cv_test -> unbalanced folds used for testing
+#'
+#'
+#' @return (list): list of two matrix 
+#' the first contains the CV folds averaged metrics for each parameter value and each metric 
+#' the second the CV computed standard errors of those metrics
+#' first matrix is accessed by "metrics"
+#' second matrix is accessed by "se"
+ManualCvADAFixedDepth = function(my_id_list_cv_train,
+                                      my_metric_names,
+                                      my_data,
+                                      my_tree_depth,
+                                      my_n_iterations = 200,
+                                      my_weights = 1,
+                                      use_only_first_fold = FALSE,
+                                      my_id_list_cv_test = NULL,
+                                 my_threshold = 0.5){
+  
+  n_k_fold = length(my_id_list_cv_train)
+  my_n_metrics = length(my_metric_names)
+  
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
+  
+  if(is.null(my_id_list_cv_test)){
+    my_id_list_cv_test = my_id_list_cv_train
+  }
+  
+  temp_metrics_array_cv = array(NA, dim = c(n_k_fold, length(my_n_iterations), my_n_metrics))
+  
+  y_index = which(colnames(my_data) == "y")
+  
+  
+  for (k in 1:n_k_fold){
+    id_train = unlist(my_id_list_cv_train[-k])
+    id_test = my_id_list_cv_test[[k]]
+    
+    
+    for (j in 1:length(my_n_iterations)){
+      
+      model = ada(x = my_data[id_train, -y_index],
+                  y = my_data$y[id_train],
+                  iter = my_n_iterations[j],
+                  control = rpart.control(maxdepth = my_tree_depth))
+      
+      temp_predictions = predict(model, my_data[id_test,-y_index], type = "prob")[,2]
+                                 
+      
+      temp_metrics_array_cv[k,j,] = USED.Metrics(temp_predictions > my_threshold,
+                                                 my_data$y[id_test],
+                                                 weights = my_weights[id_test])
+      print(paste("iteration: ", j, collapse = ""))
+    }
+    
+    rm(temp_predictions)
+    rm(model)
+    gc()
+    
+    print(paste("fold ", k, collapse = ""))
+    
+  }
+  
+  # averaged metrics matrix
+  cv_metrics = matrix(NA, nrow = length(my_n_iterations), ncol = my_n_metrics)
+  
+  # metrics standard deviations matrix
+  cv_metrics_se = matrix(NA, nrow = length(my_n_iterations), ncol = my_n_metrics)
+  colnames(cv_metrics) = my_metric_names
+  colnames(cv_metrics_se) = my_metric_names
+  
+  for (i in 1:my_n_metrics){
+    if(use_only_first_fold == FALSE){
+      cv_metrics[,i] = apply(temp_metrics_array_cv[,,i], 2, mean)
+      cv_metrics_se[,i] = apply(temp_metrics_array_cv[,,i], 2, sd)}
+    
+    else{
+      cv_metrics[,i] = temp_metrics_array_cv[1,,i]
+      cv_metrics_se[,i] = 0
+    }
+  }
+  
+  return(list("metrics" = cv_metrics,
+              "se" = cv_metrics_se))
+  
+}
+
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # SVM ----------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(e1071)
@@ -1424,7 +1679,7 @@ library(e1071)
 #' @param my_id_list_cv_train (list):ids in each fold , use the global variable
 #' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
 #' @param my_data (data.frame): data frame used
-#' @param my_params_vector (int): vector of penalty parameter to be optimized (depending on kernel)
+#' @param my_params_vector (int): vector of penalty parameter to be optimized
 #' @param my_kernel_name (char): name of kernel used (radial or polinomial)
 #' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
 #' and compute the metrics on that
@@ -1445,7 +1700,7 @@ ManualCvSVM = function(my_id_list_cv_train,
                           my_metric_names,
                           my_data,
                           my_params_vector,
-                          my_kernel_name,
+                          my_kernel_name = "radial",
                           my_weights = 1,
                           use_only_first_fold = FALSE,
                           my_id_list_cv_test = NULL){
@@ -1475,8 +1730,8 @@ ManualCvSVM = function(my_id_list_cv_train,
       temp_predictions = predict(svm(factor(y) ~.,
                                      data = my_data[id_train,],
                                      kernel = my_kernel_name,
+                                     degree = 2,
                                      cost = my_params_vector[j],
-                                     degree = my_params_vector,
                                      coef = 1),
                                  my_data[id_test,])
       
@@ -1540,7 +1795,7 @@ ManualCvSVMParallel = function(my_id_list_cv_train,
                        my_metric_names,
                        my_data,
                        my_params_vector,
-                       my_kernel_name,
+                       my_kernel_name = "radial",
                        my_weights = 1,
                        my_metrics_functions = MY_USED_METRICS,
                        my_ncores = N_CORES,
@@ -1576,13 +1831,13 @@ ManualCvSVMParallel = function(my_id_list_cv_train,
     #' @param cost (num): cost or degree value
     #' @param kernel_name (char)
     #' @return (vector of nums): metrics values
-    ParallelFunction = function(lambda){
+    ParallelFunction = function(cost){
       
       temp_predictions = predict(svm(factor(y) ~.,
                                      data = my_data[id_train,],
-                                     kernel = kernel_name,
+                                     kernel = my_kernel_name,
+                                     degree = 2,
                                      cost = cost,
-                                     degree = cost,
                                      coef = 1),
                                  my_data[id_test,])
       
@@ -1606,7 +1861,8 @@ ManualCvSVMParallel = function(my_id_list_cv_train,
     gc()
     
     print(paste("fold ", k, collapse = ""))
-    }
+  }
+  sfStop()
     
   # averaged metrics matrix
   cv_metrics = matrix(NA, nrow = length(my_params_vector), ncol = my_n_metrics)

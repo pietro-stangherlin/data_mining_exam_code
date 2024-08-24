@@ -1019,15 +1019,6 @@ gc()
 # Implementazione in parallelo
 library(ranger)
 
-library(snowfall)
-
-
-
-sfInit(cpus = N_CORES, parallel = T)
-sfLibrary(ranger)
-sfExport(list = c("sss"))
-
-
 # esportiamo tutti gli oggetti necessari
 
 
@@ -1052,11 +1043,12 @@ err = rep(NA, m_max)
 for(i in seq(2, m_max)){
   sfExport(list = c("i"))
   
-  err[i] = sum(sfSapply(rep(1:8),
-                        function(x) ranger(y ~., data = sss,
-                                           mtry = i,
-                                           num.trees = 50,
-                                           oob.error = TRUE)$prediction.error))
+  err[i] = ranger(y ~., data = sss,
+                 mtry = i,
+                 num.trees = RF_ITER,
+                 probability = TRUE,
+                 oob.error = TRUE)$prediction.error
+  
   print(paste("mtry: ", i, collapse = ""))
   gc()
 }
@@ -1076,27 +1068,30 @@ sfExport(list = c("best_mtry"))
 err_rf_trees = rep(NA, 90)
 
 # °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-for(j in 10:100){
-  sfExport(list = c("j"))
-  err_rf_trees[j] = sum(sfSapply(rep(1:4),
-                                 function(x) ranger(y ~., sss,
-                                                    mtry = best_mtry,
-                                                    num.trees = j,
-                                                    oob.error = TRUE)$prediction.error))
-  print(paste("number of trees: ", j*4, collapse = ""))
-  gc()
+RF_TREE_NUMBER_SEQ = seq(10, 400, 10)
+
+err_rf_trees = rep(NA, length(RF_TREE_NUMBER_SEQ))
+
+# °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
+for(j in 1:length(RF_TREE_NUMBER_SEQ)){
+  err_rf_trees[j] = ranger(y ~., data = sss,
+                           mtry = best_mtry,
+                           num.trees = RF_TREE_NUMBER_SEQ[j],
+                           oob.error = TRUE)$prediction.error
+  
+  print(paste("number of trees: ", RF_TREE_NUMBER_SEQ[j], collapse = ""))
 }
 
-sfStop()
 
-PlotAndSave(my_plotting_function =  function()plot((1:length(err_rf_trees)) * 4, err_rf_trees,
-                           xlab = "Bootstrap trees number",
-                           ylab = "Out of bag MSE",
-                           pch = 16,
-                           main = "Random Forest"),
+PlotAndSave(my_plotting_function =  function()plot(RF_TREE_NUMBER_SEQ, err_rf_trees,
+                                                   xlab = "Bootstrap trees number",
+                                                   ylab = "Out of bag Error",
+                                                   pch = 16,
+                                                   main = "Random Forest"),
             my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                  "random_forest_convergence_plot.jpeg",
                                  collapse = ""))
+
 
 
 
@@ -1152,40 +1147,38 @@ gc()
 
 
 library(ipred)
-sfInit(cpus = N_CORES, parallel = T)
-sfExport(list = c("sss"))
-
-sfLibrary(ipred)
 
 
+BAGGING_TREE_NUMBER_SEQ = seq(10, 400, 10)
 
-err_bg_trees = rep(NA, 90)
+err_bg_trees = rep(NA, length(BAGGING_TREE_NUMBER_SEQ))
 
 # °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 
 # controllo la convergenza dell'errore rispetto al numero di alberi
 # parto da 40 alberi bootstrap
-for(j in 10:100){
-  sfExport(list = c("j"))
-  err_bg_trees[j] = sum(sfSapply(rep(1:4),
-                                 function(x) bagging(y ~., sss,
-                                                    nbag = j,
-                                                    coob = TRUE)$err))
-  print(j)
-  gc()
+for(j in 1:length(RF_TREE_NUMBER_SEQ)){
+  err_bg_trees[j] = bagging(factory ~., sss,
+                            nbag = BAGGING_TREE_NUMBER_SEQ[j],
+                            coob = TRUE)$err
+  print(BAGGING_TREE_NUMBER_SEQ[j])
 }
 
-sfStop()
 
-plot((1:length(err_bg_trees)) * 4, err_bg_trees,
-     xlab = "numero di alberi bootstrap",
-     ylab = "errore out of bag",
-     pch = 16,
-     main = "Bagging")
+PlotAndSave(my_plotting_function = function() plot(BAGGING_TREE_NUMBER_SEQ, err_bg_trees,
+                                                   xlab = "numero di alberi bootstrap",
+                                                   ylab = "errore out of bag",
+                                                   pch = 16,
+                                                   main = "Bagging"),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "bagging_convergence_plot.jpeg",
+                                 collapse = "")
+)
+
 
 # se il numero di replicazioni bootstrap arriva a convergenza allora
 
-bagging_model = bagging(y ~., sss, nbag = 400, coob = FALSE)
+bagging_model = bagging(y ~., sss, nbag = max(BAGGING_TREE_NUMBER_SEQ), coob = FALSE)
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "Bagging",
@@ -1284,7 +1277,7 @@ gc()
 rounded_df = cbind(df_metrics[,1],
       apply(df_metrics[,2:NCOL(df_metrics)], 2, function(col) round(as.numeric(col), 2)))
 
-rounded_df %>% orde
+rounded_df %>% order
 # Comparazione modelli
 # selezione modelli migliori e commenti su questi:
 # es -> vanno meglio modelli con interazioni oppure modelli additivi
