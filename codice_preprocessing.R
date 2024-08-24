@@ -35,12 +35,6 @@ MODELS_FOLDER_RELATIVE_PATH = "models/"
 # relative path figures folder
 FIGURES_FOLDER_RELATIVE_PATH = "figures/"
 
-# fixed image dimensions (pixels)
-FIGURE_WIDTH = 1000
-FIGURE_HEIGHT = 1000
-
-FIGURE_POINT_SIZE = 35
-FIGURE_QUALITY = 120
 
 # /////////////////////////////////////////////////////////////////////////////
 #  ----------------------- Lettura e Preprocessing -----------------------------

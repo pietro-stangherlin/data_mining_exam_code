@@ -13,6 +13,7 @@ N_CORES = parallel::detectCores()
 load("result_preprocessing.Rdata")
 
 #////////////////////////////////////////////////////////////////////////////
+
 # Metrics and data.frame --------------------------------------------------
 #////////////////////////////////////////////////////////////////////////////
 
@@ -53,8 +54,6 @@ METRIC_CHOSEN_NAME = "f_score"
 # names used for accessing list CV matrix (actual metrics and metrics se)
 LIST_METRICS_ACCESS_NAME = "metrics"
 LIST_SD_ACCESS_NAME = "se"
-
-USE_ONLY_FIRST_FOLD = FALSE
 
 # metrics names + USED.Loss
 # WARNING: the order should be same as in df_metrics
@@ -372,7 +371,9 @@ ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
 #                                                       my_weights = MY_WEIGHTS_sss,
 #                                                       my_metrics_functions = MY_USED_METRICS,
 #                                                       my_ncores = N_CORES,
-#                                                       use_only_first_fold = USE_ONLY_FIRST_FOLD)
+#                                                       use_only_first_fold = USE_ONLY_FIRST_FOLD,
+#                                                       is_classification = TRUE,
+#                                                       my_threshold = MY_THRESHOLD)
 
 ridge_no_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_metric_matrix = ridge_no_interaction_metrics[["metrics"]],
@@ -598,7 +599,9 @@ lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
 #                                                       my_weights = MY_WEIGHTS_sss,
 #                                                       my_metrics_functions = MY_USED_METRICS,
 #                                                       my_ncores = N_CORES,
-#                                                       use_only_first_fold = USE_ONLY_FIRST_FOLD)
+#                                                       use_only_first_fold = USE_ONLY_FIRST_FOLD,
+#                                                       is_classification = TRUE,
+#                                                       my_threshold = MY_THRESHOLD)
 
 lasso_no_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_metric_matrix = lasso_no_interaction_metrics[["metrics"]],
@@ -1544,12 +1547,12 @@ PlotAndSave(function()(
 
 
 
-# Stump 
+
 m_boost = ada(x = sss[id_cb1, -y_index],
                     y = sss$y[id_cb1],
                     test.x = sss[-id_cb1, -y_index],
                     test.y = sss$y[-id_cb1],
-                    iter = iter_boost,
+                    iter = max(ADA_ITER_VALUES),
                     control = rpart.control(maxdepth=1,
                                             cp=-1,
                                             minsplit=0,xval=0))
@@ -1559,12 +1562,12 @@ plot(m_boost, test = T)
 par(mfrow = c(1,1))
 
 # update
-m_boost = update(m_boost,
-                       x = sss[id_cb1, -y_index],
-                       y = sss$y[id_cb1],
-                       test.x = sss[-id_cb1, -y_index],
-                       test.y = sss$y[-id_cb1],
-                       n.iter = 400)
+# m_boost = update(m_boost,
+#                        x = sss[id_cb1, -y_index],
+#                        y = sss$y[id_cb1],
+#                        test.x = sss[-id_cb1, -y_index],
+#                        test.y = sss$y[-id_cb1],
+#                        n.iter = 400)
 
 PlotAndSave(my_plotting_function = function() plot(m_boost,
                                                    test = T),
@@ -1573,19 +1576,22 @@ PlotAndSave(my_plotting_function = function() plot(m_boost,
                                  collapse = ""))
 
 
-pred_boost = predict(m_boost, vvv[,-y_index], type = "prob")[,2]
-pred_list$pred_boost = as.vector(pred_boost)
+temp_pred = predict(m_boost, vvv[,-y_index], type = "prob")[,2]
+pred_list$ada_boost = as.vector(temp_pred)
 
-df_err_qual = Add_Test_Metric(df_err_qual,
-                              "Boosting",
-                              USED.Metrics(pred_boost > MY_THRESHOLD,
+df_metrics= Add_Test_Metric(df_metrics,
+                              "ada_boost",
+                              USED.Metrics(temp_pred > MY_THRESHOLD,
                                         vvv$y,
                                         weights = MY_WEIGHTS_vvv))
 
 rm(m_boost)
-rm(pred_boost)
+rm(temp_pred)
 gc()
 
+
+df_metrics
+save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Support Vector Machine ---------------------
@@ -1739,9 +1745,8 @@ model_names = c('ridge_yes_interaction_lmin',
                 'MARS',
                 'tree_pruned best',
                 'pred_bagging',
-                'pred_boost_2',
-                'pred_random_forest',
-                'pred_svm_radial')
+                'ada_boost',
+                'random_forest')
 
 pred_list_ridotta = pred_list[which(model_names_all %in% model_names)]
 

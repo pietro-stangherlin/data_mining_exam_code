@@ -355,7 +355,8 @@ PlotCvMetrics = function(my_param_values, my_metric_matrix,
                          my_se_matrix = 0,
                          my_metric_names,
                          my_best_param_values = c(),
-                         my_main = "Model metrics", my_xlab = "parameter", my_legend_coords = "topright",
+                         my_main = "Model metrics", my_xlab = "parameter",
+                         my_legend_coords = "topleft",
                          my_xlim = NULL, my_ylim = NULL){
   
   
@@ -375,6 +376,10 @@ PlotCvMetrics = function(my_param_values, my_metric_matrix,
   
   # plot showed
   
+  # Add extra space to right of plot area; change clipping to figure
+  # par(mar=c(5.1, 4.1, 4.1, 8.1), xpd=TRUE)
+  
+  
   plot(my_param_values, my_metric_matrix[,1],
        xlab = my_xlab, ylab = "metric",
        main = my_main, pch = 16,
@@ -391,17 +396,26 @@ PlotCvMetrics = function(my_param_values, my_metric_matrix,
     arrows(my_param_values, se_lower[,i],
            my_param_values, se_upper[,i],
            length = 0.03, angle = 90, col = i)
+    
+    legend(my_legend_coords,
+           legend = my_metric_names,
+           col = 1:NCOL(my_metric_matrix),
+           pch = 15 + (1:NCOL(my_metric_matrix)),
+           bty = "n")
+    # inset = c(-0.4, 0),
+    
+    # plot them
+    for (i in 1:length(my_best_param_values))
+      abline(v = my_best_param_values[i], col = i)
   }
   
-  legend(my_legend_coords,
-         legend = my_metric_names,
-         col = 1:NCOL(my_metric_matrix),
-         pch = 15 + (1:NCOL(my_metric_matrix)))
-  
-  # plot them
-  for (i in 1:length(my_best_param_values))
-    abline(v = my_best_param_values[i], col = i)
 }
+
+FIGURE_WIDTH = 1000
+FIGURE_HEIGHT = 700
+
+FIGURE_POINT_SIZE = 25
+FIGURE_QUALITY = 120
 
 
 #' @param my_plotting_function (function): function with NO ARGUMENTS

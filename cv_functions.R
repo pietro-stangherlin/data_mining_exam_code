@@ -7,6 +7,223 @@ library(snowfall)
 N_CORES = parallel::detectCores()
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Linear Model & GLM ----------------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#' @param my_id_list_cv_train (list):ids in each fold , use the global variable
+#' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
+#'
+#' @param my_data (data.frame)
+#' @param my_formula (model formula)
+#' @param my_model_type (char): lm, glm, gam, polymars
+#' 
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
+#' @param my_id_list_cv_test (list): indexes of fold used to test
+#' # if NULL my_id_list_cv_test = my_id_list_cv, and classical CV is performed
+#' # if is not null it has to be the same number of elements as my_id_list_cv
+#' # Can be used for example for unbalanced datasets:
+#' my_id_list_cv -> balanced folds use to estimation
+#' my_id_list_cv_test -> unbalanced folds used for testing
+#' 
+#' @param is_classification (bool): if TRUE adapt the metrics to classification problem
+#' using the threshold
+#' @param my_threshold (num): classification threshold used
+#'
+#'
+#' @return (list): list of two matrix 
+#' the first contains the CV folds averaged metrics for each parameter value and each metric 
+#' the second the CV computed standard errors of those metrics
+#' first matrix is accessed by "metrics"
+#' second matrix is accessed by "se"
+
+
+ManualCvLmGlmGam = function(my_id_list_cv_train,
+                          my_metric_names,
+                          my_data,
+                          my_formula = NULL,
+                          my_data_matrix = NULL,
+                          my_model_type,
+                          my_weights = 1,
+                          use_only_first_fold = FALSE,
+                          is_classification = FALSE,
+                          my_threshold = 0.5,
+                          my_id_list_cv_test = NULL){
+  
+  n_k_fold = length(my_id_list_cv_train)
+  my_n_metrics = length(my_metric_names)
+  
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
+  
+  if(is.null(my_id_list_cv_test)){
+    my_id_list_cv_test = my_id_list_cv_train
+  }
+  
+  temp_metrics_array_cv = matrix(NA, nrow = n_k_fold, ncol = my_n_metrics)
+  
+  
+  for (k in 1:n_k_fold){
+    id_train = unlist(my_id_list_cv_train[-k])
+    id_test = my_id_list_cv_test[[k]]
+    
+    if(my_model_type == "lm"){
+      temp_model= lm(formula = my_formula, data = my_data[id_train,])
+    
+      temp_predictions = predict(temp_model, my_data[id_test,])
+    
+    }
+    
+    if(my_model_type == "glm"){
+      temp_model= glm(formula = my_formula,
+                      family = "binomial",
+                      data = my_data[id_train,])
+      
+      temp_predictions = predict(temp_model, my_data[id_test,],
+                                 type = "response")
+    }
+    
+    if(my_model_type == "gam"){
+      
+      if(is_classification){
+        temp_model= gam(formula = my_formula,
+                        family = "binomial",
+                        data = my_data[id_train,])
+        
+        temp_predictions = predict(temp_model, my_data[id_test,],
+                                   type = "response")
+      }
+      
+      else{
+        temp_model= gam(formula = my_formula,
+                        data = my_data[id_train,])
+        
+        temp_predictions = predict(temp_model, my_data[id_test,],
+                                   type = "response")
+      }
+      
+    }
+    
+    
+    
+    if(is_classification){
+      temp_predictions = temp_predictions > my_threshold %>% as.numeric
+    }
+      
+      temp_metrics_array_cv[k,] = USED.Metrics(temp_predictions,
+                                               my_data$y[id_test],
+                                               weights = my_weights[id_test])
+
+    
+    rm(temp_model)
+    rm(temp_predictions)
+    gc()
+    
+    print(paste("fold ", k, collapse = ""))
+    
+  }
+  
+  # averaged metrics matrix
+  cv_metrics = apply(temp_metrics_array_cv, 2, mean)
+  
+  return(cv_metrics)
+  
+}
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# POLYMARS ----------------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#' @param my_id_list_cv_train (list):ids in each fold , use the global variable
+#' @param my_metric_names (vector of string): ordered names of loss functions, use global variables
+#'
+#' @param my_y (data.frame)
+#' @param my_design_matrix (model formula)
+#' 
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
+#' @param my_id_list_cv_test (list): indexes of fold used to test
+#' # if NULL my_id_list_cv_test = my_id_list_cv, and classical CV is performed
+#' # if is not null it has to be the same number of elements as my_id_list_cv
+#' # Can be used for example for unbalanced datasets:
+#' my_id_list_cv -> balanced folds use to estimation
+#' my_id_list_cv_test -> unbalanced folds used for testing
+#' 
+#' @param is_classification (bool): if TRUE adapt the metrics to classification problem
+#' using the threshold
+#' @param my_threshold (num): classification threshold used
+#'
+#'
+#' @return (list): list of two matrix 
+#' the first contains the CV folds averaged metrics for each parameter value and each metric 
+#' the second the CV computed standard errors of those metrics
+#' first matrix is accessed by "metrics"
+#' second matrix is accessed by "se"
+
+
+ManualCvMARS = function(my_id_list_cv_train,
+                            my_metric_names,
+                            my_y,
+                            my_design_matrix,
+                            my_weights = 1,
+                            use_only_first_fold = FALSE,
+                            is_classification = FALSE,
+                            my_threshold = 0.5,
+                            my_id_list_cv_test = NULL){
+  
+  n_k_fold = length(my_id_list_cv_train)
+  my_n_metrics = length(my_metric_names)
+  
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
+  
+  if(is.null(my_id_list_cv_test)){
+    my_id_list_cv_test = my_id_list_cv_train
+  }
+  
+  temp_metrics_array_cv = matrix(NA, nrow = n_k_fold, ncol = my_n_metrics)
+  
+  
+  for (k in 1:n_k_fold){
+    id_train = unlist(my_id_list_cv_train[-k])
+    id_test = my_id_list_cv_test[[k]]
+    
+    W = solve(t(my_design_matrix[id_train,]) %*% my_design_matrix[id_train,])
+    
+    temp_predictions = my_design_matrix[id_test,] %*%
+      W %*%
+      t(my_design_matrix[id_train,]) %*%
+      as.matrix(my_y[id_train])
+
+     
+     
+     
+    if(is_classification == TRUE){
+      temp_predictions = temp_predictions > my_threshold
+      
+    }
+    
+    temp_metrics_array_cv[k,] = USED.Metrics(temp_predictions,
+                                             my_y[id_test],
+                                             weights = my_weights[id_test])
+    
+    
+    rm(temp_predictions)
+    gc()
+    
+    print(paste("fold ", k, collapse = ""))
+    
+  }
+  
+  # averaged metrics matrix
+  cv_metrics = apply(temp_metrics_array_cv, 2, mean)
+  
+  return(cv_metrics)
+  
+}
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Ridge and Lasso ----------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
  library(glmnet)
@@ -1319,10 +1536,6 @@ ManualCvRFParallel = function(my_id_list_cv_train,
     my_id_list_cv_test = my_id_list_cv_train
   }
   
-  # init parallel
-  sfInit(cpus = my_ncores, parallel = T)
-  
-  sfLibrary(ranger)
   
   # fixed number of bootstrap trees, number of variables changes
   if(fix_trees_bool == TRUE){
@@ -1349,11 +1562,7 @@ ManualCvRFParallel = function(my_id_list_cv_train,
                                             tuning_parameter_length,
                                             my_n_metrics))
   
-  # allocate relevant variables in cluster
-  sfExport(list = c("my_data", my_metrics_functions,
-                    "my_n_bs_trees", "tuning_parameter_length",
-                    "my_n_variables", "my_weights",
-                    "my_threshold", "is_classification"))
+  
   
   for (k in 1:n_k_fold){
     id_train = unlist(my_id_list_cv_train[-k])
@@ -1404,6 +1613,17 @@ ManualCvRFParallel = function(my_id_list_cv_train,
       return(temp_predictions)
     }
     
+    # init parallel
+    sfInit(cpus = my_ncores, parallel = T)
+    
+    sfLibrary(ranger)
+    
+    # allocate relevant variables in cluster
+    sfExport(list = c("my_data", my_metrics_functions,
+                      "my_n_bs_trees", "tuning_parameter_length",
+                      "my_n_variables", "my_weights",
+                      "my_threshold", "is_classification"))
+    
     sfExport(list = c("id_train", "id_test", "PredictFunction"))
     
     if(fix_trees_bool == TRUE){
@@ -1445,8 +1665,10 @@ ManualCvRFParallel = function(my_id_list_cv_train,
       
       rm(temp_metric)
       gc()
+      
+      sfStop()
     }
-    sfStop()
+    
     
     gc()
     
