@@ -155,9 +155,83 @@ Y_sss = class.ind(sss$y)
 Y_LEVELS_SORTED = colnames(Y_sss)
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Regressione multinomiale --------------------
+# Linear Model -----------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-library(nnet)
+
+# No Interaction ----------------
+
+# Separate models for each modality and then get the highest value
+
+# models list: where each model is stored
+lm_no_int_models_list = list()
+
+for(col in 1:NCOL(Y_sss)){
+  lm0 = lm(Y_sss[,col] ~ 1, data = sss[,-y_index])
+  lm_no_int_models_list[[col]] = step(lm0,
+                             scope = formula_no_interaction_yes_intercept,
+                             direction = "forward")
+}
+
+# error evaluation
+
+temp_pred_scores = lapply(lm_no_int_models_list, function(el) predict(el, newdata = vvv))
+temp_pred_scores = matrix(unlist(temp_pred_scores), ncol = NCOL(Y_sss))
+
+temp_pred = Y_LEVELS_SORTED[apply(temp_pred_scores, 1, which.max)]
+
+file_name_lm_no_int_models_list = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                 "lm_no_int_models_list",
+                                 ".Rdata", collapse = "", sep = "")
+
+save(lm_no_int_models_list, file = file_name_lm_no_int_models_list)
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "lm_no_int_models_list",
+                             USED.Metrics(temp_pred,
+                                          vvv$y,
+                                          MY_WEIGHTS_vvv))
+
+df_metrics = na.omit(df_metrics)
+
+df_metrics
+
+
+# Yes Interaction ----------------
+# models list: where each model is stored
+lm_yes_int_models_list = list()
+
+for(col in 1:NCOL(Y_sss)){
+  lm0 = lm(Y_sss[,col] ~ 1, data = sss[,-y_index])
+  lm_yes_int_models_list[[col]] = step(lm0,
+                                      scope = formula_yes_interaction_yes_intercept,
+                                      direction = "forward")
+}
+
+# error evaluation
+
+temp_pred_scores = lapply(lm_yes_int_models_list, function(el) predict(el, newdata = vvv))
+temp_pred_scores = matrix(unlist(temp_pred_scores), ncol = NCOL(Y_sss))
+
+temp_pred = Y_LEVELS_SORTED[apply(temp_pred_scores, 1, which.max)]
+
+file_name_lm_yes_int_models_list = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                        "lm_yes_int_models_list",
+                                        ".Rdata", collapse = "", sep = "")
+
+save(lm_yes_int_models_list, file = file_name_lm_yes_int_models_list)
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "lm_no_yes_models_list",
+                             USED.Metrics(temp_pred,
+                                          vvv$y,
+                                          MY_WEIGHTS_vvv))
+
+
+df_metrics
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Log Linear Model --------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 m_multi0 = multinom(Y_sss ~ 1,
                     data = sss[,-y_index],
                     maxit = 400)
@@ -177,7 +251,6 @@ df_metrics = Add_Test_Metric(df_metrics,
                              USED.Metrics(predict(m_multi_no_int, newdata = vvv),
                                        vvv$y,
                                         MY_WEIGHTS_vvv))
-df_metrics = na.omit(df_metrics)
 
 df_metrics
 
@@ -203,6 +276,19 @@ df_metrics
 
 
 save(df_metrics, file = "df_metrics.Rdata")
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Multilogit --------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# library(VGAM)
+# 
+# vglm0 = vglm(Y_sss ~ 1,
+#              data = sss,
+#              multinomial)
+# 
+# vglm_step = step4vglm(vglm0,
+#           scope = formula_no_interaction_yes_intercept,
+#           direction = "forward")
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Ridge e Lasso ------------------------------
@@ -418,6 +504,49 @@ rm(lasso_yes_int)
 rm(pred_final_lasso_yes_int)
 rm(pred_final_lasso_yes_int_class)
 rm(pred_final_lasso_yes_int_matr)
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Modello Additivo -----------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+library(gam)
+
+# Separate models for each modality and then get the highest value
+
+# models list: where each model is stored
+gam_models_list = list()
+
+# gam recognizes factor predictors
+my_gam_scope = gam.scope(sss[,-y_index], arg = c("df=2", "df=3", "df=4", "df=5", "df=6"))
+
+for(col in 1:NCOL(Y_sss)){
+  gam0 = gam(Y_sss[,col] ~ 1, data =sss[,-y_index])
+  gam_models_list[[col]] = step.Gam(gam0, scope = my_gam_scope)
+}
+
+# error evaluation
+
+temp_pred_scores = lapply(gam_models_list, function(el) predict(el, newdata = vvv))
+temp_pred_scores = matrix(unlist(temp_pred_scores), ncol = NCOL(Y_sss))
+
+temp_pred = Y_LEVELS_SORTED[apply(temp_pred_scores, 1, which.max)]
+
+file_name_gam_models_list = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                        "gam_models_list",
+                                        ".Rdata", collapse = "", sep = "")
+
+save(gam_models_list, file = file_name_gam_models_list)
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "gam_models_list",
+                             USED.Metrics(temp_pred,
+                                          vvv$y,
+                                          MY_WEIGHTS_vvv))
+
+
+df_metrics
+
 
 
 
@@ -736,6 +865,11 @@ save(bagging_model, file = file_name_bagging)
 rm(bagging_model)
 gc()
 
+# /////////////////////////////////////////////////////////////////
+#------------------------ Sintesi Finale -------------------------
+# /////////////////////////////////////////////////////////////////
+
+df_metrics
 
 
 

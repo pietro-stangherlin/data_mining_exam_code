@@ -182,7 +182,7 @@ X_mm_yes_interaction =  sparse.model.matrix(formula_yes_interaction_no_intercept
 lambda_vals = glmnet(x = X_mm_no_interaction, y = dati$y,
                      alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
-ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
                                               my_metric_names = METRICS_NAMES,
                                               my_x = X_mm_no_interaction,
                                               my_y = dati$y,
@@ -190,7 +190,7 @@ ridge_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
                                               my_lambda_vals = lambda_vals,
                                               my_weights = MY_WEIGHTS)
 
-# ridge_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+# ridge_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
 #                                               my_metric_names = METRICS_NAMES,
 #                                               my_x = X_mm_no_interaction,
 #                                               my_y = dati$y,
@@ -235,7 +235,7 @@ df_metrics
 lambda_vals = glmnet(x = X_mm_yes_interaction, y = dati$y,
                      alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
-# ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+# ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
 #                                               my_metric_names = METRICS_NAMES,
 #                                               my_x = X_mm_yes_interaction,
 #                                               my_y = dati$y,
@@ -243,7 +243,7 @@ lambda_vals = glmnet(x = X_mm_yes_interaction, y = dati$y,
 #                                               my_lambda_vals = lambda_vals,
 #                                               my_weights = MY_WEIGHTS)
 
-ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
                                                       my_metric_names = METRICS_NAMES,
                                                       my_x = X_mm_yes_interaction,
                                                       my_y = dati$y,
@@ -292,7 +292,7 @@ df_metrics
 lambda_vals = glmnet(x = X_mm_no_interaction, y = dati$y,
                      alpha = 1, lambda.min.ratio = 1e-07)$lambda
 
-# lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+# lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
 #                                               my_metric_names = METRICS_NAMES,
 #                                               my_x = X_mm_no_interaction,
 #                                               my_y = dati$y,
@@ -300,7 +300,7 @@ lambda_vals = glmnet(x = X_mm_no_interaction, y = dati$y,
 #                                               my_lambda_vals = lambda_vals,
 #                                               my_weights = MY_WEIGHTS)
 
-lasso_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+lasso_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
                                                       my_metric_names = METRICS_NAMES,
                                                       my_x = X_mm_no_interaction,
                                                       my_y = dati$y,
@@ -344,7 +344,7 @@ df_metrics
 lambda_vals = glmnet(x = X_mm_yes_interaction, y = dati$y,
                      alpha = 1, lambda.min.ratio = 1e-07)$lambda
 
-# lasso_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv = ID_CV_LIST,
+# lasso_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
 #                                               my_metric_names = METRICS_NAMES,
 #                                               my_x = X_mm_yes_interaction,
 #                                               my_y = dati$y,
@@ -352,7 +352,7 @@ lambda_vals = glmnet(x = X_mm_yes_interaction, y = dati$y,
 #                                               my_lambda_vals = lambda_vals,
 #                                               my_weights = MY_WEIGHTS)
 
-lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv = ID_CV_LIST,
+lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
                                                        my_metric_names = METRICS_NAMES,
                                                        my_x = X_mm_yes_interaction,
                                                        my_y = dati$y,
@@ -395,7 +395,7 @@ TREE_MAX_SIZE = 50
 
 
 # if parallel shows problems use the non parallel version
-tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv = ID_CV_LIST,
+tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv_train = ID_CV_LIST,
                                        my_metric_names = METRICS_NAMES,
                                        my_data = dati,
                                        my_max_size = TREE_MAX_SIZE,
@@ -460,7 +460,7 @@ library(gam)
 PPR_MAX_RIDGE_FUNCTIONS = 4
 
 ppr_cv_metrics = ManualCvPPR(n_k_fold = K_FOLDS,
-                                     my_id_list_cv = ID_CV_LIST,
+                                     my_id_list_cv_train = ID_CV_LIST,
                                      my_n_metrics = N_METRICS,
                                      my_metric_names = METRICS_NAMES,
                                      my_data = dati,
@@ -510,7 +510,7 @@ library(randomForest)
 # number of split variable selection
 
 rf_cv_metrics = ManualCvRFParallel(n_k_fold = K_FOLDS,
-                                 my_id_list_cv = ID_CV_LIST,
+                                 my_id_list_cv_train = ID_CV_LIST,
                                  my_n_metrics = N_METRICS,
                                  my_metric_names = METRICS_NAMES,
                                  my_data = dati,
@@ -536,7 +536,7 @@ rf_best_summary
 BTS_TREES_N_SEQ = seq(30, 400, 10)
 
 rf_cv_metrics_bts_trees = ManualCvRFParallel(n_k_fold = K_FOLDS,
-                                 my_id_list_cv = ID_CV_LIST,
+                                 my_id_list_cv_train = ID_CV_LIST,
                                  my_n_metrics = N_METRICS,
                                  my_metric_names = METRICS_NAMES,
                                  my_data = dati,
@@ -614,7 +614,7 @@ gc()
 BTS_TREES_N_SEQ = seq(30, 400, 10)
 
 bagging_cv_metrics_bts_trees = ManualCvRFParallel(n_k_fold = K_FOLDS,
-                                           my_id_list_cv = ID_CV_LIST,
+                                           my_id_list_cv_train = ID_CV_LIST,
                                            my_n_metrics = N_METRICS,
                                            my_metric_names = METRICS_NAMES,
                                            my_data = dati,
