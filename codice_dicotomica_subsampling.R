@@ -1355,6 +1355,105 @@ df_metrics
 # save the df_metrics as .Rdata
 save(df_metrics, file = "df_metrics.Rdata")
 
+# /////////////////////////////////////////////////////////////////
+#------------------------ Sintesi Finale -------------------------
+# /////////////////////////////////////////////////////////////////
 
+rounded_df = cbind(df_metrics[,1],
+                   apply(df_metrics[,2:NCOL(df_metrics)], 2, function(col) round(as.numeric(col), 2)))
+
+rounded_df
+
+# Ridge - Lasso ----------------
+
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
+           "ridge_no_interaction",
+           ".Rdata", collapse = "", sep = ""))
+
+temp_glmnet_object = predict(ridge_no_interaction, type = "coef") %>% as.matrix()
+temp_coef = temp_glmnet_object[,1]
+
+temp_main = "(abs) greatest ridge coefficients no interaction"
+summary(temp_coef)
+
+sorted_temp_coef = temp_coef[which((temp_coef < -1) | (temp_coef > 0.8)) ] %>% sort()
+
+PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "coef_ridge_no_int_plot.jpeg",
+                                 collapse = ""))
+
+
+
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
+           "ridge_yes_interaction",
+           ".Rdata", collapse = "", sep = ""))
+
+temp_glmnet_object = predict(ridge_yes_interaction, type = "coef") %>% as.matrix()
+temp_coef = temp_glmnet_object[,1]
+
+temp_main = "(abs) greatest ridge coefficients yes interaction"
+summary(temp_coef)
+
+sorted_temp_coef = temp_coef[which((temp_coef < -0.8) | (temp_coef > 0.5)) ] %>% sort()
+
+PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "coef_ridge_yes_int_plot.jpeg",
+                                 collapse = ""))
+
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
+           "lasso_no_interaction",
+           ".Rdata", collapse = "", sep = ""))
+
+temp_glmnet_object = predict(lasso_no_interaction, type = "coef") %>% as.matrix()
+temp_coef = temp_glmnet_object[,1]
+
+temp_main = "(abs) greatest lasso coefficients no interaction"
+summary(temp_coef)
+
+sorted_temp_coef = temp_coef[which((temp_coef < -2) | (temp_coef > 0.8)) ] %>% sort()
+
+PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "coef_lasso_no_int_plot.jpeg",
+                                 collapse = ""))
+
+
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
+           "lasso_yes_interaction",
+           ".Rdata", collapse = "", sep = ""))
+
+temp_glmnet_object = predict(lasso_yes_interaction, type = "coef") %>% as.matrix()
+temp_coef = temp_glmnet_object[,1]
+
+temp_main = "(abs) greatest lasso coefficients yes interaction"
+summary(temp_coef)
+
+sorted_temp_coef = temp_coef[which((temp_coef < -0.8) | (temp_coef > 0.5)) ] %>% sort()
+
+PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "coef_lasso_yes_int_plot.jpeg",
+                                 collapse = ""))
+
+
+
+# Tree -----------------
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
+           "final_tree_pruned",
+           ".Rdata", collapse = "", sep = ""))
+
+
+
+tree_temp_plot_fun = function(){
+  plot(final_tree_pruned)
+  text(final_tree_pruned, cex = 0.7)
+}
+
+PlotAndSave(my_plotting_function = tree_temp_plot_fun ,
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "tree_pruned_plot.jpeg",
+                                 collapse = ""))
 
 
