@@ -308,8 +308,31 @@ df_metrics = Add_Test_Metric(df_metrics,
 
 df_metrics
 
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# LDA & QDA ------------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+library(MASS)
+
+vglm_step_formula = formula(vglm_step)
+
+m_lda_r = lda(vglm_step_formula, data=sss)
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "LDA",
+                             USED.Metrics(predict(m_lda_r, newdata=vvv)$class,
+                                          vvv$y,
+                                          MY_WEIGHTS_vvv))
+
+m_qda_r = qda(vglm_step_formula, data=sss)
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "QDA",
+                             USED.Metrics( predict(m_qda_r, newdata=vvv)$class,
+                                           vvv$y,
+                                           MY_WEIGHTS_vvv))
 
 
+df_metrics
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Ridge e Lasso ------------------------------
