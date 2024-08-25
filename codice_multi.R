@@ -238,7 +238,7 @@ m_multi0 = multinom(Y_sss ~ 1,
 
 # scelgo il parametro di regolazione tramite AIC
 
-m_multi_no_int = step(m_multi1, scope = formula_no_interaction_yes_intercept)
+m_multi_no_int = step(m_multi0, scope = formula_no_interaction_yes_intercept)
 
 file_name_m_multi_no_int = paste(MODELS_FOLDER_RELATIVE_PATH,
                                  "m_multi_no_int",
@@ -281,6 +281,10 @@ save(df_metrics, file = "df_metrics.Rdata")
 # Multilogit --------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(VGAM)
+
+vglm0 = vglm(factor(y) ~ 1,
+             multinomial,
+             data = sss)
 
 vglm_step = step4vglm(vglm0,
           scope = formula_no_interaction_yes_intercept,
@@ -671,14 +675,14 @@ PlotAndSave(my_plotting_function = temp_plot,
                                   collapse = ""))
 
 
-df_err_qual = Add_Test_Metric(df_err_qual,
+df_metrics = Add_Test_Metric(df_metric,
                               "tree_pruned best",
                               USED.Metrics(predict(final_tree_pruned, newdata = vvv,
                                                    type = "class"),
                                            vvv$y,
                                            MY_WEIGHTS_vvv))
 
-df_err_qual
+df_metrics
 
 file_name_tree = paste(MODELS_FOLDER_RELATIVE_PATH,
                                  "tree",
@@ -852,9 +856,7 @@ PlotAndSave(my_plotting_function = function() plot(BAGGING_TREE_NUMBER_SEQ, err_
 bagging_model = bagging(factor(y) ~., sss, nbag = max(BAGGING_TREE_NUMBER_SEQ), coob = FALSE)
 
 temp_pred = predict(bagging_model, newdata = vvv,
-                    type = "response")
-
-pred_list$bagging = temp_pred
+                    type = "class")
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "Bagging",
@@ -866,7 +868,7 @@ df_metrics = Add_Test_Metric(df_metrics,
 df_metrics
 
 rm(temp_pred)
-
+cor
 # save the df_metrics as .Rdata
 save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
@@ -889,6 +891,17 @@ gc()
 df_metrics
 
 
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
+           "m_multi_no_int",
+           ".Rdata", collapse = "", sep = ""))
 
+summary(m_multi_no_int)
 
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
+           "m_mars",
+           ".Rdata", collapse = "", sep = ""))
+
+summary(m_mars)
+
+plotmo(m_mars)
 

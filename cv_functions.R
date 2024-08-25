@@ -248,6 +248,7 @@ ManualCvMARS = function(my_id_list_cv_train,
 #' @param is_classification (bool): if TRUE adapt the metrics to classification problem
 #' using the threshold
 #' @param my_threshold (num): classification threshold used
+#' @param is_multiclass (bool): use mgaussian for LASSO ONLY
 #'
 #'
 #' @return (list): list of two matrix 
@@ -265,7 +266,8 @@ ManualCvGlmnet = function(my_id_list_cv_train,
                           use_only_first_fold = FALSE,
                           is_classification = FALSE,
                           my_threshold = 0.5,
-                          my_id_list_cv_test = NULL){
+                          my_id_list_cv_test = NULL,
+                          is_multiclass = FALSE){
   
   n_k_fold = length(my_id_list_cv_train)
   my_n_metrics = length(my_metric_names)
@@ -285,22 +287,62 @@ ManualCvGlmnet = function(my_id_list_cv_train,
     id_train = unlist(my_id_list_cv_train[-k])
     id_test = my_id_list_cv_test[[k]]
     
-    temp_glmnet = glmnet(x = my_x[id_train,], 
-                         y = my_y[id_train], alpha = my_alpha,
-                         lambda = my_lambda_vals)
+    if(is_multiclass){
+      
+      if(my_alpha != 1){
+        print("Warning Multiclass mgaussian with some alpha != 0 (NOT LASSO)")
+      }
+      
+      temp_glmnet = glmnet(x = my_x[id_train,], 
+                           y = my_y[id_train,], alpha = my_alpha,
+                           lambda = my_lambda_vals,
+                           family = "mgaussian")
+      
+      factor_names = colnames(my_y)
+      
+      factor_vector = factor_names[apply(my_y, 1, which.max)]
     
-    temp_predictions = predict(temp_glmnet, my_x[id_test,])
+      
+      temp_predictions_0 = predict(temp_glmnet, my_x[id_test,])
+      
+      temp_predictions = matrix(NA, ncol = length(lambda_vals), nrow = length(id_test))
     
-    if(is_classification == TRUE){
-      temp_predictions = temp_predictions > my_threshold %>% as.numeric
+      
+      for(l in 1:length(lambda_vals)){
+      
+        temp_predictions[,l] = t(factor_names[apply(temp_predictions_0[,,l], 1, which.max)])
+      }
+    
     }
     
     
+    else{
+      temp_glmnet = glmnet(x = my_x[id_train,], 
+                         y = my_y[id_train], alpha = my_alpha,
+                         lambda = my_lambda_vals)
+      
+    
+      temp_predictions = predict(temp_glmnet, my_x[id_test,])
+      }
+    
+    
+    if((is_classification == TRUE) & (is_multiclass == FALSE)){
+      temp_predictions = temp_predictions > my_threshold %>% as.numeric
+    }
     
     for (j in 1:length(my_lambda_vals)){
+      if(is_multiclass){
+        
+        
+        temp_metrics_array_cv[k,j,] = USED.Metrics(temp_predictions[,j],
+                                                   factor_vector[id_test],
+                                                   weights = my_weights[id_test])
+      }
       
-      temp_metrics_array_cv[k,j,] = USED.Metrics(temp_predictions[,j], my_y[id_test],
-                                                 weights = my_weights[id_test])
+      else{
+      temp_metrics_array_cv[k,j,] = USED.Metrics(temp_predictions[,j],
+                                                 my_y[id_test],
+                                                 weights = my_weights[id_test])}
     }
     
     rm(temp_glmnet)
@@ -360,6 +402,7 @@ ManualCvGlmnet = function(my_id_list_cv_train,
 #' @param is_classification (bool): if TRUE adapt the metrics to classification problem
 #' using the threshold
 #' @param my_threshold (num): classification threshold used
+#' @param is_multiclass (bool): use mgaussian for LASSO ONLY
 #' 
 #' @param my_metrics_functions (vector of characters): vector of loss function names feed to snowfall (parallel)
 #' example  my_metrics_functions = c("USED.Metrics", "MAE.Loss", "MSE.Loss").
@@ -385,7 +428,8 @@ ManualCvGlmnetParallel = function(my_id_list_cv_train,
                                   use_only_first_fold = FALSE,
                                   is_classification = FALSE,
                                   my_threshold = 0.5,
-                                  my_id_list_cv_test = NULL){
+                                  my_id_list_cv_test = NULL,
+                                  is_multiclass = FALSE){
   
   n_k_fold = length(my_id_list_cv_train)
   my_n_metrics = length(my_metric_names)
@@ -408,6 +452,9 @@ ManualCvGlmnetParallel = function(my_id_list_cv_train,
                     "my_lambda_vals", "my_weights", my_metrics_functions,
                     "my_threshold"))
   
+  if(is_multiclass){
+    factor_names = colnames(my_y)
+  }
   
   for (k in 1:n_k_fold){
     id_train = unlist(my_id_list_cv_train[-k])
@@ -417,12 +464,24 @@ ManualCvGlmnetParallel = function(my_id_list_cv_train,
     #' @return (vector of nums): metrics values
     ParallelFunction = function(lambda){
       
+      if(is_multiclass){
+        temp_predictions = predict(glmnet(x = my_x[id_train,], 
+                                          y = my_y[id_train,], alpha = my_alpha,
+                                          lambda = lambda),
+                                   family = "mgaussian",
+                                   my_x[id_test,])
+        
+        temp_predictions = factor_names[which.max(temp_predictions)]
+        
+      }
+      
+      else{
       temp_predictions = predict(glmnet(x = my_x[id_train,], 
                                         y = my_y[id_train], alpha = my_alpha,
                                         lambda = lambda),
-                                 my_x[id_test,])
+                                 my_x[id_test,])}
       
-      if(is_classification == TRUE){
+      if((is_classification == TRUE) & (is_classification == FALSE)){
         temp_predictions = as.numeric(temp_predictions > my_threshold)
       }
       
@@ -989,19 +1048,23 @@ ManualCvTree = function(my_id_list_cv_train,
     
     
     # full grown tree
-    temp_tree_full = tree(y ~.,
-                          data = my_data[id_train,],
-                          control = tree.control(nobs = length(id_train),
-                                                 mindev = my_mindev,
-                                                 minsize = my_minsize))
     
     if((is_classification == TRUE) | (is_multiclass == TRUE)){
+      
+      
       temp_tree_full = tree(factor(y) ~.,
                             data = my_data[id_train,],
                             control = tree.control(nobs = length(id_train),
                                                    mindev = my_mindev,
                                                    minsize = my_minsize))
     }
+    
+    else{
+      temp_tree_full = tree(y ~.,
+                            data = my_data[id_train,],
+                            control = tree.control(nobs = length(id_train),
+                                                   mindev = my_mindev,
+                                                   minsize = my_minsize))}
     
     # it has to overfit
     plot(temp_tree_full)
@@ -1178,14 +1241,18 @@ ManualCvTreeParallel = function(my_id_list_cv_train,
     
     
     # full grown tree
-    temp_tree_full = tree(y ~.,
-                          data = my_data[id_train,],
-                          control = tree.control(nobs = length(id_train),
-                                                 mindev = my_mindev,
-                                                 minsize = my_minsize))
     
-    if(is_classification == TRUE){
+    
+    if((is_classification == TRUE) | (is_multiclass == TRUE)){
       temp_tree_full = tree(factor(y) ~.,
+                            data = my_data[id_train,],
+                            control = tree.control(nobs = length(id_train),
+                                                   mindev = my_mindev,
+                                                   minsize = my_minsize))
+    }
+    
+    else{
+      temp_tree_full = tree(y ~.,
                             data = my_data[id_train,],
                             control = tree.control(nobs = length(id_train),
                                                    mindev = my_mindev,
