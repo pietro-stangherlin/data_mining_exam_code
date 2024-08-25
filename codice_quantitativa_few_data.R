@@ -48,7 +48,7 @@ LIST_SD_ACCESS_NAME = "se"
 # WARNING: the order should be same as in df_metrics
 MY_USED_METRICS = c("USED.Metrics", "MAE.Loss", "MSE.Loss")
 
-
+MY_WEIGHTS = rep(1, nrow(dati))
 #////////////////////////////////////////////////////////////////////////////
 # Costruzione ID Fold convalida incrociata  -------------------
 #////////////////////////////////////////////////////////////////////////////
@@ -170,15 +170,13 @@ X_mm_no_interaction =  sparse.model.matrix(formula_no_interaction_no_intercept, 
 
 # X_mm_yes_interaction = model.matrix(formula_yes_interaction_no_intercept, data = dati)
 #sparsa
-X_mm_yes_interaction =  sparse.model.matrix(formula_yes_interaction_no_intercept, data = dati)
-
 
 # eventualmente basato sui risultati successivi
 # lambda_vals = seq(1e-07,1e-03, by = 1e-05)
 
 # Ridge ----------------
 
-# NO interaction 
+# NO interaction ------------------
 lambda_vals = glmnet(x = X_mm_no_interaction, y = dati$y,
                      alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
@@ -208,14 +206,13 @@ ridge_no_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                             my_metric_names = METRICS_NAMES)
 
 temp_plot_function = function(){
-  PlotCvMetrics(my_param_values = lambda_vals,
+  PlotCvMetrics(my_param_values = log(lambda_vals),
                 my_metric_matrix = ridge_no_interaction_metrics[["metrics"]],
                 my_se_matrix = ridge_no_interaction_metrics[["se"]],
-                my_best_param_values = ExtractBestParams(ridge_no_int_best_summary),
+                my_best_param_values = log(ExtractBestParams(ridge_no_int_best_summary)),
                 my_metric_names = METRICS_NAMES,
                 my_main = "Ridge no interaction CV metrics",
-                my_xlab = "lambda",
-                my_xlim = c(0, 0.1))
+                my_xlab = " log lambda")
 }
 
 PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
@@ -231,27 +228,27 @@ df_metrics = Add_Test_Metric(df_metrics,
 
 df_metrics
 
-# YES interaction 
+# YES interaction -------------------
 lambda_vals = glmnet(x = X_mm_yes_interaction, y = dati$y,
                      alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
-# ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
+ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
+                                              my_metric_names = METRICS_NAMES,
+                                              my_x = X_mm_yes_interaction,
+                                              my_y = dati$y,
+                                              my_alpha = 0,
+                                              my_lambda_vals = lambda_vals,
+                                              my_weights = MY_WEIGHTS)
+
+# ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
 #                                               my_metric_names = METRICS_NAMES,
 #                                               my_x = X_mm_yes_interaction,
 #                                               my_y = dati$y,
 #                                               my_alpha = 0,
 #                                               my_lambda_vals = lambda_vals,
-#                                               my_weights = MY_WEIGHTS)
-
-ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
-                                                      my_metric_names = METRICS_NAMES,
-                                                      my_x = X_mm_yes_interaction,
-                                                      my_y = dati$y,
-                                                      my_alpha = 0,
-                                                      my_lambda_vals = lambda_vals,
-                                                      my_weights = MY_WEIGHTS,
-                                                      my_metrics_functions = MY_USED_METRICS,
-                                                      my_ncores = N_CORES)
+#                                               my_weights = MY_WEIGHTS,
+#                                               my_metrics_functions = MY_USED_METRICS,
+#                                               my_ncores = N_CORES)
 
 ridge_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_metric_matrix = ridge_yes_interaction_metrics[["metrics"]],
@@ -261,14 +258,13 @@ ridge_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_metric_names = METRICS_NAMES)
 
 temp_plot_function = function(){
-  PlotCvMetrics(my_param_values = lambda_vals,
+  PlotCvMetrics(my_param_values = log(lambda_vals),
                 my_metric_matrix = ridge_yes_interaction_metrics[["metrics"]],
                 my_se_matrix = ridge_yes_interaction_metrics[["se"]],
-                my_best_param_values = ExtractBestParams(ridge_yes_int_best_summary),
+                my_best_param_values = log(ExtractBestParams(ridge_yes_int_best_summary)),
                 my_metric_names = METRICS_NAMES,
-                my_main = "Ridge yes interaction CV metrics",
-                my_xlab = "lambda",
-                my_xlim = c(0, 0.1))
+                my_main = "Ridge Yes interaction CV metrics",
+                my_xlab = " log lambda")
 }
 
 PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
@@ -283,48 +279,37 @@ df_metrics = Add_Test_Metric(df_metrics,
                              ridge_yes_int_best_summary[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
 
 df_metrics
-
-
-
+save(df_metrics, file = "df_metrics.Rdata")
 
 # Lasso ---------------
 # NO interaction 
 lambda_vals = glmnet(x = X_mm_no_interaction, y = dati$y,
                      alpha = 1, lambda.min.ratio = 1e-07)$lambda
 
-# lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
-#                                               my_metric_names = METRICS_NAMES,
-#                                               my_x = X_mm_no_interaction,
-#                                               my_y = dati$y,
-#                                               my_alpha = 1,
-#                                               my_lambda_vals = lambda_vals,
-#                                               my_weights = MY_WEIGHTS)
+lasso_no_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
+                                              my_metric_names = METRICS_NAMES,
+                                              my_x = X_mm_no_interaction,
+                                              my_y = dati$y,
+                                              my_alpha = 1,
+                                              my_lambda_vals = lambda_vals,
+                                              my_weights = MY_WEIGHTS)
 
-lasso_no_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
-                                                      my_metric_names = METRICS_NAMES,
-                                                      my_x = X_mm_no_interaction,
-                                                      my_y = dati$y,
-                                                      my_alpha = 1,
-                                                      my_lambda_vals = lambda_vals,
-                                                      my_weights = MY_WEIGHTS,
-                                                      my_metrics_functions = MY_USED_METRICS,
-                                                      my_ncores = N_CORES)
 
 lasso_no_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_metric_matrix = lasso_no_interaction_metrics[["metrics"]],
-                                         my_one_se_best = TRUE,
+                                         my_one_se_best = FALSE,
                                          my_higher_more_complex = FALSE,
                                          my_se_matrix = lasso_no_interaction_metrics[["se"]],
                                          my_metric_names = METRICS_NAMES)
 
 temp_plot_function = function(){
-  PlotCvMetrics(my_param_values = lambda_vals,
+  PlotCvMetrics(my_param_values = log(lambda_vals),
                 my_metric_matrix = lasso_no_interaction_metrics[["metrics"]],
                 my_se_matrix = lasso_no_interaction_metrics[["se"]],
-                my_best_param_values = ExtractBestParams(lasso_no_int_best_summary),
+                my_best_param_values = log(ExtractBestParams(lasso_no_int_best_summary)),
                 my_metric_names = METRICS_NAMES,
                 my_main = "lasso no interaction CV metrics",
-                my_xlab = "lambda")
+                my_xlab = " log lambda")
 }
 
 PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
@@ -340,35 +325,45 @@ df_metrics = Add_Test_Metric(df_metrics,
 
 df_metrics
 
-# YES interaction 
+save(df_metrics, file = "df_metrics.Rdata")
+
+# YES interaction -------------------
 lambda_vals = glmnet(x = X_mm_yes_interaction, y = dati$y,
                      alpha = 1, lambda.min.ratio = 1e-07)$lambda
 
-# lasso_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
+lasso_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
+                                               my_metric_names = METRICS_NAMES,
+                                               my_x = X_mm_yes_interaction,
+                                               my_y = dati$y,
+                                               my_alpha = 1,
+                                               my_lambda_vals = lambda_vals,
+                                               my_weights = MY_WEIGHTS)
+
+# lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
 #                                               my_metric_names = METRICS_NAMES,
 #                                               my_x = X_mm_yes_interaction,
 #                                               my_y = dati$y,
 #                                               my_alpha = 1,
 #                                               my_lambda_vals = lambda_vals,
-#                                               my_weights = MY_WEIGHTS)
+#                                               my_weights = MY_WEIGHTS,
+#                                               my_metrics_functions = MY_USED_METRICS,
+#                                               my_ncores = N_CORES)
 
-lasso_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
-                                                       my_metric_names = METRICS_NAMES,
-                                                       my_x = X_mm_yes_interaction,
-                                                       my_y = dati$y,
-                                                       my_alpha = 1,
-                                                       my_lambda_vals = lambda_vals,
-                                                       my_weights = MY_WEIGHTS,
-                                                       my_metrics_functions = MY_USED_METRICS,
-                                                       my_ncores = N_CORES)
+lasso_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
+                                          my_metric_matrix = lasso_yes_interaction_metrics[["metrics"]],
+                                          my_one_se_best = TRUE,
+                                          my_higher_more_complex = FALSE,
+                                          my_se_matrix = lasso_yes_interaction_metrics[["se"]],
+                                          my_metric_names = METRICS_NAMES)
+
 temp_plot_function = function(){
-  PlotCvMetrics(my_param_values = lambda_vals,
+  PlotCvMetrics(my_param_values = log(lambda_vals),
                 my_metric_matrix = lasso_yes_interaction_metrics[["metrics"]],
                 my_se_matrix = lasso_yes_interaction_metrics[["se"]],
-                my_best_param_values = ExtractBestParams(lasso_no_int_best_summary),
+                my_best_param_values = log(ExtractBestParams(lasso_yes_int_best_summary)),
                 my_metric_names = METRICS_NAMES,
-                my_main = "lasso yes interaction CV metrics",
-                my_xlab = "lambda")
+                my_main = "lasso Yes interaction CV metrics",
+                my_xlab = " log lambda")
 }
 
 PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
@@ -376,7 +371,7 @@ PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PAT
                                                      collapse = ""))
 
 print("lasso_yes_int_best_summary")
-lasso_no_int_best_summary
+lasso_yes_int_best_summary
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "lasso_yes_int",
@@ -384,6 +379,7 @@ df_metrics = Add_Test_Metric(df_metrics,
 
 df_metrics
 
+save(df_metrics, file = "df_metrics.Rdata")
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -391,7 +387,7 @@ df_metrics
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(tree)
 
-TREE_MAX_SIZE = 50
+TREE_MAX_SIZE = 40
 
 
 # if parallel shows problems use the non parallel version
@@ -403,16 +399,33 @@ tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv_train = ID_CV_LIST,
                                        my_ncores = N_CORES,
                                        my_weights = MY_WEIGHTS,
                                        my_mindev = 1e-05,
-                                       my_minsize = 2)
+                                       my_minsize = 5)
 
 tree_best_summary = CvMetricBest(my_param_values = 2:TREE_MAX_SIZE,
-                                    my_metric_matrix = tree_cv_metrics[["metrics"]],
-                                    my_se_matrix = tree_cv_metrics[["se"]],
-                                    my_metric_names = METRICS_NAMES,
-                                    my_main = "Tree CV metrics",
-                                    my_xlab = "Size",
-                                    my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                                         "tree_metrics_plot.jpeg"))
+                                 my_metric_matrix = tree_cv_metrics[["metrics"]],
+                                 my_one_se_best = FALSE,
+                                 my_higher_more_complex = TRUE,
+                                 my_se_matrix = tree_cv_metrics[["se"]],
+                                 my_metric_names = METRICS_NAMES)
+
+
+PlotAndSave(function()(
+  PlotCvMetrics(my_param_values = 2:TREE_MAX_SIZE,
+                my_metric_matrix = tree_cv_metrics[["metrics"]],
+                my_se_matrix = tree_cv_metrics[["se"]],
+                my_best_param_values = ExtractBestParams(tree_best_summary),
+                my_metric_names = METRICS_NAMES,
+                my_main = "Tree CV metrics",
+                my_xlab = "size")),
+  my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                       "tree_cv_metrics_plot.jpeg",
+                       collapse = ""))
+
+
+tree_best_size = tree_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]]
+
+print("tree best size")
+tree_best_size
 
 tree_best_summary
 
@@ -423,219 +436,232 @@ df_metrics = Add_Test_Metric(df_metrics,
 
 df_metrics
 
+save(df_metrics, file = "df_metrics.Rdata")
+
+
+tree_full = tree(y ~.,
+                 data = dati,
+                 control = tree.control(nobs = NROW(dati),
+                                        mindev = 1e-04,
+                                        minsize = 5))
+
+
+# check overfitting
+plot(tree_full)
+
+final_tree_pruned = prune.tree(tree_full,
+                               best = tree_best_size)
+
+temp_plot_function = function(){
+  plot(final_tree_pruned)
+  text(final_tree_pruned, cex = 0.7)}
+
+
+PlotAndSave(temp_plot_function,
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "tree_pruned_plot.jpeg",
+                                 collapse = ""))
+
+file_name_final_tree_pruned = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                    "final_tree_pruned",
+                                    ".Rdata", collapse = "", sep = "")
+
+save(final_tree_pruned, file = file_name_final_tree_pruned)
+
+
+rm(final_tree_pruned)
+rm(tree_full)
+gc()
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Modello Additivo ---------------------------
+# Random Forest ------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-library(gam)
+library(ranger)
 
-# TO DO -----------
-
-# Here the model selection is harder vs other models, except for MARS.
-# We give a brief description:
-# In additive models, under the non - interaction constraint 
-# (i.e. we do not consider variables which are a functions of two or more distinct variables),
-# we have two possible regulation parameters
-# 1) how many predictors (of course we also need to know what specific predictors)
-# 2) for each quantitative predictor in the model what is its smoothing parameter?
-
-# Since an exaustive search over all possibilities would require near infinite time and resources
-# we adopt this sub-optimal procedure:
-# for each training fold a model is selected based on a stepwise AIC selection 
-# (based on generalized degrees of freedom), its error on its cv test fold is computed (as usual);
-# The procedure is then repetead for all the folds and a 
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# MARS ---------------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-# TO DO -----------
+# Nota: se manca il tempo eseguo prima la RandomForest del Bagging
+# visto che quest'ultimo è un sotto caso particolare 
+# della RandomForest (selezione di tutte le variabili per ogni split)
 
 
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# PPR ---------------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# massimo numero di esplicative presenti
+RF_MAX_VARIABLES = 20 # sottraggo 1 per la variabile risposta
+# ridurlo per considerazioni computazionali
 
-# K: numero di possibili funzioni dorsali
-PPR_MAX_RIDGE_FUNCTIONS = 4
+RF_ITER = 400
 
-ppr_cv_metrics = ManualCvPPR(n_k_fold = K_FOLDS,
-                                     my_id_list_cv_train = ID_CV_LIST,
-                                     my_n_metrics = N_METRICS,
-                                     my_metric_names = METRICS_NAMES,
-                                     my_data = dati,
-                                     my_max_ridges = PPR_MAX_RIDGE_FUNCTIONS)
+RF_TREE_NUMBER_SEQ = seq(10, 400, 10)
 
-ppr_best_summary = CvMetricBest(my_param_values = 1:PPR_MAX_RIDGE_FUNCTIONS,
-                                    my_metric_matrix = ppr_cv_metrics[["metrics"]],
-                                    my_se_matrix =  ppr_cv_metrics[["se"]],
-                                    my_metric_names = METRICS_NAMES,
-                                    my_main = "PPR CV metrics",
-                                    my_xlab = "Number of ridge functions",
-                                    my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                                         "ppr_metrics_plot.jpeg"))
+rf_cv_metrics = ManualCvRF(my_id_list_cv_train = ID_CV_LIST,
+                           my_metric_names = METRICS_NAMES,
+                           my_data = dati,
+                           my_n_variables = 2:RF_MAX_VARIABLES,
+                           my_n_bs_trees = RF_ITER,
+                           fix_trees_bool = TRUE,
+                           my_weights = MY_WEIGHTS,
+                           use_only_first_fold = FALSE,
+                           is_classification = FALSE,
+                           is_multiclass = FALSE)
 
-ppr_best_summary
+# rf_cv_metrics = ManualCvRFParallel(my_id_list_cv_train = ID_CV_LIST_BALANCED,
+#                                    my_id_list_cv_test = ID_CV_LIST_UNBALANCED,
+#                            my_metric_names = METRICS_NAMES,
+#                            my_data = dati,
+#                            my_n_variables = 2:RF_MAX_VARIABLES,
+#                            my_n_bs_trees = RF_ITER,
+#                            my_ncores = N_CORES,
+#                            my_metrics_functions = MY_USED_METRICS,
+#                            fix_trees_bool = TRUE,
+#                            my_weights = MY_WEIGHTS,
+#                            is_classification = FALSE,
+#                            is_multiclass = FALSE)
 
 
-df_metrics = Add_Test_Metric(df_metrics,
-                             "PPR",
-                             ppr_best_summary[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
+rf_cv_metrics_best = CvMetricBest(my_param_values = 2:RF_MAX_VARIABLES,
+                                  my_metric_matrix = rf_cv_metrics[["metrics"]],
+                                  my_one_se_best = TRUE,
+                                  my_higher_more_complex = TRUE,
+                                  my_se_matrix = rf_cv_metrics[["se"]],
+                                  my_metric_names = METRICS_NAMES) #f_score
 
-df_metrics
+PlotAndSave(function()(
+  PlotCvMetrics(my_param_values = 2:RF_MAX_VARIABLES,
+                my_metric_matrix = rf_cv_metrics[["metrics"]],
+                my_se_matrix = rf_cv_metrics[["se"]],
+                my_best_param_values = ExtractBestParams(rf_cv_metrics_best),
+                my_metric_names = METRICS_NAMES,
+                my_main = "RF CV metrics",
+                my_xlab = "mtry",
+                my_legend_coords = "bottomright")),
+  my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                       "rf_mtry_cv_metrics_plot.jpeg",
+                       collapse = ""))
 
 
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Random Forest ---------------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+best_mtry = rf_cv_metrics_best[[METRIC_CHOSEN_NAME]][["best_param_value"]]
 
-# sub - optimal procedure: 
-# 1) fix the number of bootstrap trees
-# 2) using CV find the optimal number of variables chosen at each split
-# 3) using the optimal number check if the CV error stabilizes with respect to
-# the number of bootstrap trees
-# eventually repeat until stabilization
+print("rf best mtry")
+best_mtry
+# check convergence
 
-# NOTE: here we're NOT using OOB errors because the results need to be confronted
-# with other models fitted and tested on the same folds.
+rf_n_tree_metrics = ManualCvRFParallel(my_id_list_cv_train = ID_CV_LIST,
+                                       my_metric_names = METRICS_NAMES,
+                                       my_data = dati,
+                                       my_n_variables = best_mtry,
+                                       my_n_bs_trees = RF_TREE_NUMBER_SEQ,
+                                       my_ncores = N_CORES,
+                                       my_metrics_functions = MY_USED_METRICS,
+                                       fix_trees_bool = FALSE,
+                                       my_weights = MY_WEIGHTS,
+                                       is_classification = FALSE,
+                                       is_multiclass = FALSE)
 
-# max variables at each split (can be changed)
-RF_MAX_VARIABLES = 30
+PlotAndSave(function()(
+  PlotCvMetrics(my_param_values = RF_TREE_NUMBER_SEQ,
+                my_metric_matrix = rf_n_tree_metrics[["metrics"]],
+                my_se_matrix =rf_n_tree_metrics[["se"]],
+                my_best_param_values = 0,
+                my_metric_names = METRICS_NAMES,
+                my_main = "RF CV metrics n tree",
+                my_xlab = "ntree")),
+  my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                       "rf_n_tree_cv_metrics_plot.jpeg",
+                       collapse = ""))
 
-# number of bootstrap trees (can be changed)
-RF_N_BS_TREES = 200
 
-library(randomForest)
-
-# number of split variable selection
-
-rf_cv_metrics = ManualCvRFParallel(n_k_fold = K_FOLDS,
-                                 my_id_list_cv_train = ID_CV_LIST,
-                                 my_n_metrics = N_METRICS,
-                                 my_metric_names = METRICS_NAMES,
-                                 my_data = dati,
-                                 my_n_variables = 1:RF_MAX_VARIABLES,
-                                 my_n_bs_trees = 400,
-                                 fix_trees_bool = TRUE,
-                                 my_ncores = N_CORES)
-
-rf_best_summary = CvMetricBest(my_param_values = 1:RF_MAX_VARIABLES,
-                                   my_metric_matrix = rf_cv_metrics[["metrics"]],
-                                   my_se_matrix = rf_cv_metrics[["se"]],
-                                   my_metric_names = METRICS_NAMES,
-                                   my_main = "RF CV metrics",
-                                   my_xlab = "Number of variables at each split",
-                                   my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                                        "rf_metrics_plot.jpeg"))
-
-rf_best_summary
-
-# check convergence with respect to number of bootstrap trees
-
-# sequence of bootstrap trees
-BTS_TREES_N_SEQ = seq(30, 400, 10)
-
-rf_cv_metrics_bts_trees = ManualCvRFParallel(n_k_fold = K_FOLDS,
-                                 my_id_list_cv_train = ID_CV_LIST,
-                                 my_n_metrics = N_METRICS,
-                                 my_metric_names = METRICS_NAMES,
-                                 my_data = dati,
-                                 my_n_variables = rf_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]],
-                                 my_n_bs_trees = BTS_TREES_N_SEQ,
-                                 fix_trees_bool = FALSE,
-                                 my_ncores = N_CORES)
-
-rf_best_summary_bts_trees = CvMetricBest(my_param_values = BTS_TREES_N_SEQ,
-                                  my_metric_matrix = rf_cv_metrics_bts_trees[["metrics"]],
-                                  my_se_matrix = rf_cv_metrics_bts_trees[["se"]],
-                                  my_metric_names = METRICS_NAMES,
-                                  my_main = "RF CV metrics",
-                                  my_xlab = "Number of bootstrap trees",
-                                  my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                                       "rf_metrics_plot_bts.jpeg"))
-
-# if there's convergence add the the RF CV metrics to df_metrics
-# otherwise, do again the variable number selection fixing a new number of bootstrap trees
+# modello finale e previsioni
+random_forest_model = ranger(factor(y) ~., dati,
+                             mtry = best_mtry,
+                             num.trees = 400,
+                             oob.error = TRUE,
+                             importance = "permutation")
 
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "Random Forest",
-                             rf_best_summary[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
+                             rf_cv_metrics_best[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
 
 df_metrics
 
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
 
 
-# consider now the full data and the two parameters selected
-# we can evaluate variable importance on the complete dataset by OOB error
+# Importanza delle variabili
+vimp = importance(random_forest_model)
 
-rf_model = randomForest(y ~., data = dati,
-                        mtry = rf_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]],
-                        ntree = rf_best_summary_bts_trees[[METRIC_CHOSEN_NAME]][["best_param_value"]],
-                        importance = TRUE)
+PlotAndSave(my_plotting_function =  function() dotchart(vimp[order(vimp, decreasing = T)[1:20]],
+                                                        pch = 16,
+                                                        main = "Random Forest Variable Importance Permutation",
+                                                        xlab = "error increase"),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "random_forest_importance_plot.jpeg",
+                                 collapse = ""))
 
+# save metrics and model
+file_name_random_forest = paste(MODELS_FOLDER_RELATIVE_PATH,
+                                "random_forests",
+                                ".Rdata", collapse = "", sep = "")
 
-vimp = importance(rf_model)[,1]
-
-dotchart(vimp[order(vimp)], pch = 16,
-         main = "RF Increase MSE % variable importance",
-         xlab = "% MSE Increase")
-
-# save it 
-
-jpeg(paste(FIGURES_FOLDER_RELATIVE_PATH,
-           "rf_var_imp_plot.jpeg",
-           collapse = ""),
-     width = FIGURE_WIDTH, height = FIGURE_HEIGHT,
-     pointsize = FIGURE_POINT_SIZE, quality = FIGURE_QUALITY)
-
-dotchart(vimp[order(vimp)], pch = 16,
-         main = "RF Increase MSE % variable importance",
-         xlab = "% MSE Increase")
+save(random_forest_model, file = file_name_random_forest)
 
 
-dev.off()
 
-rm(rf_model)
+rm(random_forest_model)
 gc()
 
 
 
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Bagging ---------------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-# Because bagging is just a Random Forest when all the variables are selected at each split
-# we can use the Random Forest CV function with fixed number of variables and check the convergence
-# with respect to the bootstrap trees number
 
 
-# sequence of bootstrap trees
-BTS_TREES_N_SEQ = seq(30, 400, 10)
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Bagging ------------------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-bagging_cv_metrics_bts_trees = ManualCvRFParallel(n_k_fold = K_FOLDS,
-                                           my_id_list_cv_train = ID_CV_LIST,
-                                           my_n_metrics = N_METRICS,
-                                           my_metric_names = METRICS_NAMES,
-                                           my_data = dati,
-                                           my_n_variables = NCOL(dati) - 1,
-                                           my_n_bs_trees = BTS_TREES_N_SEQ,
-                                           fix_trees_bool = FALSE)
-
-bagging_best_summary_bts_trees = CvMetricBest(my_param_values = BTS_TREES_N_SEQ,
-                                            my_metric_matrix = bagging_cv_metrics_bts_trees[["metrics"]],
-                                            my_se_matrix = bagging_cv_metrics_bts_trees[["se"]],
+bagging_n_tree_metrics = ManualCvRFParallel(my_id_list_cv_train = ID_CV_LIST,
                                             my_metric_names = METRICS_NAMES,
-                                            my_main = "Bagging CV metrics",
-                                            my_xlab = "Number of bootstrap trees",
-                                            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                                                 "bagging_metrics_plot_bts.jpeg"))
+                                            my_data = dati,
+                                            my_n_variables = NCOL(dati) - 1,
+                                            my_n_bs_trees = RF_TREE_NUMBER_SEQ,
+                                            my_ncores = N_CORES,
+                                            my_metrics_functions = MY_USED_METRICS,
+                                            fix_trees_bool = FALSE,
+                                            my_weights = MY_WEIGHTS,
+                                            is_classification = FALSE,
+                                            is_multiclass = FALSE)
+
+bagging_best_summary = CvMetricBest(my_param_values = RF_TREE_NUMBER_SEQ,
+                                    my_metric_matrix = bagging_n_tree_metrics[["metrics"]],
+                                    my_one_se_best = TRUE,
+                                    my_higher_more_complex = TRUE,
+                                    my_se_matrix = bagging_n_tree_metrics[["se"]],
+                                    my_metric_names = METRICS_NAMES)
+
+PlotAndSave(function()(
+  PlotCvMetrics(my_param_values = RF_TREE_NUMBER_SEQ,
+                my_metric_matrix = bagging_n_tree_metrics[["metrics"]],
+                my_se_matrix = bagging_n_tree_metrics[["se"]],
+                my_best_param_values = 0,
+                my_metric_names = METRICS_NAMES,
+                my_main = "Bagging metrics n tree",
+                my_xlab = "ntree")),
+  my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                       "bagging_n_tree_cv_metrics_plot.jpeg",
+                       collapse = ""))
+
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "Bagging",
-                             bagging_best_summary_bts_trees[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
+                             bagging_best_summary[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
+
 
 df_metrics
+
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
+
+rm(bagging_model)
+gc()
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -647,13 +673,106 @@ df_metrics
 #////////////////////////////////////////////////////////////////////////////
 # TO FIX
 
-df_metrics = na.omit(df_metrics)
-df_metrics[,-1] = as.numeric(df_metrics[,-1])
-
-df_metrics[,-1] = apply(df_metrics[,-1], 2, function(col) round(col, 3))
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Modelli migliori ---------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+rounded_df = cbind(df_metrics[,1],
+                   apply(df_metrics[,2:NCOL(df_metrics)], 2, function(col) round(as.numeric(col), 2)))
+
+rounded_df
+# RIDGE and Lasso ----------------
+
+ridge_no_interaction = glmnet(x = X_mm_no_interaction,
+                              y = dati$y,
+                              alpha = 0,
+                              lambda = ridge_no_int_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]])
+
+temp_glmnet_object = predict(ridge_no_interaction, type = "coef") %>% as.matrix()
+temp_coef = temp_glmnet_object[,1]
+
+temp_main = "(abs) greatest ridge coefficients no interaction"
+summary(temp_coef)
+
+sorted_temp_coef = temp_coef[which((temp_coef < -2) | (temp_coef > 10)) ] %>% sort()
+
+PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "coef_ridge_no_int_plot.jpeg",
+                                 collapse = ""))
+
+ridge_yes_interaction = glmnet(x = X_mm_yes_interaction,
+                               y = dati$y,
+                               alpha = 0,
+                               lambda = ridge_yes_int_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]])
+
+temp_glmnet_object = predict(ridge_yes_interaction, type = "coef") %>% as.matrix()
+temp_coef = temp_glmnet_object[,1]
+
+temp_main = "(abs) greatest ridge coefficients yes interaction"
+summary(temp_coef)
+
+sorted_temp_coef = temp_coef[which((temp_coef < -0.8) | (temp_coef > 0.5)) ] %>% sort()
+
+PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "coef_ridge_yes_int_plot.jpeg",
+                                 collapse = ""))
+
+lasso_no_interaction = glmnet(x = X_mm_no_interaction,
+                              y = dati$y,
+                              alpha = 1,
+                              lambda = lasso_no_int_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]])
+
+temp_glmnet_object = predict(lasso_no_interaction, type = "coef") %>% as.matrix()
+temp_coef = temp_glmnet_object[,1]
+
+temp_main = "(abs) greatest lasso coefficients no interaction"
+summary(temp_coef)
+
+sorted_temp_coef = temp_coef[which((temp_coef < -7) | (temp_coef > 7)) ] %>% sort()
+
+PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "coef_lasso_no_int_plot.jpeg",
+                                 collapse = ""))
+
+lasso_yes_interaction = glmnet(x = X_mm_yes_interaction,
+                               y = dati$y,
+                               alpha = 1,
+                               lambda = lasso_yes_int_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]])
+
+temp_glmnet_object = predict(lasso_yes_interaction, type = "coef") %>% as.matrix()
+temp_coef = temp_glmnet_object[,1]
+
+temp_main = "(abs) greatest lasso coefficients yes interaction"
+summary(temp_coef)
+
+sorted_temp_coef = temp_coef[which((temp_coef < -0.8) | (temp_coef > 0.5)) ] %>% sort()
+
+PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "coef_lasso_yes_int_plot.jpeg",
+                                 collapse = ""))
+
+
+
+# Tree -----------------
+load(paste(MODELS_FOLDER_RELATIVE_PATH,
+           "final_tree_pruned",
+           ".Rdata", collapse = "", sep = ""))
+
+
+
+tree_temp_plot_fun = function(){
+  plot(final_tree_pruned)
+  text(final_tree_pruned, cex = 0.7)
+}
+
+PlotAndSave(my_plotting_function = tree_temp_plot_fun ,
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "tree_pruned_plot.jpeg",
+                                 collapse = ""))
 
 

@@ -714,15 +714,24 @@ TREE_MAX_SIZE = 100
 
 
 # if parallel shows problems use the non parallel version
-tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv_train = ID_CV_LIST,
+# tree_cv_metrics = ManualCvTreeParallel(my_id_list_cv_train = ID_CV_LIST,
+#                                        my_metric_names = METRICS_NAMES,
+#                                        my_data = sss,
+#                                        my_max_size = TREE_MAX_SIZE,
+#                                        my_metrics_functions = MY_USED_METRICS,
+#                                        my_ncores = N_CORES,
+#                                        my_weights = MY_WEIGHTS_sss,
+#                                        my_mindev = 1e-04,
+#                                        my_minsize = 5,
+#                                        use_only_first_fold = USE_ONLY_FIRST_FOLD)
+
+tree_cv_metrics = ManualCvTree(my_id_list_cv_train = ID_CV_LIST,
                                        my_metric_names = METRICS_NAMES,
                                        my_data = sss,
                                        my_max_size = TREE_MAX_SIZE,
-                                       my_metrics_functions = MY_USED_METRICS,
-                                       my_ncores = N_CORES,
                                        my_weights = MY_WEIGHTS_sss,
-                                       my_mindev = 1e-04,
-                                       my_minsize = 5,
+                                       my_mindev = 1e-03,
+                                       my_minsize = 10,
                                        use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
 tree_best_summary = CvMetricBest(my_param_values = 2:TREE_MAX_SIZE,
@@ -781,8 +790,15 @@ tree_best_size
 final_tree_pruned = prune.tree(tree_full,
                                best = tree_best_size)
 
+temp_plot_function = function(){
 plot(final_tree_pruned)
-text(final_tree_pruned, cex = 0.7)
+text(final_tree_pruned, cex = 0.7)}
+
+
+PlotAndSave(temp_plot_function,
+  my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                       "tree_pruned_plot.jpeg",
+                       collapse = ""))
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "tree_pruned best",
@@ -1027,7 +1043,7 @@ library(ranger)
 # successivamente sommiamo gli errori out of bag per ogni mtry
 
 # massimo numero di esplicative presenti
-m_max = NCOL(sss) - 1 # sottraggo 1 per la variabile risposta
+m_max = NCOL(sss) - 2 # sottraggo 1 per la variabile risposta
 
 # se m_max è grande eventualmente ridurlo per considerazioni computazionali
 
@@ -1037,13 +1053,14 @@ m_max = NCOL(sss) - 1 # sottraggo 1 per la variabile risposta
 # prima scelgo il numero di esplicative a ogni split,
 # una volta scelto controllo la convergenza dell'errore basata sul numero di alberi
 err = rep(NA, m_max)
-
+RF_ITER = 300
 # °°°°°°°°°°°°°°°°°°°°°°°°°°°Warning: lento°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 
 for(i in seq(2, m_max)){
   sfExport(list = c("i"))
   
-  err[i] = ranger(y ~., data = sss,
+  err[i] = ranger(y ~.,
+                  data = sss,
                  mtry = i,
                  num.trees = RF_ITER,
                  probability = TRUE,
