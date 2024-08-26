@@ -766,7 +766,8 @@ PPRRegulationCV = function(my_data = sss,
                   sm.method = "spline",
                   df = my_spline_df[df])
         
-        temp_predictions = predict(mod, my_data[-id_train,])
+        temp_predictions = predict(mod, my_data[id_test,])
+
         
         if(is_classification == TRUE){
           temp_predictions = temp_predictions > my_threshold

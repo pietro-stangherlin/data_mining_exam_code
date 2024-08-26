@@ -93,6 +93,7 @@ if(modulo_cv != 0){
   ID_CV_LIST[[K_FOLDS]] = ID_CV_LIST[[K_FOLDS]][1:integer_division_cv]
 }
 
+source("cv_functions.R")
 # /////////////////////////////////////////////////////////////////
 #------------------------ Modelli ---------------------------------
 # /////////////////////////////////////////////////////////////////
@@ -148,7 +149,7 @@ df_metrics
 library(glmnet)
 library(Matrix)
 
-source("cv_functions.R")
+
 
 # Compromesso varianza - distorsione: convalida incrociata sia per la scelta del parametro 
 # di regolazione che per il confronto finale
@@ -474,6 +475,78 @@ rm(tree_full)
 gc()
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# PPR ------------------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# max number of ridge functions
+PPR_MAX_RIDGE_FUNCTIONS = 4
+
+# possible spline degrees of freedom
+PPR_DF_SM = 2:6
+
+ppr_metrics = PPRRegulationCV(my_data = dati,
+                              my_id_list_cv_train = ID_CV_LIST,
+                              my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+                              my_spline_df = PPR_DF_SM,
+                              my_metrics_names = METRICS_NAMES,
+                              my_weights = MY_WEIGHTS,
+                              is_classification = FALSE)
+
+
+
+
+# 1.b) Regulation: CV -------
+
+ppr_metrics = PPRRegulationCVParallel(my_data = dati,
+                                      my_id_list_cv_train = ID_CV_LIST,
+                                      my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+                                      my_spline_df = PPR_DF_SM,
+                                      my_metrics_names = METRICS_NAMES,
+                                      my_weights = MY_WEIGHTS,
+                                      my_metrics_functions = MY_USED_METRICS,
+                                      my_ncores = N_CORES,
+                                      is_classification = FALSE)
+
+
+# 2) final model -------
+
+ppr_best_params = PPRExtractBestParams(ppr_metrics)
+
+ppr_n_ridges_best = ppr_best_params[[METRIC_CHOSEN_NAME]][[1]]
+ppr_df_best = ppr_best_params[[METRIC_CHOSEN_NAME]][[2]]
+
+
+print("ppr best params")
+ppr_best_params
+
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "PPR",
+                             ppr_metrics[ppr_n_ridges_best,ppr_df_best,])
+
+df_metrics
+
+rm(temp_pred)
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
+
+# file_name_ppr_model = paste(MODELS_FOLDER_RELATIVE_PATH,
+#                             "ppr_model",
+#                             ".Rdata", collapse = "", sep = "")
+# 
+# ppr_model = ppr(y ~ .,
+#                 data = dati[BALANCED_ID,],
+#                 nterms = ppr_best_params[[METRIC_CHOSEN_NAME]][["n_ridge_functions"]],
+#                 sm.method = "spline",
+#                 df = ppr_best_params[[METRIC_CHOSEN_NAME]][["spline_df"]]) 
+# 
+# save(ppr_model, file = file_name_ppr_model)
+# 
+# rm(ppr_model)
+gc()
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Random Forest ------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(ranger)
@@ -521,7 +594,7 @@ rf_cv_metrics_best = CvMetricBest(my_param_values = 2:RF_MAX_VARIABLES,
                                   my_one_se_best = TRUE,
                                   my_higher_more_complex = TRUE,
                                   my_se_matrix = rf_cv_metrics[["se"]],
-                                  my_metric_names = METRICS_NAMES) #f_score
+                                  my_metric_names = METRICS_NAMES)
 
 PlotAndSave(function()(
   PlotCvMetrics(my_param_values = 2:RF_MAX_VARIABLES,

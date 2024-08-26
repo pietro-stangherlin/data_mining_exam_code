@@ -944,15 +944,16 @@ PPR_MAX_RIDGE_FUNCTIONS = 4
 # possible spline degrees of freedom
 PPR_DF_SM = 2:6
 
-# ppr_metrics = PPRRegulationCV(my_data = sss,
-#                               my_id_list_cv_train = ID_CV_LIST,
-#                               my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
-#                               my_spline_df = PPR_DF_SM,
-#                               my_metrics_names = METRICS_NAMES,
-#                               my_weights = MY_WEIGHTS_sss,
-#                               use_only_first_fold = TRUE,
-#                               is_classification = TRUE,
-#                               my_threshold = MY_THRESHOLD)
+ppr_metrics = PPRRegulationCV(my_data = dati,
+                              my_id_list_cv_train = ID_CV_LIST_BALANCED,
+                              my_id_list_cv_test = ID_CV_LIST_UNBALANCED,
+                              my_max_ridge_functions = PPR_MAX_RIDGE_FUNCTIONS,
+                              my_spline_df = PPR_DF_SM,
+                              my_metrics_names = METRICS_NAMES,
+                              my_weights = MY_WEIGHTS,
+                              use_only_first_fold = FALSE,
+                              is_classification = TRUE,
+                              my_threshold = MY_THRESHOLD)
 
 
 
@@ -968,11 +969,9 @@ ppr_metrics = PPRRegulationCVParallel(my_data = dati,
                                       my_weights = MY_WEIGHTS,
                                       my_metrics_functions = MY_USED_METRICS,
                                       my_ncores = N_CORES,
-                                      use_only_first_fold = TRUE,
+                                      use_only_first_fold = FALSE,
                                       is_classification = TRUE,
                                       my_threshold = MY_THRESHOLD)
-
-ppr_best_summary =  
 
 
 # 2) final model -------
@@ -986,12 +985,6 @@ ppr_df_best = ppr_best_params[[METRIC_CHOSEN_NAME]][[2]]
 print("ppr best params")
 ppr_best_params
 
-ppr_model = ppr(y ~ .,
-                data = dati,
-                nterms = ppr_best_params[[METRIC_CHOSEN_NAME]][["n_ridge_functions"]],
-                sm.method = "spline",
-                df = ppr_best_params[[METRIC_CHOSEN_NAME]][["spline_df"]]) 
-
 
 df_metrics = Add_Test_Metric(df_metrics,
                              "PPR",
@@ -1004,13 +997,19 @@ rm(temp_pred)
 # save the df_metrics as .Rdata
 save(df_metrics, file = "df_metrics.Rdata")
 
-file_name_ppr_model = paste(MODELS_FOLDER_RELATIVE_PATH,
-                            "ppr_model",
-                            ".Rdata", collapse = "", sep = "")
-
-save(ppr_model, file = file_name_ppr_model)
-
-rm(ppr_model)
+# file_name_ppr_model = paste(MODELS_FOLDER_RELATIVE_PATH,
+#                             "ppr_model",
+#                             ".Rdata", collapse = "", sep = "")
+# 
+# ppr_model = ppr(y ~ .,
+#                 data = dati[BALANCED_ID_vector,],
+#                 nterms = ppr_best_params[[METRIC_CHOSEN_NAME]][["n_ridge_functions"]],
+#                 sm.method = "spline",
+#                 df = ppr_best_params[[METRIC_CHOSEN_NAME]][["spline_df"]]) 
+# 
+# save(ppr_model, file = file_name_ppr_model)
+# 
+# rm(ppr_model)
 gc()
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
