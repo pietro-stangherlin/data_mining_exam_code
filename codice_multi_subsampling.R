@@ -23,16 +23,18 @@ source("loss_functions.R")
 
 # °°°°°°°°°°°°°°°°°°°°°°° Warning: °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 USED.Metrics = function(y.pred, y.test, weights = 1){
-  return(c(MissErr(y.pred, y.test, weights), 0))
+  return(c(MissErr(y.pred, y.test, weights), MissErr(y.pred, y.test, weights)))
 }
 
 
 # anche qua
 df_metrics = data.frame(name = NA,
                         missclass = NA,
-                        filler = NA)
+                        zero = NA)
 
 METRICS_NAMES = colnames(df_metrics[,-1])
+
+METRICS_NAMES_PLOT = "missclass"
 
 N_METRICS = length(METRICS_NAMES)
 
@@ -119,6 +121,8 @@ ID_CV_LIST_BALANCED = ID_CV_LIST_UNBALANCED
 # BALANCED_ID_vector = unlist(ID_CV_LIST_BALANCED)
 # UNBALANCED_ID_vector = unlist(ID_CV_LIST_UNBALANCED)
 
+source("cv_functions.R")
+
 MY_WEIGHTS = rep(1, NROW_dati)
 
 USE_ONLY_FIRST_FOLD = FALSE
@@ -170,7 +174,7 @@ lasso_no_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_one_se_best = TRUE,
                                          my_higher_more_complex = FALSE,
                                          my_se_matrix = lasso_no_interaction_metrics[["se"]],
-                                         my_metric_names = METRICS_NAMES)
+                                         my_metric_names = METRICS_NAMES_PLOT)
 
 
 PlotAndSave(function()(
@@ -178,7 +182,7 @@ PlotAndSave(function()(
                 my_metric_matrix = lasso_no_interaction_metrics[["metrics"]],
                 my_se_matrix = lasso_no_interaction_metrics[["se"]],
                 my_best_param_values =log(ExtractBestParams(lasso_no_int_best_summary)),
-                my_metric_names = METRICS_NAMES,
+                my_metric_names = METRICS_NAMES_PLOT,
                 my_main = "lasso no interaction CV metrics",
                 my_xlab = " log lambda")),
   my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
@@ -260,7 +264,7 @@ tree_best_summary = CvMetricBest(my_param_values = 2:TREE_MAX_SIZE,
                                  my_one_se_best = TRUE,
                                  my_higher_more_complex = TRUE,
                                  my_se_matrix = tree_cv_metrics[["se"]],
-                                 my_metric_names = METRICS_NAMES)
+                                 my_metric_names = METRICS_NAMES_PLOT)
 
 
 PlotAndSave(function()(
@@ -268,7 +272,7 @@ PlotAndSave(function()(
                 my_metric_matrix = tree_cv_metrics[["metrics"]],
                 my_se_matrix = tree_cv_metrics[["se"]],
                 my_best_param_values = ExtractBestParams(tree_best_summary),
-                my_metric_names = METRICS_NAMES,
+                my_metric_names = METRICS_NAMES_PLOT,
                 my_main = "Tree CV metrics",
                 my_xlab = "size",
                 my_legend_coords = "bottomright")),
@@ -375,14 +379,14 @@ rf_cv_metrics_best = CvMetricBest(my_param_values = 2:RF_MAX_VARIABLES,
                                   my_one_se_best = TRUE,
                                   my_higher_more_complex = TRUE,
                                   my_se_matrix = rf_cv_metrics[["se"]],
-                                  my_metric_names = METRICS_NAMES)
+                                  my_metric_names = METRICS_NAMES_PLOT )
 
 PlotAndSave(function()(
   PlotCvMetrics(my_param_values = 2:RF_MAX_VARIABLES,
                 my_metric_matrix = rf_cv_metrics[["metrics"]],
                 my_se_matrix = rf_cv_metrics[["se"]],
                 my_best_param_values = ExtractBestParams(rf_cv_metrics_best),
-                my_metric_names = METRICS_NAMES,
+                my_metric_names = METRICS_NAMES_PLOT ,
                 my_main = "RF CV metrics",
                 my_xlab = "mtry",
                 my_legend_coords = "bottomright")),
@@ -491,14 +495,14 @@ bagging_best_summary = CvMetricBest(my_param_values = RF_TREE_NUMBER_SEQ,
                                     my_one_se_best = TRUE,
                                     my_higher_more_complex = TRUE,
                                     my_se_matrix = bagging_n_tree_metrics[["se"]],
-                                    my_metric_names = METRICS_NAMES)
+                                    my_metric_names = METRICS_NAMES_PLOT)
 
 PlotAndSave(function()(
   PlotCvMetrics(my_param_values = RF_TREE_NUMBER_SEQ,
                 my_metric_matrix = bagging_n_tree_metrics[["metrics"]],
                 my_se_matrix = bagging_n_tree_metrics[["se"]],
                 my_best_param_values = 0,
-                my_metric_names = METRICS_NAMES,
+                my_metric_names = METRICS_NAMES_PLOT,
                 my_main = "Bagging metrics n tree",
                 my_xlab = "ntree")),
   my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
