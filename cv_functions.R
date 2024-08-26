@@ -963,8 +963,6 @@ PPRRegulationCVParallel = function(my_data = sss,
 # Tree ----------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# TO DO: check the multiclass case  -------------------
-
 library(tree)
 
 #' @param n_k_fold (int): number of fold used, use the global variable
@@ -1353,8 +1351,6 @@ ManualCvTreeParallel = function(my_id_list_cv_train,
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Random Forest ----------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-# TO DO: check the multiclass case  -------------------
 
 
 # max variables at each split (can be changed)
@@ -2192,6 +2188,314 @@ ManualCvSVMParallel = function(my_id_list_cv_train,
               "se" = cv_metrics_se))
   
 }
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Neural Network ----------------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+library(nnet)
+
+#' @param my_data (data.frame)
+#' @param my_id_list_cv (list):ids in each fold , use the global variable
+#' @param my_nodes (vector of ints)
+#' @param my_decay (vector in mums): values of possibile smoothing splines degrees of freedom
+#' @param my_metrics_names (vector of chars)
+#' @param my_weights (vector of nums):
+#'  same length as the difference: NROW(my_data) - length(my_id_train)
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
+#' 
+#' @param is_classification (bool): if TRUE adapt the metrics to classification problem
+#' using the threshold
+#' @param my_threshold (num): classification threshold used
+#' 
+#' @return (array):
+#' first dimension (with names): my_nodes
+#' second dimension (with names): my_decay
+#' third dimension (with names): my_metrics_names
+#' 
+#' each cell contains the metric value of the model fitted on my_data[my_id_train,]
+#' and tested on my_data[-my_id_train,] for each metric value used
+NNRegulationCV = function(my_data,
+                           my_id_list_cv_train,
+                           my_nodes,
+                           my_decay ,
+                           my_metrics_names = METRICS_NAMES,
+                           my_weights = MY_WEIGHTS,
+                           use_only_first_fold = FALSE,
+                           is_classification = FALSE,
+                           is_multiclass = FALSE,
+                           my_threshold = 0.5,
+                           my_id_list_cv_test = NULL){
+  
+  n_k_fold = length(my_id_list_cv_train)
+  my_n_metrics = length(my_metrics_names)
+  
+  
+  # first create 
+  temp_metrics_array_cv = array(0,
+                                dim = c(length(my_nodes),
+                                        length(my_decay),
+                                        length(my_metrics_names),
+                                        n_k_fold),
+                                
+                                dimnames = list(my_nodes,
+                                                my_decay,
+                                                my_metrics_names,
+                                                rep(NA, n_k_fold)))
+  
+  
+  # do after array creation, inefficient but should work
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
+  
+  if(is.null(my_id_list_cv_test)){
+    my_id_list_cv_test = my_id_list_cv_train
+  }
+  
+  for (k in 1:n_k_fold){
+    id_train = unlist(my_id_list_cv_train[-k])
+    id_test = my_id_list_cv_test[[k]]
+    
+    for(r in 1:length(my_nodes)){
+      for(df in 1:length(my_decay)){
+        
+        if(is_classification | is_multiclass){
+        mod = nnet(factor(y) ~ .,
+                  data = my_data[id_train,],
+                  size = my_nodes[r],
+                  decay = my_decay[df],
+                  MaxNWts = 1500, maxit = 500)
+        
+        # binary -> use threshold
+        if(is_classification & !is_multiclass){
+          temp_predictions = predict(mod, my_data[id_test,], type = "raw")[,1] > my_threshold
+        }
+        
+        # multiclass -> class
+        else{
+          temp_predictions = predict(mod, my_data[id_test,], type = "class")
+        }
+        
+        }
+        
+        # regression
+        else{
+          mod = nnet(y ~ .,
+                    data = my_data[id_train,],
+                    size = my_nodes[r],
+                    decay = my_decay[df],
+                    MaxNWts = 1500, maxit = 500)
+          
+          temp_predictions = predict(mod, my_data[id_test,])}
+        
+        rm(mod)
+        gc()
+        
+        temp_metrics_array_cv[r, df, ,k] = USED.Metrics(temp_predictions,
+                                                        my_data$y[id_test],
+                                                        weights = my_weights[id_test])
+        rm(temp_predictions)
+        gc()
+      }
+    }
+    print(paste("fold = ", k, collapse = ""))
+  }
+  
+  metrics_array = array(0,
+                        dim = c(length(my_nodes),
+                                length(my_decay),
+                                length(my_metrics_names)),
+                        dimnames = list(my_nodes,
+                                        my_decay,
+                                        my_metrics_names))
+  
+  # average over ridge functions
+  for(k in 1:n_k_fold){
+    metrics_array = metrics_array + temp_metrics_array_cv[, , ,k]
+  }
+  
+  metrics_array = metrics_array / n_k_fold
+  
+  return(metrics_array)
+}
+
+#' @param my_data (data.frame)
+#' @param my_id_list_cv (list):ids in each fold , use the global variable
+#' @param my_nodes (vector of ints)
+#' @param my_decay (vector in mums): values of possibile smoothing splines degrees of freedom
+#' @param my_metrics_names (vector of chars)
+#' @param my_weights (vector of nums):
+#'  same length as the difference: NROW(my_data) - length(my_id_train)
+#' @param use_only_first_fold (bool): if yes fit the model on all except the first fold
+#' and compute the metrics on that
+#' @param my_metrics_functions (vector of characters): vector of loss function names feed to snowfall (parallel)
+#' example  my_metrics_functions = c("USED.Metrics", "MAE.Loss", "MSE.Loss").
+#' NOTE: if USED.Metrics contains some other functions they must be present as well, like the example
+#' which is also the default
+#'
+#' @param is_classification (bool): if TRUE adapt the metrics to classification problem
+#' using the threshold
+#' @param my_threshold (num): classification threshold used
+#' 
+#' @return (array):
+#' first dimension (with names): 1:my_nodes
+#' second dimension (with names): my_decay
+#' third dimension (with names): my_metrics_names
+#' 
+#' each cell contains the metric value of the model fitted on my_data[my_id_train,]
+#' and tested on my_data[-my_id_train,] for each metric value used
+NNRegulationCVParallel = function(my_data,
+                                   my_id_list_cv_train,
+                                   my_nodes,
+                                   my_decay,
+                                   my_metrics_names = METRICS_NAMES,
+                                   my_weights = MY_WEIGHTS,
+                                   my_metrics_functions = MY_USED_METRICS,
+                                   my_ncores = N_CORES,
+                                   use_only_first_fold = FALSE,
+                                   is_classification = FALSE,
+                                   is_multiclass = FALSE,
+                                   my_threshold = 0.5,
+                                   my_id_list_cv_test = NULL){
+  
+  n_k_fold = length(my_id_list_cv_train)
+  my_n_metrics = length(my_metrics_names)
+  
+  # needed to do parallel
+  # each list element contains a vector of length 2
+  # first element is the number of ridge functions
+  # second element are the spline degrees of freedom
+  params_list = list()
+  
+  counter = 1
+  
+  for (r in my_nodes){
+    for(df in my_decay){
+      params_list[[counter]] = c(r, df)
+      
+      counter = counter + 1
+    }
+  }
+  
+  # init parallel
+  sfInit(cpus = my_ncores, parallel = T)
+  
+  sfExport(list = c("my_data", my_metrics_functions,
+                    "my_nodes", "my_decay", "params_list",
+                    "my_weights", "is_classification", "my_threshold",
+                    "is_multiclass"))
+  
+  sfLibrary(nnet)
+  
+  temp_metrics_array_cv = array(0,
+                                dim = c(length(my_nodes),
+                                        length(my_decay),
+                                        length(my_metrics_names),
+                                        n_k_fold),
+                                dimnames = list(my_nodes,
+                                                my_decay,
+                                                my_metrics_names,
+                                                1:n_k_fold))
+  
+  # do after array creation: inefficient but should work
+  if(use_only_first_fold == TRUE){
+    n_k_fold = 1
+  }
+  
+  if(is.null(my_id_list_cv_test)){
+    my_id_list_cv_test = my_id_list_cv_train
+  }
+  
+  
+  for (k in 1:n_k_fold){
+    id_train = unlist(my_id_list_cv_train[-k])
+    id_test = my_id_list_cv_test[[k]]
+    
+    
+    sfExport(list = c("id_train", "id_test"))
+    
+    #' @params (vector of nums): 
+    #' first element: number of ridge functions
+    #' second element number of spline degrees of freedom
+    ParallelFunction = function(params){
+      if(is_classification | is_multiclass){
+        mod = nnet(factor(y) ~ .,
+                   data = my_data[id_train,],
+                   size = params[1],
+                   decay = params[2],
+                   MaxNWts = 1500, maxit = 500)
+        
+        # binary -> use threshold
+        if(is_classification & !is_multiclass){
+          temp_predictions = predict(mod, my_data[id_test,], type = "raw")[,1] > my_threshold
+        }
+        
+        # multiclass -> class
+        else{
+          temp_predictions = predict(mod, my_data[id_test,], type = "class")
+        }
+        
+      }
+      
+      # regression
+      else{
+        mod = nnet(y ~ .,
+                   data = my_data[id_train,],
+                   size = params[1],
+                   decay = params[2],
+                   MaxNWts = 1500, maxit = 500)
+        
+        temp_predictions = predict(mod, my_data[id_test,])[,1]}
+      
+      return(temp_predictions)
+    }
+    
+    sfExport(list = c("ParallelFunction"))
+    
+    temp_predictions = sfLapply(params_list,
+                                fun = ParallelFunction)
+    
+    counter = 1
+    
+    for (r in 1:length(my_nodes)){
+      for(df in 1:length(my_decay)){
+        temp_metrics_array_cv[r, df, ,k] = USED.Metrics(temp_predictions[[counter]],
+                                                        my_data$y[id_test],
+                                                        weights = my_weights[id_test])
+        
+        counter = counter + 1
+        
+      }
+    }
+    
+    print(paste("fold = ", k, collapse = ""))
+  }
+  
+  # stop cluster
+  sfStop()
+  
+  metrics_array = array(0,
+                        dim = c(length(my_nodes),
+                                length(my_decay),
+                                length(my_metrics_names)),
+                        dimnames = list(my_nodes,
+                                        my_decay,
+                                        my_metrics_names))
+  
+  # average over ridge functions
+  for(k in 1:n_k_fold){
+    metrics_array = metrics_array + temp_metrics_array_cv[, , ,k]
+  }
+  
+  metrics_array = metrics_array / n_k_fold
+  
+  gc()
+  
+  return(metrics_array)
+}
+
+
 
 
 

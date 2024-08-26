@@ -1662,65 +1662,60 @@ save(df_metrics, pred_list, file = "df_metrics.Rdata")
 # Solo in parallelo altrimenti ci mette troppo tempo
 
 
-# decay = 10^seq(-3, -1, length=10)
-# nodi = 1:10
-# 
-# hyp_grid = expand.grid(decay,nodi)
+decay = 10^seq(-3, -1, length=10)
+nodi = 1:10
 
-# # Costruiamo una funzione che prenda come input una matrice parametri,
-# # stimi la rete per ogni valore, e restiuisca una matrice con valori dei parametri + errori su convalida
-# regola_nn = function(pars, sss, id_cb1){
-#   err = data.frame(pars, err = NA)
-#   for(i in 1:NROW(pars)){
-#     n1 = nnet(y ~ . , data=sss[id_cb1,], 
-#               size=pars[i,2], decay=pars[i,1],
-#               MaxNWts = 1500, maxit = 500, 
-#               trace = T)
-#     err$err[i] = MSE.Loss(predict(n1, sss[-id_cb1,], type = 'raw'), sss$y[-id_cb1])
-#   }
-#   return(err)
-# }
-# 
-# # proviamo
-# regola_nn(hyp_grid[21:23,], sss, id_cb1)
+nn_cv_metrics = NNRegulationCV(my_data = sss,
+                               my_id_list_cv_train = ID_CV_LIST,
+                               my_nodes = nodi,
+                               my_decay = decay ,
+                               my_metrics_names = METRICS_NAMES,
+                               my_weights = MY_WEIGHTS_sss,
+                               use_only_first_fold = TRUE,
+                               is_classification = TRUE,
+                               is_multiclass = FALSE,
+                               my_threshold = MY_THRESHOLD,
+                               my_id_list_cv_test = NULL)
+
+nn_cv_metrics = NNRegulationCVParallel(my_data = sss,
+                                       my_id_list_cv_train = ID_CV_LIST,
+                                       my_nodes = nodi,
+                                       my_decay = decay ,
+                                       my_metrics_names = METRICS_NAMES,
+                                       my_weights = MY_WEIGHTS_sss,
+                                       my_metrics_functions = MY_USED_METRICS,
+                                       my_ncores = N_CORES,
+                                       use_only_first_fold = TRUE,
+                                       is_classification = TRUE,
+                                       is_multiclass = FALSE,
+                                       my_threshold = MY_THRESHOLD,
+                                       my_id_list_cv_test = NULL)
+
+nn_best_params = NNExtractBestParams(nn_cv_metrics)
+
+nn_best_params
+
+nn_nodes_best = nn_best_params[[METRIC_CHOSEN_NAME]][[1]]
+nn_decay_best = nn_best_params[[METRIC_CHOSEN_NAME]][[2]]
 
 
-# Parallelo
-# Per mitigare il load balance possiamo assegnare a caso ai vari processori
-# In questo modo ogni processore avra' sia valori di parametri "semplici" (pochi nodi)
-# Che complessi (tanti nodi)
+df_metrics = Add_Test_Metric(df_metrics,
+                             "Rete Neurale",
+                             USED.Metrics(predict(nnet(factor(y) ~ .,
+                                                       data = sss,
+                                                       size = nn_nodes_best,
+                                                       decay = nn_decay_best,
+                                                       MaxNWts = 1500, maxit = 500),
+                                                  newdata = vvv,
+                                                  type = "raw")[,1] > MY_THRESHOLD,
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
 
-# Conviene creare una lista in cui ogni elemento sia la matrice di parametri provati
-# da quel processore
 
-# pp = sample(rep(1:4, each = NROW(hyp_grid)/4))
-# pars_list = lapply(1:4, function(l) hyp_grid[pp == l,])
-# 
-# 
-# library(snowfall)
-# sfInit(cpus = 4, parallel = T)
-# sfLibrary(nnet) # carichiamo la libreria
-# sfExport(list = c("sss", "id_cb1", "regola_nn", "MSE.Loss")) # esportiamo tutte le quantita' necessarie
-# 
-# # Non restituisce messaggi, possiamo solo aspettare
-# nn_error = sfLapply(pars_list, function(x) regola_nn(x, sss, id_cb1))
-# sfStop()
-# 
-# err_nn = do.call(rbind, nn_error)
-# 
-# par(mfrow = c(1,2))
-# plot(err_nn$Var1, err_nn$err, xlab = "Weight decay", ylab = "Errore di convalida", pch = 16)
-# plot(err_nn$Var2, err_nn$err, xlab = "Numero di nodi", ylab = "Errore di convalida", pch = 16)
-# 
-# err_nn[which.min(err_nn$err),]
-# 
-# # 0.03593814    4 0.5818981 (ovviamente potrebbe variare a seconda di: punti iniziali, stima/convalida, etc
-# 
-# set.seed(123)
-# mod_nn = nnet(diagnosi ~ . , data=sss[,], size = 4, decay = 0.03593,
-#               MaxNWts = 1500, maxit = 2000, trace = T)
-# 
-# pr_nn = predict(mod_nn, vvv, type = "class")
+df_metrics
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
 
 # /////////////////////////////////////////////////////////////////
 #------------------------ Sintesi Finale -------------------------

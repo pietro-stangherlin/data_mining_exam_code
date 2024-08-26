@@ -520,3 +520,57 @@ save(df_metrics, file = "df_metrics.Rdata")
 
 rm(bagging_model)
 gc()
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Rete Neurale ---------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# decay = 10^seq(-3, -1, length=2)
+# nodi = 1:3
+
+decay = 10^seq(-3, -1, length=10)
+nodi = 1:10
+
+nn_cv_metrics = NNRegulationCV(my_data = dati,
+                               my_id_list_cv_train = ID_CV_LIST_BALANCED,
+                               my_id_list_cv_test = ID_CV_LIST_UNBALANCED,
+                               my_nodes = nodi,
+                               my_decay = decay ,
+                               my_metrics_names = METRICS_NAMES,
+                               my_weights = MY_WEIGHTS_sss,
+                               use_only_first_fold = FALSE,
+                               is_classification = TRUE,
+                               is_multiclass = TRUE)
+
+nn_cv_metrics = NNRegulationCVParallel(my_data = sss,
+                                       my_id_list_cv_train = ID_CV_LIST_BALANCED,
+                                       my_id_list_cv_test = ID_CV_LIST_UNBALANCED,
+                                       my_nodes = nodi,
+                                       my_decay = decay ,
+                                       my_metrics_names = METRICS_NAMES,
+                                       my_weights = MY_WEIGHTS,
+                                       my_metrics_functions = MY_USED_METRICS,
+                                       my_ncores = N_CORES,
+                                       use_only_first_fold = FALSE,
+                                       is_classification = TRUE,
+                                       is_multiclass = TRUE)
+
+nn_best_params = NNExtractBestParams(nn_cv_metrics)
+
+nn_best_params
+
+nn_nodes_best = nn_best_params[[METRIC_CHOSEN_NAME]][[1]]
+nn_decay_best = nn_best_params[[METRIC_CHOSEN_NAME]][[2]]
+
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "NN",
+                             nn_cv_metrics[as.character(nn_nodes_best),
+                                           as.character(nn_decay_best),])
+
+
+df_metrics
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
+

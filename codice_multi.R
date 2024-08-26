@@ -23,13 +23,14 @@ source("loss_functions.R")
 
 # °°°°°°°°°°°°°°°°°°°°°°° Warning: °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
 USED.Metrics = function(y.pred, y.test, weights = 1){
-  return(MissErr(y.pred, y.test, weights))
+  return(c(MissErr(y.pred, y.test, weights), 0))
 }
 
 
 # anche qua
 df_metrics = data.frame(name = NA,
-                        missclass = NA)
+                        missclass = NA,
+                        zero = NA)
 
 METRICS_NAMES = colnames(df_metrics[,-1])
 
@@ -906,6 +907,69 @@ save(bagging_model, file = file_name_bagging)
 
 rm(bagging_model)
 gc()
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Rete neurale -------------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Solo in parallelo altrimenti ci mette troppo tempo
+
+# decay = 10^seq(-3, -1, length=2)
+# nodi = 1:3
+
+decay = 10^seq(-3, -1, length=10)
+nodi = 1:10
+
+# nn_cv_metrics = NNRegulationCV(my_data = sss,
+#                                my_id_list_cv_train = ID_CV_LIST,
+#                                my_nodes = nodi,
+#                                my_decay = decay ,
+#                                my_metrics_names = METRICS_NAMES,
+#                                my_weights = MY_WEIGHTS_sss,
+#                                use_only_first_fold = TRUE,
+#                                is_classification = FALSE,
+#                                is_multiclass = TRUE,
+#                                my_threshold = 0.5,
+#                                my_id_list_cv_test = NULL)
+
+nn_cv_metrics = NNRegulationCVParallel(my_data = sss,
+                                       my_id_list_cv_train = ID_CV_LIST,
+                                       my_nodes = nodi,
+                                       my_decay = decay ,
+                                       my_metrics_names = METRICS_NAMES,
+                                       my_weights = MY_WEIGHTS_sss,
+                                       my_metrics_functions = MY_USED_METRICS,
+                                       my_ncores = N_CORES,
+                                       use_only_first_fold = TRUE,
+                                       is_classification = FALSE,
+                                       is_multiclass = TRUE,
+                                       my_threshold = 0.5,
+                                       my_id_list_cv_test = NULL)
+
+nn_best_params = NNExtractBestParams(nn_cv_metrics)
+
+nn_best_params
+
+nn_nodes_best = nn_best_params[[METRIC_CHOSEN_NAME]][[1]]
+nn_decay_best = nn_best_params[[METRIC_CHOSEN_NAME]][[2]]
+
+
+df_metrics = Add_Test_Metric(df_metrics,
+                             "Rete Neurale",
+                             USED.Metrics(predict(nnet(factor(y) ~ .,
+                                                       data = sss,
+                                                       size = nn_nodes_best,
+                                                       decay = nn_decay_best,
+                                                       MaxNWts = 1500, maxit = 500),
+                                                  newdata = vvv,
+                                                  type = "class"),
+                                          vvv$y,
+                                          weights = MY_WEIGHTS_vvv))
+
+
+df_metrics
+
+# save the df_metrics as .Rdata
+save(df_metrics, file = "df_metrics.Rdata")
 
 # /////////////////////////////////////////////////////////////////
 #------------------------ Sintesi Finale -------------------------

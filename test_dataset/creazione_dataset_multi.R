@@ -4,7 +4,7 @@
 rm(list = ls())
 
 # numero di osservazioni
-N = 10^4
+N = 10^3
 
 # Il numero di variabili è relativamente contenuto
 # l'obbiettivo è creare delle variabili esplicative con valori mancanti
