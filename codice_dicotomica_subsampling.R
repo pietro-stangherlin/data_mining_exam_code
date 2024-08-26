@@ -1293,7 +1293,7 @@ PlotAndSave(function()(
 
 df_metrics= Add_Test_Metric(df_metrics,
                             "ada_boost",
-                            bagging_best_summary[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
+                            ada_boost_iter_metrics[[METRIC_CHOSEN_NAME]][[METRIC_VALUES_NAME]])
 
 
 df_metrics
@@ -1319,7 +1319,7 @@ svm_cv_metrics = ManualCvSVMParallel(my_id_list_cv_train = ID_CV_LIST_BALANCED,
                                      my_ncores = N_CORES,
                                      my_metrics_functions = MY_USED_METRICS,
                                      my_weights = MY_WEIGHTS,
-                                     use_only_first_fold = TRUE)
+                                     use_only_first_fold = FALSE)
 
 svm_best_metrics = CvMetricBest(my_param_values = SVM_COST_VALUES,
                                 my_metric_matrix = svm_cv_metrics[["metrics"]],
@@ -1371,13 +1371,13 @@ nodi = 1:10
 #                                my_nodes = nodi,
 #                                my_decay = decay ,
 #                                my_metrics_names = METRICS_NAMES,
-#                                my_weights = MY_WEIGHTS_sss,
+#                                my_weights = MY_WEIGHTS,
 #                                use_only_first_fold = FALSE,
 #                                is_classification = TRUE,
 #                                is_multiclass = FALSE,
 #                                my_threshold = MY_THRESHOLD)
 
-nn_cv_metrics = NNRegulationCVParallel(my_data = sss,
+nn_cv_metrics = NNRegulationCVParallel(my_data = dati,
                                        my_id_list_cv_train = ID_CV_LIST_BALANCED,
                                        my_id_list_cv_test = ID_CV_LIST_UNBALANCED,
                                        my_nodes = nodi,

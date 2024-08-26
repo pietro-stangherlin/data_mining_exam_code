@@ -52,11 +52,18 @@ dati = read.csv("test_dataset/df_multi.csv", sep = ",", stringsAsFactors = F)
 # controllo
 str(dati)
 
+# rimuovo variabili con un solo valore
+col_indexes = 1:NCOL(dati)
+only_one_indexes = apply(dati, 2, function(col) length(unique(col)) == 1)
+
+dati = dati[,-col_indexes[only_one_indexes]]
+
 # rinomimo la risposta in y: cambia il primo "y" in base al problema
 names(dati)[which(names(dati) == "y")] = "y"
 
 # controllo 
 str(dati)
+
 
 # §§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
 # Generico -------------------------------------------------------
@@ -176,7 +183,7 @@ str(dati)
 
 
 # 2) gsub: sostitusice la stringa
-# pattern = "-[[:digit:]][[:digit:]]-[[:digit:]][[:digit:]]"
+# pattern = "[[:digit:]][[:digit:]]-[[:digit:]][[:digit:]]"
 # head(gsub(pattern = pattern, replacement = "", x = dati$variabile)
 
 # 3) substring
@@ -230,7 +237,7 @@ index_na_empty = which(is.na(dati[, temp_var_name]) | dati[, temp_var_name] == '
 # head(dati[-index_na_empty, temp_var_name])
 
 
-# in alternativa
+# in alternativa 
 # regmatches("2022-09-08fwfwfw", gregexpr(date_expr_str, "2022-09-08fwfwfw"))[[1]]
 
 dati[-index_na_empty, temp_var_name] = unlist(regmatches(dati[-index_na_empty, temp_var_name],
@@ -265,11 +272,6 @@ rm(index_na_empty)
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Valori mancanti 2 ----------------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# per ogni variabile controlla i dati mancanti per colonna
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Valori mancanti EMPTY ----------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Mancanti "" (caratteri vuoti: "") (più facili da gestire)
@@ -297,21 +299,28 @@ head(dati[,names_missing])
 # Valori mancanti NA ---------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Mancanti NA (classici) (più difficili da gestire)
-missing_freq_NA = apply(dati, 2, function(col) sum(is.na(col)))
-missing_freq_NA
+
+# WARNING
 
 
-str(dati)
-# se ci sono dei dati character che presentano dei NA: di fatto posso considerarli
-# come "" e ripetere la procedura "EMPTY"
-
-# per questo specifico problema questa casistica si presenta con
-# le variabili "anno" e "mese"
-# copia - incolla:
-case_specific_missing = c("anno", "mese")
-
-dati[,case_specific_missing] = apply(dati[,case_specific_missing], 2,
-                             function(col) ifelse(is.na(col), "EMPTY", col))
+# missing_freq_NA = apply(dati, 2, function(col) sum(is.na(col)))
+# missing_freq_NA
+# 
+# 
+# str(dati)
+# # se ci sono dei dati character che presentano dei NA: di fatto posso considerarli
+# # come "" e ripetere la procedura "EMPTY"
+# 
+# # per questo specifico problema questa casistica si presenta con
+# # le variabili "anno" e "mese"
+# # copia - incolla:
+# 
+# case_specific_missing = which(missing_freq_NA > 0)
+# 
+# # case_specific_missing = c("anno", "mese")
+# 
+# dati[,case_specific_missing] = apply(dati[,case_specific_missing], 2,
+#                              function(col) ifelse(is.na(col), "EMPTY", col))
 
 
 # Controllo
@@ -384,7 +393,7 @@ str(dati)
 # @return: vettore di character della variabile categorizzata per quantili 
 # + modalità EMPTY al posto dei NA
 
-ToCategoricalIncludeNA = function(var_vector,
+QuantToCategoricalIncludeNA = function(var_vector,
                                   my_breaks = NA,
                                   my_probs = seq(0, 1, 0.25)){
   NOT_NA_index = which(!is.na(var_vector))
@@ -410,7 +419,7 @@ ToCategoricalIncludeNA = function(var_vector,
 
 
 # test 
-# ToCategoricalIncludeNA(c(1,2,NA,4,5,NA))
+# QuantToCategoricalIncludeNA(c(1,2,NA,4,5,NA))
 
 
 # lista di variabili quantitative da trasformare in qualitative
@@ -418,9 +427,9 @@ var_names_to_qual = colnames(dati[,which(relative_missing_freqs >= temp_threshol
 var_names_to_qual
 
 if(length(var_names_to_qual) != 0){
-  # attenzione agli eventuali valori di default in ToCategoricalIncludeNA
+  # attenzione agli eventuali valori di default in QuantToCategoricalIncludeNA
   dati[,var_names_to_qual] = apply(dati[,var_names_to_qual], 2, 
-                                   function(col) ToCategoricalIncludeNA(col))
+                                   function(col) QuantToCategoricalIncludeNA(col))
 
 }
 
