@@ -56,7 +56,9 @@ str(dati)
 col_indexes = 1:NCOL(dati)
 only_one_indexes = apply(dati, 2, function(col) length(unique(col)) == 1)
 
-dati = dati[,-col_indexes[only_one_indexes]]
+if(length(col_indexes[only_one_indexes]) > 0){
+  dati = dati[,-col_indexes[only_one_indexes]]
+}
 
 # rinomimo la risposta in y: cambia il primo "y" in base al problema
 names(dati)[which(names(dati) == "y")] = "y"
@@ -68,6 +70,15 @@ str(dati)
 # §§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
 # Generico -------------------------------------------------------
 # §§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Rimozioni variabili --------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# Rimozione di variabili esplicative
+# dati$X = NULL
+
+# Rimozione Leaker 
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -141,15 +152,6 @@ head(row_missing_index_empty)
 #     rispetto agli altri predittori
 
 # Per motivi di tempo nell'esame effettuo o 3.1) o 3.2)
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Rimozioni variabili --------------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-# Rimozione di variabili esplicative
-dati$X = NULL
-
-# Rimozione Leaker 
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
