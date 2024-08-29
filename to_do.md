@@ -7,6 +7,9 @@ Descrizione delle modifiche e aggiunte da fare al codice.
 
 ## data_preprocessing
 
+## TO DO: join / merge function to merge dataframes based on key value
+Use merge or dplyr
+
 ### DONE --- Funzione: prime k modalità più frequenti
 Funzione per vedere le prime 30 più frequenti modalità di ciascuna variabile 
 Premendo un tasto per andare in avanti, indietro e per chiudere.
