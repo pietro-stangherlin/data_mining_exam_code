@@ -125,13 +125,13 @@ df$x7[first_indexes] = ifelse(df$x7[first_indexes] > 0.5, NA , df$x7[first_index
 head(df)
 
 
-# x8: valori numerici non mancanti
+# x8 ---------: valori numerici non mancanti
 df$x8 = runif(N)
 
-# Aggiunta della y -------------
+# x_id_merge -------:
+df$x_id = sample(1:100, size = N, replace = T)
 
-df$y = rnorm(N, df$x8 + ifelse(df$x2 == "a" | is.na(df$x2), 1, 0) + ifelse(!is.na(df$x7), df$x7, -2))
-
+# check ------
 sum(is.na(df$x8))
 sum(is.na(ifelse(df$x2 == "a" | is.na(df$x2), 1, 0)))
 
@@ -139,11 +139,25 @@ sum(is.na(ifelse(df$x2 == "a" | is.na(df$x2), 1, 0)))
 sum(is.na(df$x7))
 sum(is.na(ifelse(!is.na(df$x7), df$x7, -2)))
 
-# Scrittura file.csv --------------
+# Quantitativa -------------
+
+df$y = rnorm(N, df$x8 + ifelse(df$x2 == "a" | is.na(df$x2), 1, 0) + ifelse(!is.na(df$x7), df$x7, -2))
+
 write.csv(df, "df_quant.csv", row.names = TRUE, na = "")
 
+# Qualitativa -------------
+df$y = rnorm(N, df$x8 + ifelse(df$x2 == "a" | is.na(df$x2), 1, 0) + ifelse(!is.na(df$x7), df$x7, -2))
+df$y = ifelse(df$y + rnorm(N, 0.1) > 1, 1, 0)
 
+write.csv(df, "df_qual.csv", row.names = TRUE, na = "")
 
+# Multiclasse -------------
 
+df$y = rnorm(N, df$x8 + ifelse(df$x2 == "a" | is.na(df$x2), 1, 0) + ifelse(!is.na(df$x7), df$x7, -2))
+df$y = ifelse(df$y + rnorm(N, 0.1) > 1, 1, 0)
+df$y = ifelse(df$x8 < 0.3, "c", df$y)
 
+df$y = ifelse(df$y == 0, "a", df$y)
+df$y = ifelse(df$y == 1, "b", df$y)
 
+write.csv(df, "df_multi.csv", row.names = TRUE, na = "")

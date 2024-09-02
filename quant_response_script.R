@@ -47,6 +47,9 @@ LIST_SD_ACCESS_NAME = "se"
 # WARNING: the order should be same as in df_metrics
 MY_USED_METRICS = c("USED.Metrics", "MAE.Loss", "MSE.Loss")
 
+
+MY_INTEREST_VAR_NAMES = NULL
+
 # /////////////////////////////////////////////////////////////////
 #------------------------ Train & Test ------------------------
 # /////////////////////////////////////////////////////////////////
@@ -63,7 +66,7 @@ vvv = dati[-id_stima,]
 # Parameter tuning: Train & Test on Train subset  --------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-id_cb1 = sample(1:NROW(sss), 0.8 * NROW(sss))
+id_cb1 = sample(1:NROW(sss), 0.7 * NROW(sss))
 
 # delete original data.frame from main memory
 rm(dati)
@@ -83,7 +86,7 @@ MY_WEIGHTS_vvv = rep(1, NROW(vvv))
 # Parameter tuning: cross validation on train: building cv folds  -------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-K_FOLDS = 10
+K_FOLDS = 5
 
 NROW_sss = NROW(sss)
 
@@ -132,7 +135,7 @@ hist(sss$y,nclass = 100)
 summary(sss$y)
 
 # check logaritm, a transformation (traslation) is maybe needed before
-hist(log(sss$y), nclass = 100)
+hist(log(sss$y + 1), nclass = 100)
 
 # NOTE: if logarithm is considered as response the difference of log
 # is the log of the ratio
@@ -190,24 +193,21 @@ df_metrics
 # save the model as .Rdata
 # then remove it from main memory
 
-file_name_lm_step_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
-                                         "lm_step_no_interaction",
-                                         ".Rdata", collapse = "", sep = "")
 
-save(lm_step_no_interaction, file = file_name_lm_step_no_interaction)
+save(lm_step_no_interaction,
+     file = paste(MODELS_FOLDER_RELATIVE_PATH,
+                  "lm_step_no_interaction",
+                  ".Rdata", collapse = "", sep = ""))
 
 # Coef Plot -----
 
-temp_coef = coef(lm_step_no_interaction)
-temp_main = "(abs) greatest linear model coefficients no interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -1) | (temp_coef > 1)) ] %>% sort()
-
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_lm_no_int_plot.jpeg",
-                                 collapse = ""))
+PlotCoefs(named_coef_vector = coef(lm_step_no_interaction),
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest linear model coefficients no interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_lm_no_int_plot.jpeg",
+                            collapse = ""))
 
 rm(lm_step_no_interaction)
 gc()
@@ -239,15 +239,13 @@ save(lm_step_yes_interaction, file = file_name_lm_step_yes_interaction)
 
 # Coef Plot ----
 
-temp_coef = coef(lm_step_yes_interaction)
-temp_main = "(abs) greatest linear model coefficients yes interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -1) | (temp_coef > 1)) ] %>% sort()
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_lm_yes_int_plot.jpeg",
-                                 collapse = ""))
+PlotCoefs(named_coef_vector = coef(lm_step_yes_interaction),
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest linear model coefficients yes interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_lm_yes_int_plot.jpeg",
+                            collapse = ""))
 
 rm(lm_step_yes_interaction)
 rm(lm0)
@@ -388,45 +386,42 @@ save(ridge_no_interaction, file = file_name_ridge_no_interaction)
 
 # Coef Plot ----
 
-temp_glmnet_object = predict(ridge_no_interaction, type = "coef") %>% as.matrix()
-temp_coef = temp_glmnet_object[,1]
+PlotCoefs(named_coef_vector = as.matrix(predict(ridge_no_interaction, type = "coef"))[,1],
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest ridge coefficients no interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_ridge_no_int_plot.jpeg",
+                            collapse = ""))
 
-temp_main = "(abs) greatest ridge coefficients no interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -1) | (temp_coef > 0.8)) ] %>% sort()
-
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_ridge_no_int_plot.jpeg",
-                                 collapse = ""))
 
 rm(ridge_no_interaction)
 gc()
+
 
 # YES Interaction -----------
 lambda_vals = glmnet(x = X_mm_yes_interaction_sss, y = sss$y,
                      alpha = 0, lambda.min.ratio = 1e-07)$lambda
 
-# ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
-#                                               my_metric_names = METRICS_NAMES,
-#                                               my_x = X_mm_yes_interaction_sss,
-#                                               my_y = sss$y,
-#                                               my_alpha = 0,
-#                                               my_lambda_vals = lambda_vals,
-#                                               my_weights = MY_WEIGHTS_sss,
-#                                               use_only_first_fold = USE_ONLY_FIRST_FOLD)
+ridge_yes_interaction_metrics = ManualCvGlmnet(my_id_list_cv_train = ID_CV_LIST,
+                                              my_metric_names = METRICS_NAMES,
+                                              my_x = X_mm_yes_interaction_sss,
+                                              my_y = sss$y,
+                                              my_alpha = 0,
+                                              my_lambda_vals = lambda_vals,
+                                              my_weights = MY_WEIGHTS_sss,
+                                              use_only_first_fold = USE_ONLY_FIRST_FOLD)
 
-ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
-                                                      my_metric_names = METRICS_NAMES,
-                                                      my_x = X_mm_yes_interaction_sss,
-                                                      my_y = sss$y,
-                                                      my_alpha = 0,
-                                                      my_lambda_vals = lambda_vals,
-                                                      my_weights = MY_WEIGHTS_sss,
-                                                      my_metrics_functions = MY_USED_METRICS,
-                                                      my_ncores = N_CORES,
-                                                      use_only_first_fold = TRUE)
+# ridge_yes_interaction_metrics = ManualCvGlmnetParallel(my_id_list_cv_train = ID_CV_LIST,
+#                                                       my_metric_names = METRICS_NAMES,
+#                                                       my_x = X_mm_yes_interaction_sss,
+#                                                       my_y = sss$y,
+#                                                       my_alpha = 0,
+#                                                       my_lambda_vals = lambda_vals,
+#                                                       my_weights = MY_WEIGHTS_sss,
+#                                                       my_metrics_functions = MY_USED_METRICS,
+#                                                       my_ncores = N_CORES,
+#                                                       use_only_first_fold = TRUE)
 
 ridge_yes_int_best_summary = CvMetricBest(my_param_values = lambda_vals,
                                          my_metric_matrix = ridge_yes_interaction_metrics[["metrics"]],
@@ -507,18 +502,14 @@ save(ridge_yes_interaction, file = file_name_ridge_yes_interaction)
 
 # Coef Plot ----
 
-temp_glmnet_object = predict(ridge_yes_interaction, type = "coef") %>% as.matrix()
-temp_coef = temp_glmnet_object[,1]
+PlotCoefs(named_coef_vector = as.matrix(predict(ridge_yes_interaction, type = "coef"))[,1],
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest ridge coefficients yes interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_ridge_yes_int_plot.jpeg",
+                            collapse = ""))
 
-temp_main = "(abs) greatest ridge coefficients yes interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -0.8) | (temp_coef > 0.5)) ] %>% sort()
-
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_ridge_yes_int_plot.jpeg",
-                                 collapse = ""))
 
 rm(ridge_yes_interaction)
 gc()
@@ -629,18 +620,14 @@ save(lasso_no_interaction, file = file_name_lasso_no_interaction)
 
 # Coef Plot ----
 
-temp_glmnet_object = predict(lasso_no_interaction, type = "coef") %>% as.matrix()
-temp_coef = temp_glmnet_object[,1]
+PlotCoefs(named_coef_vector = as.matrix(predict(lasso_no_interaction, type = "coef"))[,1],
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest lasso coefficients no interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_lasso_no_int_plot.jpeg",
+                            collapse = ""))
 
-temp_main = "(abs) greatest lasso coefficients no interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -2) | (temp_coef > 0.8)) ] %>% sort()
-
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_lasso_no_int_plot.jpeg",
-                                 collapse = ""))
 
 
 rm(lasso_no_interaction)
@@ -745,18 +732,14 @@ file_name_lasso_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
 save(lasso_yes_interaction, file = file_name_lasso_yes_interaction)
 
 # Coef Plot ----
-temp_glmnet_object = predict(lasso_yes_interaction, type = "coef") %>% as.matrix()
-temp_coef = temp_glmnet_object[,1]
+PlotCoefs(named_coef_vector = as.matrix(predict(lasso_yes_interaction, type = "coef"))[,1],
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest lasso coefficients yes interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_lasso_yes_int_plot.jpeg",
+                            collapse = ""))
 
-temp_main = "(abs) greatest lasso coefficients yes interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -0.8) | (temp_coef > 0.5)) ] %>% sort()
-
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_lasso_yes_int_plot.jpeg",
-                                 collapse = ""))
 
 
 rm(lasso_yes_interaction)
@@ -776,7 +759,7 @@ library(tree)
 
 # Model selection
 
-# 0) Full tree which to be pruned ------
+# 0) Full tree to be pruned ------
 
 # default: overfit
 tree_full = tree(y ~.,
@@ -912,7 +895,7 @@ save(df_metrics, file = "df_metrics.Rdata")
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Modello Additivo ---------------------------
+# Additive model ---------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(gam)
 
@@ -949,7 +932,7 @@ save(gam_step, file = file_name_gam_step)
 print("gam summary")
 summary(gam_step)
 
-PlotAndSave(my_plotting_function = function() plot(gam_step, terms = c("s(x8, df = 4)"), se = T),
+PlotAndSave(my_plotting_function = function() plot(gam_step, terms = c("s(x8, df = 2)"), se = T),
             my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                  "gam_1_plot.jpeg",
                                  collapse = ""))
@@ -967,7 +950,7 @@ save(df_metrics, file = "df_metrics.Rdata")
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 # factor predictors indexes are needed
-# since in the model.matrix quantitative predictors don't change colum names
+# since in the model.matrix quantitative predictors don't change column names
 # (opposite to factors -> indicator matrix for each except one value)
 # we first get the quantitative predictor indexes
 # and then we do a set difference
@@ -1024,7 +1007,7 @@ PlotAndSave(temp_plot_function, my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PAT
 
 df_metrics = Add_Test_Metric(df_metrics,
                               "MARS",
-                              USED.Metrics(predict(mars_step, x = vvv),
+                              USED.Metrics(predict(mars_step, x = vvv[,-y_index]),
                                            vvv$y,
                                            weights = MY_WEIGHTS_vvv))
 
@@ -1054,7 +1037,9 @@ temp_index = which(mars_names == "x8")
 
 
 # plots
-PlotAndSave(my_plotting_function = function() plot(mars_step, predictor1 = temp_index),
+PlotAndSave(my_plotting_function = function() plot(mars_step,
+                                                   predictor1 = temp_index,
+                                                   xlab = "x8"),
             my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
                                  "mars_1_plot.jpeg",
                                  collapse = ""))
@@ -1337,7 +1322,7 @@ rm(bagging_model)
 gc()
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Rete neurale -------------------------------
+# Neural Network -------------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Solo in parallelo altrimenti ci mette troppo tempo
 
@@ -1405,15 +1390,6 @@ rounded_df = cbind(df_metrics[,1],
       apply(df_metrics[,2:NCOL(df_metrics)], 2, function(col) round(as.numeric(col), 2)))
 
 rounded_df %>% order
-# Comparazione modelli
-# selezione modelli migliori e commenti su questi:
-# es -> vanno meglio modelli con interazioni oppure modelli additivi
-
-# select the first k numbers with greater absolute value
-
-coef(lm_step_no_interaction) %>% sort(decreasing = T)
-
-coef(lm_step_no_interaction) %>% boxplot()
 
 # Linear Step ---------------
 

@@ -473,7 +473,7 @@ PlotCvMetrics = function(my_param_values, my_metric_matrix,
 }
 
 FIGURE_WIDTH = 1000
-FIGURE_HEIGHT = 700
+FIGURE_HEIGHT = 1000
 
 FIGURE_POINT_SIZE = 25
 FIGURE_QUALITY = 120
@@ -512,3 +512,70 @@ PlotAndSave = function(my_plotting_function,
   dev.off()
 }
 
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Linear Models Coef Plotting --------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+#' @param named_coef_vector (vector of coefs): vector of (named) coefficients
+#' @param interest_var_names (vector of chars): name of variables of interest, if any
+#' @param show_first_n (num): show the first n coef (those with greatest absolute value)
+#' @param plot_title (char)
+#' @param path_plot (where the plot should be saved)
+#' @param width (int): pixel width of saved plot
+#' @param height (int): pixel height of saved plot
+#' @param point_size (int): point size of saved plot
+#' @param quality (int): quality of saved plot
+#' 
+#' @return none
+#' 
+#' @description Save and Plot the most relevant and abs(greatest) coefficients
+#' 
+PlotCoefs = function(named_coef_vector,
+                     interest_var_names = NULL,
+                     show_first_n = 30,
+                     plot_title = "Coefs",
+                     path_plot,
+                     width = FIGURE_WIDTH,
+                     height = FIGURE_HEIGHT,
+                     point_size = FIGURE_POINT_SIZE,
+                     quality = FIGURE_QUALITY){
+  
+  chosen_indexes = c()
+  
+  coef_names = names(named_coef_vector)
+  
+  # interest_var_names
+  if(!is.null(interest_var_names)){
+    for (name in interest_var_names){
+      chosen_indexes = c(chosen_indexes, grep(name, coef_names))
+    }
+    
+    chosen_indexes = unique(chosen_indexes)
+  }
+  
+  
+  abs_coefs_sorted_decreasing = sort(abs(named_coef_vector), decreasing = T)
+  
+  if(show_first_n <= length(named_coef_vector)){
+    limit_value = abs_coefs_sorted_decreasing[show_first_n]
+  }
+  else{
+    limit_value = -Inf #plot all coefs
+  }
+
+  
+  chosen_indexes = c(chosen_indexes,
+                     which(named_coef_vector <= - limit_value),
+                     which(named_coef_vector >= limit_value))
+  
+  chosen_indexes = unique(chosen_indexes)
+  
+  PlotAndSave(my_plotting_function = function() dotchart(sort(named_coef_vector[chosen_indexes]),
+                                                         pch = 16,
+                                                         main = plot_title),
+              my_path_plot = path_plot,
+              my_width = width,
+              my_height = height,
+              my_point_size = point_size,
+              my_quality = quality)
+}

@@ -24,3 +24,7 @@ italian libre office templates for the final report.
 By default this makes two folders where imoportant figures and fitted models are saved (in case the software suddenly stop working).
 Also, at the preprocessing end the resulting dataframe and some important objects are saved in the main folder.
 2) Based on the particular problem open one of the scripts and conduct the analys.
+
+## Warning
+This is code is made thinking of the exam constraints (both computing power and time) so it's didactical in it's nature.
+Please, be critical in the case you have intetions to use it in your analys

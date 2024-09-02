@@ -49,6 +49,8 @@ LIST_SD_ACCESS_NAME = "se"
 MY_USED_METRICS = c("USED.Metrics", "MAE.Loss", "MSE.Loss")
 
 MY_WEIGHTS = rep(1, nrow(dati))
+
+MY_INTEREST_VAR_NAMES = NULL
 #////////////////////////////////////////////////////////////////////////////
 # Costruzione ID Fold convalida incrociata  -------------------
 #////////////////////////////////////////////////////////////////////////////
@@ -231,24 +233,14 @@ df_metrics
 
 # Coef Plot ----
 
-ridge_no_interaction = glmnet(x = X_mm_no_interaction,
-                              y = dati$y,
-                              alpha = 0,
-                              lambda = ridge_no_int_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]])
+PlotCoefs(named_coef_vector = as.matrix(predict(ridge_no_interaction, type = "coef"))[,1],
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest ridge coefficients no interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_ridge_no_int_plot.jpeg",
+                            collapse = ""))
 
-
-temp_glmnet_object = predict(ridge_no_interaction, type = "coef") %>% as.matrix()
-temp_coef = temp_glmnet_object[,1]
-
-temp_main = "(abs) greatest ridge coefficients no interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -1) | (temp_coef > 0.8)) ] %>% sort()
-
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_ridge_no_int_plot.jpeg",
-                                 collapse = ""))
 rm(ridge_no_interaction)
 gc()
 
@@ -312,18 +304,13 @@ ridge_yes_interaction = glmnet(x = X_mm_yes_interaction,
                               lambda = ridge_yes_int_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]])
 
 
-temp_glmnet_object = predict(ridge_yes_interaction, type = "coef") %>% as.matrix()
-temp_coef = temp_glmnet_object[,1]
-
-temp_main = "(abs) greatest ridge coefficients yes interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -0.8) | (temp_coef > 0.5)) ] %>% sort()
-
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_ridge_yes_int_plot.jpeg",
-                                 collapse = ""))
+PlotCoefs(named_coef_vector = as.matrix(predict(ridge_yes_interaction, type = "coef"))[,1],
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest ridge coefficients yes interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_ridge_yes_int_plot.jpeg",
+                            collapse = ""))
 
 rm(ridge_yes_interaction)
 gc()
@@ -384,18 +371,14 @@ lasso_no_interaction = glmnet(x = X_mm_no_interaction,
                               lambda = lasso_no_int_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]])
 
 
-temp_glmnet_object = predict(lasso_no_interaction, type = "coef") %>% as.matrix()
-temp_coef = temp_glmnet_object[,1]
+PlotCoefs(named_coef_vector = as.matrix(predict(lasso_no_interaction, type = "coef"))[,1],
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest lasso coefficients no interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_lasso_no_int_plot.jpeg",
+                            collapse = ""))
 
-temp_main = "(abs) greatest lasso coefficients no interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -2) | (temp_coef > 0.8)) ] %>% sort()
-
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_lasso_no_int_plot.jpeg",
-                                 collapse = ""))
 
 
 rm(lasso_no_interaction)
@@ -463,18 +446,13 @@ lasso_yes_interaction = glmnet(x = X_mm_yes_interaction,
                                lambda = lasso_yes_int_best_summary[[METRIC_CHOSEN_NAME]][["best_param_value"]])
 
 
-temp_glmnet_object = predict(lasso_yes_interaction, type = "coef") %>% as.matrix()
-temp_coef = temp_glmnet_object[,1]
-
-temp_main = "(abs) greatest lasso coefficients yes interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -0.8) | (temp_coef > 0.5)) ] %>% sort()
-
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_lasso_yes_int_plot.jpeg",
-                                 collapse = ""))
+PlotCoefs(named_coef_vector = as.matrix(predict(lasso_yes_interaction, type = "coef"))[,1],
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest lasso coefficients yes interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_lasso_yes_int_plot.jpeg",
+                            collapse = ""))
 
 
 rm(lasso_yes_interaction)

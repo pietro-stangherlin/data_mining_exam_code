@@ -9,16 +9,6 @@ library(dplyr)
 # Save output on file ---------------
 # //////////////////////////////////
 
-# models.Rdata -------------
-# relative path figures folder
-MODELS_FOLDER_RELATIVE_PATH = "models/"
-
-# this folder is used to store the best selected models on disk as .Rdata files
-# so the main memory can be freed while fitting other models
-# and they can be retrieved in the last analysis step
-
-# Short function to save the .RData object
-
 # text.txt -------------
 
 # initialize the output txt file to regularly write on in case 
@@ -30,6 +20,16 @@ MODELS_FOLDER_RELATIVE_PATH = "models/"
 # # open sink 
 # sink(TEXT_OUTPUT_FILE_NAME, append = TRUE, split = TRUE)
 
+
+# models.Rdata -------------
+# relative path figures folder
+MODELS_FOLDER_RELATIVE_PATH = "models/"
+
+# this folder is used to store the best selected models on disk as .Rdata files
+# so the main memory can be freed while fitting other models
+# and they can be retrieved in the last analysis step
+
+# Short function to save the .RData object
 
 # figures folder ----------
 # relative path figures folder
@@ -44,7 +44,23 @@ FIGURES_FOLDER_RELATIVE_PATH = "figures/"
 # per avere un'idea del file da terminale: 
 # head nome_file.formato
 
-dati = read.csv("test_dataset/df_multi.csv", sep = ",", stringsAsFactors = F)
+dati = read.csv("test_dataset/df_quant.csv", sep = ",", stringsAsFactors = F)
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Rimozione variabili --------------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# Rimozione di variabili esplicative
+dati$X = NULL
+
+# Rimozione Leaker 
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Rimozione variabili con unica modalità -------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+original_col_number = NCOL(dati)
+original_col_number
 
 # NOTA: converto in fattori solo alla fine del preprocessing
 # in modo da non dover riconvertire tutto ogni volta 
@@ -66,101 +82,9 @@ names(dati)[which(names(dati) == "y")] = "y"
 # controllo 
 str(dati)
 
-
-# §§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
-# Generico -------------------------------------------------------
-# §§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
-
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Rimozioni variabili --------------------------
+# Rimozione Osservazioni per modalità ----------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-# Rimozione di variabili esplicative
-# dati$X = NULL
-
-# Rimozione Leaker 
-
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Valori mancanti 1 --------------------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# per ogni variabile controlla i dati mancanti per colonna
-# definisco la funzione per contare il numero di unità
-# uguali a un certo valore in un vettore
-
-
-
-# Funzioni utili
-CountEqualTo = function(vector_object, value){
-  length(which(vector_object == value))
-}
-
-
-# controlla se value è presente nel vettore
-IsValueInVector = function(vector_object, value){
-  # definita prima
-  if(CountEqualTo(vector_object, value) == 0){
-    return(FALSE)
-  }
-  return(TRUE)
-}
-
-
-
-# Mancanti NA (classici)
-missing_freq_NA = apply(dati, 2, function(col) sum(is.na(col)))
-missing_freq_NA
-
-# Mancanti "" (caratteri vuoti: "")
-
-# Eventualmente cambia il parametro "" con altri in base al propblema
-missing_freq_empty = apply(dati, 2, function(col) CountEqualTo(col, ""))
-missing_freq_empty
-
-# Totale mancanti: NA + empty
-missing_freq_NA + missing_freq_empty
-
-
-# righe dati mancanti NA
-row_missing_index_NA = which(is.na(dati))
-
-# righe dati mancanti empty
-
-row_missing_index_empty = which((apply(dati, 1, function(row) (IsValueInVector(row, "")))) == TRUE)
-
-head(row_missing_index_empty)
-
-# eventuale gestione caso per caso
-
-# Possibilità
-
-# 1) Rimozione osservazioni se sono poche rispetto alla numerosità totale
-# e n è molto grande
-# dati = dati[-row_missing_index_NA,]
-# dati = dati[-row_missing_index_empty,]
-
-
-# 2) Se qualitativa: creazione di una nuova modalità
-# es dati$v2 =  ifelse(da$v2, is.na, "missing", da$v2)
-
-
-# 3) Se quantitativa:
-# 3.1) rimozione
-# 3.2) suddivisione in classi con aggiunta della modalità mancante
-# 3.3) imputazione e imputazione con es. media o mediana -> mai fatto
-#     un'altro modo per fare imputazione è trattare il predittore come risposta
-#     rispetto agli altri predittori
-
-# Per motivi di tempo nell'esame effettuo o 3.1) o 3.2)
-
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Rimozione Osservazioni -----------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-# seleziono un sotto insieme dei dati
-# controllo valori mancanti
-# se in frequenza sono relativamente pochi
 
 # selezione di un sottoinsieme di dati per il problema in questione
 
@@ -171,13 +95,59 @@ head(row_missing_index_empty)
 str(dati)
 
 
+
+# §§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
+# Generico -------------------------------------------------------
+# §§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
+
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Merge dataframes based on key ----------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+
+# change this with the data frame to be merged
+secondary_df = read.csv("test_dataset/df_merge.csv", sep = ",", stringsAsFactors = F)
+
+
+# rimuovo variabili con un solo valore
+col_indexes = 1:NCOL(secondary_df )
+only_one_indexes = apply(secondary_df , 2, function(col) length(unique(col)) == 1)
+
+if(length(col_indexes[only_one_indexes]) > 0){
+  secondary_df = secondary_df[,-col_indexes[only_one_indexes]]
+}
+
+
+# rimuovo id
+secondary_df$X = NULL
+
+if(ncol(dati) == original_col_number){
+  # assuming x is the larger and most important data.frame
+  dati = merge(dati, secondary_df,
+          by.x = "x_id",
+          by.y = "x_id",
+          all.x = TRUE,
+          all.y = FALSE) # values in y not contained in x are excluded
+}
+str(dati)
+
+# rinomimo la risposta in y: cambia il primo "y" in base al problema
+names(dati)[which(names(dati) == "X.y")] = "y"
+
+# rimuovo chiave di merge (dipende dal problema)
+dati$x_id = NULL
+
+
 # §§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
 # Specifico -----------------------------------------------------
 # §§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Testo ----------------------------------------
+# Elaborazione Testo ---------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 # generale
@@ -274,6 +244,31 @@ rm(index_na_empty)
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Valori mancanti --------------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# per ogni variabile controlla i dati mancanti per colonna
+# definisco la funzione per contare il numero di unità
+# uguali a un certo valore in un vettore
+
+
+
+# Funzioni utili
+CountEqualTo = function(vector_object, value){
+  length(which(vector_object == value))
+}
+
+
+# controlla se value è presente nel vettore
+IsValueInVector = function(vector_object, value){
+  # definita prima
+  if(CountEqualTo(vector_object, value) == 0){
+    return(FALSE)
+  }
+  return(TRUE)
+}
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Valori mancanti EMPTY ----------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Mancanti "" (caratteri vuoti: "") (più facili da gestire)
@@ -288,42 +283,23 @@ str(dati)
 # aggiungo la modalità "EMPTY" al posto di ""
 
 # ottieni i nomi per cui ci sono dei ""
-names_missing = names(missing_freq_empty[which(missing_freq_empty > 0)])
+col_names_empty = names(missing_freq_empty[which(missing_freq_empty > 0)])
 
 # sostituisco i "" con il character "EMPTY" (attenzione al problema specifico)
 # (potrebbe essere necessario cambiare nome alla modalità)
-dati[,names_missing] = apply(dati[,names_missing], 2,
-                             function(col) ifelse(col == '', "EMPTY", col))
 
-head(dati[,names_missing])
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Valori mancanti NA ---------------------------
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Mancanti NA (classici) (più difficili da gestire)
-
-# WARNING
+if(length(col_names_empty) != 0){
+  dati[,col_names_empty] = apply(dati[,col_names_empty], 2,
+                                 function(col) ifelse(col == '',
+                                                      "EMPTY",
+                                                      col))
+  
+}
 
 
-# missing_freq_NA = apply(dati, 2, function(col) sum(is.na(col)))
-# missing_freq_NA
-# 
-# 
-# str(dati)
-# # se ci sono dei dati character che presentano dei NA: di fatto posso considerarli
-# # come "" e ripetere la procedura "EMPTY"
-# 
-# # per questo specifico problema questa casistica si presenta con
-# # le variabili "anno" e "mese"
-# # copia - incolla:
-# 
-# case_specific_missing = which(missing_freq_NA > 0)
-# 
-# # case_specific_missing = c("anno", "mese")
-# 
-# dati[,case_specific_missing] = apply(dati[,case_specific_missing], 2,
-#                              function(col) ifelse(is.na(col), "EMPTY", col))
+head(dati[,col_names_empty])
 
+str(dati)
 
 # Controllo
 # righe dati mancanti empty
@@ -332,10 +308,54 @@ row_missing_index_empty = which((apply(dati, 1, function(row) (IsValueInVector(r
 length(row_missing_index_empty)
 
 
-# NA
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Valori mancanti NA Character -----------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Mancanti NA (classici) (più difficili da gestire)
+
+# WARNING
+
+
 missing_freq_NA = apply(dati, 2, function(col) sum(is.na(col)))
 missing_freq_NA
+
+
 str(dati)
+# se ci sono dei dati character che presentano dei NA: di fatto posso considerarli
+# come "" e ripetere la procedura "EMPTY"
+
+all_col_types = apply(dati, 2, typeof)
+
+
+# altrimenti specifica gli indici delle variabili desiderate
+col_index_missing = which((missing_freq_NA > 0))
+
+# for cycle because, apparently, apply does not work
+col_index_missing_char = c()
+
+for(i in col_index_missing){
+  if(is.character(dati[,i])){
+  col_index_missing_char = c(col_index_missing_char, i)
+  }
+}
+
+# for cycle because, apparently, apply does not work
+col_index_missing_char
+
+# index for char variables: this does not work as expected
+# col_index_missing_char = col_index_missing[apply(dati[,col_index_missing],
+#                                                  2,
+#                                                   function(col) is.character(col))]
+
+if(length(col_index_missing_char) != 0){
+  dati[,col_index_missing_char] = apply(dati[,col_index_missing_char],
+                                       2,
+                                       function(col) ifelse(is.na(col), "EMPTY", col))
+}
+
+# check: only numeric variables with NA should be left
+missing_freq_NA = apply(dati, 2, function(col) sum(is.na(col)))
+missing_freq_NA
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -363,6 +383,11 @@ if((length(row_missing_index_NA) / NROW(dati)) < 0.05){
 # Valori mancanti NA Quantitative --------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Rimozione osservazioni per basse frequenze --------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
 # Visto il tempo limitato adotto una delle seguenti opzioni:
 # 1) eliminazione mancanti se sono pochi (in base al problema)
 # 2) converto in classi i valori quantitativi e aggiungo la modalità EMPTY
@@ -372,13 +397,20 @@ if((length(row_missing_index_NA) / NROW(dati)) < 0.05){
 # in base alla frequenza relativa di NA (può cambiare da problema a problema):
 # sotto una certa soglia adotto 1), sopra adotto 2)
 
+# NA
+missing_freq_NA = apply(dati, 2, function(col) sum(is.na(col)))
+missing_freq_NA
+str(dati)
+
+
 relative_missing_freqs = missing_freq_NA / NROW(dati)
 
 # seleziono le variabili con frequenza relativa di valori NA inferiore 
 # a una certa soglia prefissata
 temp_threshold = 0.05
 
-var_names_to_remove = colnames(dati[,which(relative_missing_freqs > 0 & relative_missing_freqs < temp_threshold)])
+var_names_to_remove = colnames(dati[,which(relative_missing_freqs > 0 &
+                                             relative_missing_freqs < temp_threshold)])
 var_names_to_remove
 
 if(length(var_names_to_remove != 0)){
@@ -387,6 +419,9 @@ if(length(var_names_to_remove != 0)){
 str(dati)
 
 
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Conversione in classi --------------
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # 2)
 # funzione per una di queste variabili
 # @param var_vector: vettore di variabile quantitativa con eventuali NA
@@ -711,25 +746,6 @@ for(i in var_char_index){
 str(dati)
 
 
-# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Aggiorno indici qualitative e nomi qualitative e quantitative
-# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-var_qual_index =  as.numeric(c(var_char_index, var_factor_index))
-
-var_qual_names = var_names[var_qual_index]
-
-var_num_names = var_names[var_num_index]
-
-# check 
-var_qual_index
-var_num_index
-
-
-var_qual_names
-var_num_names
-
-
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Analisi istrogramma quantitative -------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -742,8 +758,8 @@ var_num_names
 # @input var_index_subset (vector of int): indexes of quantitative variables subset
 # output: plots of each quantitative variable histogram
 DrawQuantHist = function(my_df,
-                        var_index_subset = NULL,
-                        my_breaks = 50){
+                         var_index_subset = NULL,
+                         my_breaks = 50){
   
   # all variables
   if(is.null(var_index_subset)){
@@ -788,7 +804,7 @@ DrawQuantHist = function(my_df,
          breaks = my_breaks,
          main = paste("log", var_names_temp[var_index_subset[var_index_counter]]),
          xlab = "log values")
-    }
+  }
   
   par(mfrow = c(1,1))
   
@@ -797,6 +813,34 @@ DrawQuantHist = function(my_df,
 
 # Analisi istogrammi
 # DrawQuantHist(dati, var_num_index)
+
+
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Aggiorno indici qualitative e nomi qualitative e quantitative
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# update variable names
+var_names = colnames(dati)
+
+y_index = which(var_names == "y")
+
+# get indexes
+
+var_qual_index =  as.numeric(c(var_char_index, var_factor_index))
+
+var_qual_names = var_names[var_qual_index]
+
+var_num_names = var_names[var_num_index]
+
+# check 
+var_qual_index
+var_num_index
+
+
+var_qual_names
+var_num_names
+
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -947,4 +991,5 @@ TEXT_OUTPUT_FILE_NAME = "text_output_models.txt"
 
 # open sink 
 sink(TEXT_OUTPUT_FILE_NAME, append = TRUE, split = TRUE)
+
 

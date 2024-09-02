@@ -59,6 +59,8 @@ LIST_SD_ACCESS_NAME = "se"
 # WARNING: the order should be same as in df_metrics
 MY_USED_METRICS = c("USED.Metrics", "tabella.sommario")
 
+MY_INTEREST_VAR_NAMES = NULL
+
 # /////////////////////////////////////////////////////////////////
 #------------------------ Train & Test ------------------------
 # /////////////////////////////////////////////////////////////////
@@ -209,6 +211,17 @@ file_name_lm_step_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
 
 save(lm_step_no_interaction, file = file_name_lm_step_no_interaction)
 
+# Coef Plot -----
+
+PlotCoefs(named_coef_vector = coef(lm_step_no_interaction),
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest linear model coefficients no interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_lm_no_int_plot.jpeg",
+                            collapse = ""))
+
+
 rm(lm_step_no_interaction)
 gc()
 
@@ -238,6 +251,17 @@ file_name_lm_step_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                           ".Rdata", collapse = "", sep = "")
 
 save(lm_step_yes_interaction, file = file_name_lm_step_yes_interaction)
+
+# Coef Plot ----
+
+PlotCoefs(named_coef_vector = coef(lm_step_yes_interaction),
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest linear model coefficients yes interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_lm_yes_int_plot.jpeg",
+                            collapse = ""))
+
 
 rm(lm_step_yes_interaction)
 rm(lm0)
@@ -280,6 +304,17 @@ file_name_glm_step_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
 
 save(glm_step_no_interaction, file = file_name_glm_step_no_interaction)
 
+# Coef Plot -----
+
+PlotCoefs(named_coef_vector = coef(glm_step_no_interaction),
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest glm coefficients no interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_glm_no_int_plot.jpeg",
+                            collapse = ""))
+
+
 rm(glm_step_no_interaction)
 gc()
 
@@ -309,6 +344,16 @@ file_name_glm_step_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                           ".Rdata", collapse = "", sep = "")
 
 save(glm_step_yes_interaction, file = file_name_glm_step_yes_interaction)
+
+# Coef Plot -----
+
+PlotCoefs(named_coef_vector = coef(glm_step_yes_interaction),
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest glm coefficients yes interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_glm_yes_int_plot.jpeg",
+                            collapse = ""))
 
 rm(glm_step_yes_interaction)
 rm(glm0)
@@ -454,6 +499,17 @@ file_name_ridge_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
 
 save(ridge_no_interaction, file = file_name_ridge_no_interaction)
 
+# Coef Plot ----
+
+PlotCoefs(named_coef_vector = as.matrix(predict(ridge_no_interaction, type = "coef"))[,1],
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest ridge coefficients no interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_ridge_no_int_plot.jpeg",
+                            collapse = ""))
+
+
 rm(ridge_no_interaction)
 gc()
 
@@ -567,6 +623,21 @@ file_name_ridge_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                         ".Rdata", collapse = "", sep = "")
 
 save(ridge_yes_interaction, file = file_name_ridge_yes_interaction)
+
+# Coef Plot ----
+
+PlotCoefs(named_coef_vector = as.matrix(predict(ridge_yes_interaction, type = "coef"))[,1],
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest ridge coefficients yes interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_ridge_yes_int_plot.jpeg",
+                            collapse = ""))
+
+
+rm(ridge_yes_interaction)
+gc()
+
 
 rm(ridge_yes_interaction)
 gc()
@@ -684,6 +755,16 @@ file_name_lasso_no_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
 
 save(lasso_no_interaction, file = file_name_lasso_no_interaction)
 
+# Coef Plot ----
+
+PlotCoefs(named_coef_vector = as.matrix(predict(lasso_no_interaction, type = "coef"))[,1],
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest lasso coefficients no interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_lasso_no_int_plot.jpeg",
+                            collapse = ""))
+
 rm(lasso_no_interaction)
 gc()
 
@@ -797,6 +878,17 @@ file_name_lasso_yes_interaction = paste(MODELS_FOLDER_RELATIVE_PATH,
                                         ".Rdata", collapse = "", sep = "")
 
 save(lasso_yes_interaction, file = file_name_lasso_yes_interaction)
+
+# Coef Plot ----
+PlotCoefs(named_coef_vector = as.matrix(predict(lasso_yes_interaction, type = "coef"))[,1],
+          interest_var_names = MY_INTEREST_VAR_NAMES,
+          show_first_n = 30,
+          plot_title = "(abs) greatest lasso coefficients yes interaction",
+          path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                            "coef_lasso_yes_int_plot.jpeg",
+                            collapse = ""))
+
+
 
 rm(lasso_yes_interaction)
 gc()
@@ -969,7 +1061,7 @@ save(df_metrics, pred_list, file = "df_metrics.Rdata")
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Modello Additivo ---------------------------
+# GAM ---------------------------
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 library(gam)
 
@@ -1002,6 +1094,14 @@ df_metrics = Add_Test_Metric(df_metrics,
 
 df_metrics
 rm(temp_pred)
+
+summary(gam_step)
+
+PlotAndSave(my_plotting_function = function() plot(gam_step, terms = c("s(x8, df = 4)"), se = T),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "gam_1_plot.jpeg",
+                                 collapse = ""))
+
 
 file_name_gam_step = paste(MODELS_FOLDER_RELATIVE_PATH,
                            "gam_step",
@@ -1100,6 +1200,27 @@ mars_names = colnames(sss[,-y_index])
 file_name_mars_step = paste(MODELS_FOLDER_RELATIVE_PATH,
                             "mars_step",
                             ".Rdata", collapse = "", sep = "")
+
+print("mars step model")
+mars_step$model
+
+mars_names = colnames(sss[,-y_index])
+
+# get the index by variable name
+temp_index = which(mars_names == "x8")
+
+
+# plots
+PlotAndSave(my_plotting_function = function() plot(mars_step, predictor1 = temp_index),
+            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
+                                 "mars_1_plot.jpeg",
+                                 collapse = ""))
+
+
+
+
+# plot(mars_step, predictor1 = 7, predictor2 = 30)
+
 
 save(mars_step,
      mars_names,
@@ -1811,17 +1932,6 @@ load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "lm_step_no_interaction",
            ".Rdata", collapse = "", sep = ""))
 
-temp_coef = coef(lm_step_no_interaction)
-temp_main = "(abs) greatest linear model coefficients no interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -1) | (temp_coef > 1)) ] %>% sort()
-
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_lm_no_int_plot.jpeg",
-                                 collapse = ""))
-
 
 
 
@@ -1829,15 +1939,6 @@ load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "lm_step_yes_interaction",
            ".Rdata", collapse = "", sep = ""))
 
-temp_coef = coef(lm_step_yes_interaction)
-temp_main = "(abs) greatest linear model coefficients yes interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -1) | (temp_coef > 1)) ] %>% sort()
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_lm_yes_int_plot.jpeg",
-                                 collapse = ""))
 
 
 
@@ -1847,72 +1948,22 @@ load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "ridge_no_interaction",
            ".Rdata", collapse = "", sep = ""))
 
-temp_glmnet_object = predict(ridge_no_interaction, type = "coef") %>% as.matrix()
-temp_coef = temp_glmnet_object[,1]
-
-temp_main = "(abs) greatest ridge coefficients no interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -1) | (temp_coef > 0.8)) ] %>% sort()
-
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_ridge_no_int_plot.jpeg",
-                                 collapse = ""))
-
 
 
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "ridge_yes_interaction",
            ".Rdata", collapse = "", sep = ""))
 
-temp_glmnet_object = predict(ridge_yes_interaction, type = "coef") %>% as.matrix()
-temp_coef = temp_glmnet_object[,1]
-
-temp_main = "(abs) greatest ridge coefficients yes interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -0.8) | (temp_coef > 0.5)) ] %>% sort()
-
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_ridge_yes_int_plot.jpeg",
-                                 collapse = ""))
 
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "lasso_no_interaction",
            ".Rdata", collapse = "", sep = ""))
 
-temp_glmnet_object = predict(lasso_no_interaction, type = "coef") %>% as.matrix()
-temp_coef = temp_glmnet_object[,1]
-
-temp_main = "(abs) greatest lasso coefficients no interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -2) | (temp_coef > 0.8)) ] %>% sort()
-
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_lasso_no_int_plot.jpeg",
-                                 collapse = ""))
 
 
 load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "lasso_yes_interaction",
            ".Rdata", collapse = "", sep = ""))
-
-temp_glmnet_object = predict(lasso_yes_interaction, type = "coef") %>% as.matrix()
-temp_coef = temp_glmnet_object[,1]
-
-temp_main = "(abs) greatest lasso coefficients yes interaction"
-summary(temp_coef)
-
-sorted_temp_coef = temp_coef[which((temp_coef < -0.8) | (temp_coef > 0.5)) ] %>% sort()
-
-PlotAndSave(my_plotting_function = function() sorted_temp_coef %>% dotchart(pch = 16, main = temp_main),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "coef_lasso_yes_int_plot.jpeg",
-                                 collapse = ""))
 
 
 
@@ -1939,12 +1990,6 @@ load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "gam_step",
            ".Rdata", collapse = "", sep = ""))
 
-summary(gam_step)
-
-PlotAndSave(my_plotting_function = function() plot(gam_step, terms = c("s(x8, df = 4)"), se = T),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "gam_1_plot.jpeg",
-                                 collapse = ""))
 
 
 
@@ -1953,25 +1998,6 @@ load(paste(MODELS_FOLDER_RELATIVE_PATH,
            "mars_step",
            ".Rdata", collapse = "", sep = ""))
 
-print("mars step model")
-mars_step$model
-
-mars_names = colnames(sss[,-y_index])
-
-# get the index by variable name
-temp_index = which(mars_names == "x8")
-
-
-# plots
-PlotAndSave(my_plotting_function = function() plot(mars_step, predictor1 = temp_index),
-            my_path_plot = paste(FIGURES_FOLDER_RELATIVE_PATH,
-                                 "mars_1_plot.jpeg",
-                                 collapse = ""))
-
-
-
-
-# plot(mars_step, predictor1 = 7, predictor2 = 30)
 
 
 
